@@ -1,13 +1,44 @@
-"""Lambda `plan` de daily-planning contra moto: ordenes en fp-outbox, pedidos en fp-registry e idempotencia."""
+"""Lambda `plan` de daily-planning contra moto: ordenes en fp-outbox, pedidos en fp-registry e idempotencia.
+
+Los fixtures viven aqui y no en tests/conftest.py: CI corre todos los servicios en una sola sesion de pytest y dos
+`tests/conftest.py` sin paquete chocan como modulo `conftest` (el de incidents taparia este, o al reves).
+"""
 import os
-import sys
 from decimal import Decimal
+from types import SimpleNamespace
 
-from planning_support import DAY, EX001_KIT, NOW_ISO, order_events, reorders, seed_kit_stock, seed_machine, \
-    seed_reading, seed_stock
+import boto3
+import pytest
+from moto import mock_aws
+from planning_support import DAY, EX001_KIT, NOW, NOW_ISO, make_table, order_events, reorders, seed_kit_stock, \
+    seed_machine, seed_reading, seed_stock
 
-from fplib import schema
+from fplib import clock, schema
 from planning import handler
+
+ENV = (("AWS_ACCESS_KEY_ID", "x"), ("AWS_SECRET_ACCESS_KEY", "x"), ("AWS_DEFAULT_REGION", "us-east-1"),
+       ("STATE_TABLE", "fp-state"), ("REGISTRY_TABLE", "fp-registry"), ("OUTBOX_TABLE", "fp-outbox"),
+       ("INBOX_TABLE", "fp-inbox"))
+
+
+@pytest.fixture(autouse=True)
+def _env(monkeypatch):
+    for k, v in ENV:
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(clock, "now", lambda: NOW)
+
+
+@pytest.fixture
+def ddb():
+    """fp-state, fp-registry, fp-outbox y fp-inbox en moto."""
+    with mock_aws():
+        res = boto3.resource("dynamodb", region_name="us-east-1")
+        yield SimpleNamespace(
+            client=boto3.client("dynamodb", region_name="us-east-1"),
+            state=make_table(res, "fp-state", ("GSI1",)),
+            registry=make_table(res, "fp-registry", ("GSI1", "GSI2")),
+            outbox=make_table(res, "fp-outbox", hash_key="event_id"),
+            inbox=make_table(res, "fp-inbox", hash_key="message_id"))
 
 
 def run(ddb, event=None):
@@ -153,9 +184,9 @@ def test_step_functions_input_shape_and_horizon(ddb):
     assert env["trace_id"] == "manual-2" and out["orders"] == ["ORD-EX-001-20261121"]
 
 
-def test_order_events_materialize_in_registry_through_the_registry_lambda(ddb):
+def test_order_events_materialize_in_registry_through_the_registry_lambda(ddb, monkeypatch):
     """Contrato con aws/registry: el evento que emite planning termina en ORDER#<maquina>/<due_at> (GSI1 ORDERS)."""
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "registry"))
+    monkeypatch.syspath_prepend(os.path.join(os.path.dirname(__file__), "..", "..", "registry"))
     from reg.apply import apply
 
     seed_machine(ddb.state, "EX-001", "EX", "NORTE", 1508)

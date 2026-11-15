@@ -1,4 +1,5 @@
 """Cloud Run `insights` (FastAPI). T08: /health. T16: POST /explain y GET /peers/{machine_id}.
+T28: /explain agrega `report`, el informe tecnico con la ficha del fabricante.
 
 Clientes externos (Gemini, BigQuery) detras de wrappers inyectables en app.state; en los tests se
 reemplazan por falsos (sin red ni credenciales).
@@ -58,7 +59,7 @@ def explain(req: ExplainRequest):
     data = req.model_dump()
     try:
         raw = app.state.gemini.explain(data)
-        result = validate_explain(raw)
+        result = validate_explain(raw, data)
         if result is None:
             raise GeminiError("invalid_json")
     except GeminiError as exc:

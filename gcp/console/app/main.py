@@ -448,7 +448,7 @@ def admin_delete_type(request: Request, code: str):
 DOC_RE = re.compile(r"^(PO|TRF)-[A-Z0-9-]{4,80}$")
 ZONE_RE = re.compile(r"^[A-Z0-9-]{2,20}$")
 PART_RE = re.compile(r"^PRT-[0-9]{2}$")
-SUPPLY_STATUS = (None, "suggested", "approved", "ordered", "in_transit", "received", "cancelled")
+SUPPLY_STATUS = (None, "suggested", "approved", "rejected", "ordered", "in_transit", "received", "cancelled")
 
 
 def _supply_user(request: Request) -> dict:

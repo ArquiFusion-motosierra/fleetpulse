@@ -89,6 +89,26 @@ class Story:
                 raise Fail(f"{self.trf['id']} sigue en {d['status']} (esperaba {want})")
             self.sleep(POLL_EVERY_S)
 
+    def _incident_reserved(self, incident_id) -> int:
+        if not incident_id:
+            return 0
+        status, inc = self.call("GET", f"/api/incidents/{incident_id}", self.t["admin"])
+        events = inc.get("timeline") or [] if status == 200 else []
+        return sum(1 for e in events if (e.get("type") or e.get("event_type")) == "part.reserved")
+
+    def _wait_reserved(self, d, before: int) -> bool:
+        """AllocateBackorders (T39) agrega `part.reserved` a la linea de tiempo del incidente; el mock, a la del documento."""
+        deadline = time.monotonic() + POLL_S
+        while True:
+            if "part.reserved" in [e.get("type") for e in d.get("timeline", [])]:
+                return True
+            if self._incident_reserved(d.get("incident_id")) > before:
+                return True
+            if time.monotonic() > deadline:
+                return False
+            self.sleep(POLL_EVERY_S)
+            d = self.get("admin", f"/api/supply/transfers/{d['id']}")
+
     # ---- pasos ----
     def s1_stock(self):
         rows = self.get("head", f"/api/supply/stock?part={PART}")["stock"]
@@ -151,12 +171,13 @@ class Story:
     def s6_receive(self):
         if self.read_only:
             return ("--read-only: no recibe", "WARN")
+        before = self._incident_reserved(self.trf.get("incident_id"))
         status, body = self.post("admin", f"/api/supply/transfers/{self.trf['id']}/receive")
         if status != 200:
             raise Fail(f"recibir: HTTP {status} {body.get('error', '')}")
         d = self._wait_status("admin", "received")
+        reserved = self._wait_reserved(d, before)
         dest = next(r for r in self.get("admin", f"/api/supply/stock?part={PART}")["stock"] if r["zone_id"] == d["zone_id"])
-        reserved = "part.reserved" in [e.get("type") for e in d.get("timeline", [])]
         if dest["reserved"] < d["qty"] or not reserved:
             return (f"received, pero sin reserva para {d.get('incident_id')} (reserved={dest['reserved']})", "WARN")
         return f"received; {d['zone_id']} reservada para {d.get('incident_id')}"

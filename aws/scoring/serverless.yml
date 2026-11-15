@@ -1,0 +1,49 @@
+# Stack fp-scoring: lambda `score` sobre el stream de fp-state; inicia incident-flow (T09).
+service: fp-scoring
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+
+package:
+  patterns:
+    - "!**"
+    - "scoring/**"
+    - "!**/__pycache__/**"
+
+functions:
+  score:
+    handler: scoring.handler.handler
+    memorySize: 512
+    timeout: 60
+    layers:
+      - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+    environment:
+      STATE_TABLE: fp-state
+      STATE_MACHINE_ARN: arn:aws:states:${aws:region}:${aws:accountId}:stateMachine:incident-flow
+    events:
+      - stream:
+          type: dynamodb
+          arn: ${cf:fp-core-${sls:stage}.StateTableStreamArn, 'arn:aws:dynamodb:us-east-1:000000000000:table/fp-state/stream/2026-01-01T00:00:00.000'}
+          batchSize: 1000
+          batchWindow: 10
+          startingPosition: LATEST
+          parallelizationFactor: 2
+          bisectBatchOnFunctionError: true
+          maximumRetryAttempts: 3
+          destinations:
+            onFailure: arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts
+          filterPatterns:
+            - eventName: [INSERT]
+              dynamodb:
+                NewImage:
+                  SK:
+                    S:
+                      - prefix: "R#"

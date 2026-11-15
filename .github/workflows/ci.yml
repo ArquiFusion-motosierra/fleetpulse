@@ -71,13 +71,18 @@ jobs:
 
   serverless-package:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('aws/serverless-compose.yml') != '' }}
     steps:
       - uses: actions/checkout@v4
+      - name: Hay serverless-compose.yml
+        id: has
+        run: |
+          if [ -f aws/serverless-compose.yml ]; then echo "yes=true" >> "$GITHUB_OUTPUT"; else echo "sin serverless aun"; echo "yes=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/setup-node@v4
+        if: steps.has.outputs.yes == 'true'
         with:
           node-version: 20
-      - working-directory: aws
+      - if: steps.has.outputs.yes == 'true'
+        working-directory: aws
         run: |
           if [ -f package.json ]; then npm ci; fi
           npx serverless@3 package --stage ci

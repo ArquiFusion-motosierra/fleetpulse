@@ -15,21 +15,29 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
-      # Credenciales de sesion del Learner Lab. Caducan: renovar con scripts/lab-creds.sh --gh
+      # Credenciales de sesion del Learner Lab. Caducan: Benjamin las renueva con scripts/lab-creds.sh --gh
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - name: Hay credenciales y hay que desplegar
+        id: go
+        run: |
+          ok=true
+          if [ ! -f aws/serverless-compose.yml ]; then echo "::notice::aws/serverless-compose.yml no existe todavia; nada que desplegar"; ok=false; fi
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SESSION_TOKEN" ]; then echo "::warning::Sin credenciales del Learner Lab en los secrets del repo. Correr scripts/lab-creds.sh --gh"; ok=false; fi
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.go.outputs.ok == 'true'
         with:
           node-version: 20
       - name: Verificar credenciales
+        if: steps.go.outputs.ok == 'true'
         run: aws sts get-caller-identity
-      - name: Instalar Serverless Framework
-        run: npm install -g serverless@3
       - name: Deploy
+        if: steps.go.outputs.ok == 'true'
         working-directory: aws
         run: |
           if [ -f package.json ]; then npm ci; fi
-          sls deploy --stage dev --region "$AWS_REGION" --verbose
+          npx serverless@3 deploy --stage dev --region "$AWS_REGION" --verbose

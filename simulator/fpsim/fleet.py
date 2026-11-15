@@ -47,6 +47,10 @@ NOISE_SIGMA = dict(coolant=1.2, hyd_temp=1.0, pressure=6.0, vibration=0.35, rpm=
 
 DEFAULT_TENANT = "mineria"
 
+# Modelos que recorren las zonas de su parque mientras operan (los demas quedan en su zona).
+ROAMING = {"VQ": ("NORTE", "CENTRO", "SUR"), "TA": ("FUNDO-A", "FUNDO-B"), "CS": ("FUNDO-A", "FUNDO-B"),
+           "MC": ("PLANTA-1", "PLANTA-2", "ALMACEN")}
+
 
 def unit_hash(*parts: object) -> float:
     """Numero en [0, 1) determinista a partir de las partes (estable entre procesos)."""
@@ -132,6 +136,27 @@ def fleet() -> tuple[Machine, ...]:
             idle_ratio=idle, hours_per_day=hours_per_day, bias=bias,
         ))
     return tuple(out)
+
+
+def shift_factor(m: Machine, h: float) -> float:
+    """Fraccion de la disponibilidad que opera a la hora `h` de Lima, por parque y modelo.
+    Mineria: turno pleno 6-18 y medio turno 18-22. Agro: tractores 6-18 y media cuadrilla 18-22 (riego y fumigacion
+    con luces); la cosechadora solo de dia, 7-18, cuando seca el rocio. Industria: dos turnos 6-22 y una cuadrilla de
+    noche; el compresor sigue a la planta y el grupo electrogeno es respaldo (turno de dia 8-16 y 20 % en cortes)."""
+    if m.tenant_id == "agro":
+        if m.model == "CS":
+            return 1.0 if 7 <= h < 18 else 0.0
+        return 1.0 if 6 <= h < 18 else 0.5 if 18 <= h < 22 else 0.0
+    if m.tenant_id == "industria":
+        if m.model == "GE":
+            return 1.0 if 8.0 <= h < 16.0 else 0.2  # turno de dia de respaldo (minimo para la linea base); 20 % en cortes
+        return 1.0 if 6.0 <= h < 22.0 else (0.6 if m.model == "CP" else 0.25)
+    return 1.0 if 6 <= h < 18 else 0.5 if 18 <= h < 22 else 0.0
+
+
+def nominal_on_h(m: Machine) -> float:
+    """Horas encendidas por dia con disponibilidad 1 (suma del turno hora a hora; mineria = 14)."""
+    return sum(shift_factor(m, h + 0.5) for h in range(24))
 
 
 def by_id() -> dict[str, Machine]:

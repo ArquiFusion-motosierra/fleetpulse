@@ -12,13 +12,12 @@ import random
 from datetime import datetime, timedelta, timezone
 
 from fpsim import oem
-from fpsim.fleet import AMBIENT_OFFSET, MODEL_PARAMS, NOISE_SIGMA, Machine, stations, unit_hash, zones
+from fpsim.fleet import (AMBIENT_OFFSET, MODEL_PARAMS, NOISE_SIGMA, ROAMING, Machine, nominal_on_h, shift_factor,
+                         stations, unit_hash, zones)
 from fpsim.scenarios import Effect
 
 ANCHOR = datetime(2026, 10, 1, tzinfo=timezone.utc)
 LIMA = timedelta(hours=-5)
-NOMINAL_ON_H = 14.0  # 12 h de turno pleno + 4 h a media carga
-ZONE_ORDER = ("NORTE", "CENTRO", "SUR")
 PIN_JITTER = 0.0004  # grados (~45 m de lado): muy por debajo de una celda geohash6 (~0,0055 x 0,011 grados)
 RESONANCE_GAIN = 1.6  # el RMS de vibracion sube cuando un armonico de las rpm cruza una frecuencia natural
 
@@ -39,7 +38,7 @@ def slot_of(t: datetime) -> int:
 
 def rates(m: Machine) -> tuple[float, float]:
     """Horas operando y en ralenti por hora de reloj (valor esperado)."""
-    on_h = m.hours_per_day if m.hours_per_day is not None else NOMINAL_ON_H * m.availability
+    on_h = m.hours_per_day if m.hours_per_day is not None else nominal_on_h(m) * m.availability
     return on_h * (1 - m.idle_ratio) / 24.0, on_h * m.idle_ratio / 24.0
 
 
@@ -50,7 +49,7 @@ def engine_status(m: Machine, t: datetime) -> str:
         start = 2.0 if m.hours_per_day >= 12 else 8.0
         on = start <= h < start + m.hours_per_day
     else:
-        shift = 1.0 if 6 <= h < 18 else 0.5 if 18 <= h < 22 else 0.0
+        shift = shift_factor(m, h)
         on = unit_hash(m.machine_id, slot, "on") < m.availability * shift
     if not on:
         return "off"
@@ -89,13 +88,15 @@ def position(m: Machine, t: datetime, status: str, pin: str | None = None) -> tu
         return round(lat, 6), round(lon, 6), pin
     zone = m.zone_id
     lat, lon = m.zone_lat, m.zone_lon
-    if m.model == "VQ" and status == "operating":
-        # Los volquetes se mueven entre las 3 zonas por bloque
-        zone = ZONE_ORDER[(slot + int(unit_hash(m.machine_id, "route") * 3)) % 3]
+    route = ROAMING.get(m.model)
+    if route and status == "operating":
+        # Volquetes, tractores, cosechadoras y montacargas recorren las zonas de su parque por bloque
+        zone = route[(slot + int(unit_hash(m.machine_id, "route") * len(route))) % len(route)]
         z = zones()[zone]
         lat, lon = z["lat"], z["lon"]
-    lat += (unit_hash(m.machine_id, "dlat") - 0.5) * 0.012 + (unit_hash(m.machine_id, slot, "jy") - 0.5) * 0.001
-    lon += (unit_hash(m.machine_id, "dlon") - 0.5) * 0.012 + (unit_hash(m.machine_id, slot, "jx") - 0.5) * 0.001
+    jitter = 0.001 if m.params["km_h"] > 0 else 0.0  # compresores y grupos electrogenos no se mueven
+    lat += (unit_hash(m.machine_id, "dlat") - 0.5) * 0.012 + (unit_hash(m.machine_id, slot, "jy") - 0.5) * jitter
+    lon += (unit_hash(m.machine_id, "dlon") - 0.5) * 0.012 + (unit_hash(m.machine_id, slot, "jx") - 0.5) * jitter
     return round(lat, 6), round(lon, 6), zone
 
 

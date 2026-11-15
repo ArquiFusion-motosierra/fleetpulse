@@ -1,4 +1,4 @@
-"""Escenarios inyectables (S1-S6) y fallas historicas del backfill.
+"""Escenarios inyectables (S1-S9) y fallas historicas del backfill.
 
 En vivo, los escenarios S1 y S2 se activan con el parametro SSM /fleetpulse/sim/scenarios:
     {"S1": {"since": "2026-11-15T14:30:00Z"}, "S2": false}
@@ -14,6 +14,10 @@ S2_MACHINES = ("EX-003", "VQ-011", "VQ-014", "TO-002")
 S2_LOT = "L-2311"
 S2_PIN_ZONE = "NORTE"  # mientras corre S2, las cuatro maquinas quedan junto a la estacion EST-NORTE (misma celda)
 S7_MACHINE = "VQ-022"  # volquete de la zona norte: la junta de culata lo lleva a resonancia del chasis
+# Un escenario por parque nuevo, para que el mapa de agro e industria tambien tenga severidad (T47):
+# S8 aceite hidraulico contaminado en el tractor TA-004; S9 bomba hidraulica gastada en el montacargas MC-002.
+PARK_SCENARIOS = {"S8": ("TA-004", "hydraulic_contamination"), "S9": ("MC-002", "hydraulic_pump")}
+PARK_RAMP_BATCHES = 25.0  # lotes hasta el punto de falla
 
 # SPN SAE J1939 y codigos propios del fabricante (>= 520192) para hidraulica
 SPN_COOLANT_TEMP = 110
@@ -99,6 +103,9 @@ def live_effect(machine_id: str, active: dict[str, datetime], now: datetime) -> 
         k = batches_since(active["S7"], now)
         # S7 junta de culata: llega al punto de falla en ~20 lotes; las rpm suben ~15 % y el 2x cruza los 62 Hz
         eff.merge(signature("head_gasket", min(k / 20.0, 1.0)))
+    for name, (mid, mode) in PARK_SCENARIOS.items():
+        if name in active and machine_id == mid:
+            eff.merge(signature(mode, min(batches_since(active[name], now) / PARK_RAMP_BATCHES, 1.0)))
     if "S5" in active and machine_id == "EX-009":
         k = batches_since(active["S5"], now)
         # S5 reincidencia: misma firma hidraulica que hace 10 dias, lenta

@@ -219,7 +219,8 @@ def test_drift_script_apply():
 
     st = drift.apply({}, "on", "S1", NOW)
     assert st == {"S1": {"since": "2026-11-15T19:30:00Z"}}
-    assert drift.apply(st, "off", "all", NOW) == {"S1": False, "S2": False, "S5": False, "S7": False}
+    assert drift.apply(st, "off", "all", NOW) == {"S1": False, "S2": False, "S5": False, "S7": False, "S8": False,
+                                                  "S9": False}
     with pytest.raises(SystemExit):
         drift.apply({}, "on", "S3", NOW)
 
@@ -350,3 +351,84 @@ def test_weather_context_covers_every_park():
     assert {"NORTE", "PACKING", "ALMACEN"} <= zones
     for c in ctx:
         jsonschema.validate(c, SCHEMA("fuel.refill.schema.json"))
+
+
+# ---------- T47: los tres parques en operacion ----------
+
+# sha256 de build_batch(t, active, tenant="mineria") ANTES del cambio de T47: la mineria no cambia ni un byte
+# (lineas base, smokes y escenarios S1-S7 siguen igual).
+MINING_GOLDEN = {
+    ("2026-11-15T03:07:00Z", False): "bcc0421cb972316cf79a48eecc9e55cfa4bd746e57c754114e0c4c45c728ae97",
+    ("2026-11-15T03:07:00Z", True): "aea005788a51451238803d4ccc04011108914d16bad424292f8ad4c9099fe0e2",
+    ("2026-11-15T14:30:00Z", False): "ff827c5478615353b03609f1b3047509dc7717e1f1b3ea88577a220ede2aedbf",
+    ("2026-11-15T14:30:00Z", True): "560fc4a0260d4027d7a24f7bcb9e0aadd5328339e6963dcde2ce7cd6de8d4094",
+    ("2026-11-15T23:45:00Z", False): "c3e1e4c2c6f29f5d8db84744bdb5ff0976711774978674ee0db5b87fb685f3bb",
+    ("2026-11-15T23:45:00Z", True): "824a0601e15fd77d2c2354f389de86104c0fe0f90dffbadbd8125f5902ee8396",
+}
+
+
+def _at(ts):
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def _slots(start, n, step_min=15):
+    return [start + timedelta(minutes=step_min * i) for i in range(n)]
+
+
+def test_mining_batches_are_unchanged_by_park_shifts():
+    import hashlib
+    since = datetime(2026, 11, 15, 14, 0, tzinfo=timezone.utc)
+    for (ts, with_scenarios), digest in MINING_GOLDEN.items():
+        active = {"S1": since, "S2": since} if with_scenarios else {}
+        batch = live.build_batch(_at(ts), active, tenant="mineria")
+        assert hashlib.sha256(json.dumps(batch, sort_keys=True).encode()).hexdigest() == digest, ts
+
+
+def test_agro_works_in_daylight_only():
+    agro = [m for m in fleet() if m.tenant_id == "agro"]
+    night = [physics.reading(m, t)["engine_status"] for m in agro for t in _slots(_at("2026-11-15T07:00:00Z"), 4)]
+    day = [physics.reading(m, t)["engine_status"] for m in agro for t in _slots(_at("2026-11-15T15:00:00Z"), 8)]
+    assert set(night) == {"off"}  # 02:00-03:00 en Lima
+    assert day.count("off") < len(day) / 2  # 10:00-12:00 en Lima: la mayoria trabaja
+
+
+def test_industria_keeps_a_night_crew_and_a_standby_generator():
+    ind = [m for m in fleet() if m.tenant_id == "industria"]
+    night = {m.model: [physics.reading(m, t)["engine_status"] for t in _slots(_at("2026-11-15T07:00:00Z"), 16)]
+             for m in ind}
+    assert any(s != "off" for s in night["MC"]) and any(s != "off" for s in night["CP"])  # 02:00-06:00 en Lima
+    day = [physics.reading(m, t)["engine_status"] for m in ind if m.model == "GE"
+           for t in _slots(_at("2026-11-15T15:00:00Z"), 96)]
+    assert 0 < sum(s != "off" for s in day) < len(day) * 0.4  # respaldo: arranca a ratos
+
+
+def test_mobile_park_machines_roam_inside_their_park():
+    from fpsim.fleet import zones
+    for mid, park in (("TA-001", "agro"), ("CS-002", "agro"), ("MC-001", "industria")):
+        m = by_id()[mid]
+        seen = {r["zone_id"] for r in (physics.reading(m, t) for t in _slots(_at("2026-11-15T11:00:00Z"), 40))
+                if r["engine_status"] == "operating"}
+        assert len(seen) >= 2 and seen <= set(zones(park)), (mid, seen)
+
+
+def test_stationary_machines_do_not_jitter():
+    for mid in ("CP-001", "GE-001"):
+        m = by_id()[mid]
+        pos = {(r["lat"], r["lon"], r["zone_id"]) for r in (physics.reading(m, t)
+                                                            for t in _slots(_at("2026-11-15T11:00:00Z"), 40))}
+        assert len(pos) == 1, (mid, pos)
+
+
+def test_s8_and_s9_degrade_only_their_machine():
+    t = _at("2026-11-15T15:00:00Z")
+    active = {"S8": t - timedelta(minutes=30), "S9": t - timedelta(minutes=30)}  # 30 lotes: punto de falla
+    agro = {r["machine_id"]: r for r in live.build_batch(t, active, tenant="agro")["readings"]}
+    base = {r["machine_id"]: r for r in live.build_batch(t, {}, tenant="agro")["readings"]}
+    assert agro["TA-001"] == base["TA-001"]
+    s8 = [r for r in live.build_batch(t, active, tenant="agro")["readings"] if r["machine_id"] == "TA-004"]
+    if any(r["engine_status"] != "off" for r in s8):
+        assert any(f["spn"] == 520194 for r in s8 for f in r["fault_codes"])  # SPN de temperatura hidraulica
+    ind = [r for r in live.build_batch(t, active, tenant="industria")["readings"] if r["machine_id"] == "MC-002"]
+    ref = [r for r in live.build_batch(t, {}, tenant="industria")["readings"] if r["machine_id"] == "MC-002"]
+    on = [(a, b) for a, b in zip(ind, ref) if a["engine_status"] == "operating"]
+    assert all(a["hydraulic_pressure_bar"] < b["hydraulic_pressure_bar"] for a, b in on)

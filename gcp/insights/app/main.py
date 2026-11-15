@@ -196,7 +196,7 @@ def anomalies_fuel(day: str | None = None, days: int = Query(7, ge=1, le=30)):
 @app.get("/forecast/parts")
 def forecast_parts():
     """Demanda de repuestos de los proximos 14 dias por repuesto y zona (m_parts_demand, ARIMA_PLUS)."""
-    rows = _bq("forecast_parts", analytics.FORECAST_SQL, {"horizon": analytics.HORIZON_DAYS})
+    rows = _bq("forecast_parts", analytics.FORECAST_SQL, {})
     return {"horizon_days": analytics.HORIZON_DAYS, "parts": analytics.parts_forecast(rows)}
 
 

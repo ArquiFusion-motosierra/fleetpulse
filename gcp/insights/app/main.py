@@ -1,4 +1,5 @@
 """Cloud Run `insights` (FastAPI). T08: /health. T16: POST /explain y GET /peers/{machine_id}.
+T33: POST /recommend-checks (chequeos para el tecnico a partir del reporte del operario).
 
 Clientes externos (Gemini, BigQuery) detras de wrappers inyectables en app.state; en los tests se
 reemplazan por falsos (sin red ni credenciales).
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.bq import BqClient, build_peers_response
 from app.explain import fallback_response, validate_explain
+from app.recommend import fallback_recommendation, validate_recommendation
 from app.gemini import GeminiClient, GeminiError
 
 log = logging.getLogger("insights")
@@ -24,6 +26,7 @@ app = FastAPI(title="FleetPulse insights")
 app.state.gemini = GeminiClient()
 app.state.bq = BqClient()
 app.state.explain_cache = {}  # incident_id -> respuesta (cachea para no gastar cuota de Gemini)
+app.state.recommend_cache = {}  # report_id -> respuesta
 
 
 class DeviatedVar(BaseModel):
@@ -42,6 +45,37 @@ class ExplainRequest(BaseModel):
     group_id: str | None = None
     context: dict | None = None
     recent_incidents: list = Field(default_factory=list)
+
+
+class TelemetrySnapshot(BaseModel):
+    means: dict[str, float | None] = Field(default_factory=dict)
+    fault_codes: list = Field(default_factory=list)
+    hours_total: float | None = None
+    hours_since_service: float | None = None
+
+
+class OemSpecs(BaseModel):
+    ranges: dict[str, list] = Field(default_factory=dict)
+    service_intervals: list = Field(default_factory=list)
+    typical_failures: list = Field(default_factory=list)
+
+
+class OpenIncident(BaseModel):
+    incident_id: str | None = None
+    failure_mode: str | None = None
+    severity: str | None = None
+
+
+class RecommendRequest(BaseModel):
+    report_id: str
+    machine_id: str
+    model: str
+    abnormality_type: str
+    description: str = ""
+    severity_perceived: str | None = None
+    telemetry_snapshot: TelemetrySnapshot = Field(default_factory=TelemetrySnapshot)
+    oem_specs: OemSpecs = Field(default_factory=OemSpecs)
+    open_incident: OpenIncident | None = None
 
 
 @app.get("/health")
@@ -67,6 +101,27 @@ def explain(req: ExplainRequest):
 
     app.state.explain_cache[req.incident_id] = result
     log.info('{"msg": "explain_done", "incident_id": "%s", "source": "%s"}', req.incident_id, result["source"])
+    return {**result, "cached": False}
+
+
+@app.post("/recommend-checks")
+def recommend_checks(req: RecommendRequest):
+    cached = app.state.recommend_cache.get(req.report_id)
+    if cached is not None:
+        return {**cached, "cached": True}
+
+    data = req.model_dump()
+    try:
+        result = validate_recommendation(app.state.gemini.recommend(data), data)
+        if result is None:
+            raise GeminiError("invalid_json")
+    except GeminiError as exc:
+        log.warning('{"msg": "gemini_fallback", "report_id": "%s", "reason": "%s"}', req.report_id, exc)
+        result = fallback_recommendation(data)
+
+    app.state.recommend_cache[req.report_id] = result
+    log.info('{"msg": "recommend_done", "report_id": "%s", "source": "%s", "urgency": "%s"}',
+             req.report_id, result["source"], result["urgency"])
     return {**result, "cached": False}
 
 

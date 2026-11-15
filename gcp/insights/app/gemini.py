@@ -1,4 +1,4 @@
-"""Wrapper inyectable de Gemini Flash (REST a generativelanguage, NO Vertex AI).
+"""Wrapper inyectable de Gemini Flash (REST a generativelanguage, NO Vertex AI). Prompts de /explain y /recommend-checks.
 
 La API key se lee del secreto GCP Secret Manager `gemini-api-key` (nombre en env GEMINI_SECRET) con la
 identidad de Cloud Run (servidor de metadatos), con cache de 5 min. Nunca va en env, imagen ni logs.
@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.request
 
+from app import recommend
 from app.explain import build_prompt
 
 PROJECT = os.environ.get("GCP_PROJECT_ID", "")
@@ -57,11 +58,22 @@ class GeminiClient:
 
     def explain(self, req: dict) -> dict:
         """Llama a Gemini y devuelve el JSON parseado (sin validar forma). Lanza GeminiError ante cualquier fallo."""
+        return self.generate(build_prompt(req))
+
+    def recommend(self, req: dict) -> dict:
+        """Igual que `explain`, con el prompt de /recommend-checks (T33)."""
+        return self.generate(recommend.build_prompt(req))
+
+    def generate(self, prompt: str) -> dict:
         body = {
-            "contents": [{"role": "user", "parts": [{"text": build_prompt(req)}]}],
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.2, "response_mime_type": "application/json"},
         }
-        url = f"{API_BASE}/{MODEL}:generateContent?key={self.key()}"
+        try:
+            key = self.key()
+        except Exception as exc:  # metadatos o Secret Manager caidos: se usa la plantilla, no un 500
+            raise GeminiError(f"key_{type(exc).__name__}") from exc
+        url = f"{API_BASE}/{MODEL}:generateContent?key={key}"
         data = json.dumps(body).encode()
         request = urllib.request.Request(url, data=data, method="POST",
                                          headers={"content-type": "application/json"})

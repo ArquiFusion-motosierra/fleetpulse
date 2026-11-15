@@ -104,7 +104,7 @@ scripts/smoke.sh                           # Task 7: stage_ingest implemented
 
 **Files:**
 - Create: `aws/shared/serverless.yml`, `aws/shared/build.sh`, `aws/shared/requirements.txt`, `aws/shared/conftest.py`
-- Create: `aws/shared/python/fplib/__init__.py`, `clock.py`, `log.py`, `secrets.py`, `schema.py`, `outbox.py`, `inbox.py`, `geohash.py`, `ids.py`, `envelope.py`
+- Create: `aws/shared/python/fplib/__init__.py`, `clock.py`, `log.py`, `secrets.py`, `auth.py`, `schema.py`, `outbox.py`, `inbox.py`, `geohash.py`, `ids.py`, `envelope.py`
 - Test: `aws/shared/tests/test_fplib.py`
 - Modify: `.gitignore` (add `aws/shared/python/jsonschema*`, `aws/shared/python/google*`, `aws/shared/python/*.dist-info`, `aws/shared/python/fplib/data/`, `aws/shared/python/fplib/contracts/` — build outputs)
 
@@ -112,6 +112,7 @@ scripts/smoke.sh                           # Task 7: stage_ingest implemented
 - `fplib.clock.now() -> datetime` (UTC, patchable in tests); `fplib.clock.iso(dt) -> str` (`%Y-%m-%dT%H:%M:%SZ`); `fplib.clock.parse(s) -> datetime`; `fplib.clock.window15(dt) -> str` → `YYYYMMDDTHHMM` of the window start.
 - `fplib.log.event(msg: str, **fields) -> None` logs one JSON line at INFO; `fplib.log.error(msg, **fields)`.
 - `fplib.secrets.get_json(name: str, ttl_s: int = 300, client=None) -> dict`; cache keyed by name; `fplib.secrets.clear_cache()`.
+- `fplib.auth.check_api_key(headers: dict, secret_name: str, client=None) -> bool`: case-insensitive `x-api-key` header lookup, value compared with `secrets.get_json(secret_name)["api_key"]` using `hmac.compare_digest`; False when header or secret missing.
 - `fplib.schema.validate(contract: str, obj: dict) -> None` raises `fplib.schema.ContractError(message, path)`; contracts loaded from `fplib/contracts/<contract>.schema.json` (bundled by `build.sh`) or, when absent, from `<repo>/contracts/` (dev/test path discovered by walking up to a dir containing `contracts/`). Uses `jsonschema.Draft202012Validator` with `FormatChecker()`.
 - `fplib.outbox.put_event(table, envelope: dict, ttl_days: int = 7) -> None` → conditional put `attribute_not_exists(event_id)`; `fplib.outbox.transact_items(envelope) -> dict` returns the `Put` element for `TransactWriteItems`.
 - `fplib.inbox.claim(table, message_id: str, consumer: str, ttl_days: int = 7) -> bool` → True when first time (conditional put), False on `ConditionalCheckFailedException`.
@@ -151,6 +152,12 @@ def test_inbox_claim_once_and_outbox_conditional():
 def test_bom_and_specialty():
     assert ids.bom_for("EX", "hydraulic_pump") and ids.specialty_for("hydraulic_pump") == "hydraulics"
 
+def test_check_api_key_constant_time_and_case_insensitive():
+    fake = FakeSecrets({"fleetpulse/api/ingest-key": '{"api_key":"k"}'})
+    assert auth.check_api_key({"X-Api-Key": "k"}, "fleetpulse/api/ingest-key", client=fake) is True
+    assert auth.check_api_key({"x-api-key": "nope"}, "fleetpulse/api/ingest-key", client=fake) is False
+    assert auth.check_api_key({}, "fleetpulse/api/ingest-key", client=fake) is False
+
 def test_secrets_cached(monkeypatch):
     fake = FakeSecrets({"fleetpulse/api/ingest-key": '{"api_key":"k"}'})
     assert secrets.get_json("fleetpulse/api/ingest-key", client=fake)["api_key"] == "k"
@@ -183,13 +190,12 @@ git add aws/shared .gitignore && git commit -m "feat(aws): fp-shared layer with 
 ### Task 2: Core stack `fp-core`: tables, bucket, topics, HTTP API, `ingest` and `archiver`
 
 **Files:**
-- Create: `aws/ingest/serverless.yml`, `aws/ingest/api/ingest.py`, `aws/ingest/consumidores/archiver.py`, `aws/ingest/lib/auth.py`, `aws/ingest/lib/state.py`, `aws/ingest/lib/storage.py`, `aws/ingest/conftest.py`
+- Create: `aws/ingest/serverless.yml`, `aws/ingest/api/ingest.py`, `aws/ingest/consumidores/archiver.py`, `aws/ingest/lib/state.py`, `aws/ingest/lib/storage.py`, `aws/ingest/conftest.py`
 - Test: `aws/ingest/tests/test_ingest.py`, `aws/ingest/tests/test_archiver.py`
 
 **Interfaces:**
-- Consumes: `fplib.schema.validate`, `fplib.inbox.claim`, `fplib.secrets.get_json`, `fplib.geohash.encode`, `fplib.clock`.
+- Consumes: `fplib.schema.validate`, `fplib.inbox.claim`, `fplib.auth.check_api_key`, `fplib.geohash.encode`, `fplib.clock`, `fplib.log`.
 - Produces (CloudFormation, consumed by name by every other service): tables `fp-state` (GSI1), `fp-outbox`, `fp-inbox`, `fp-registry` (GSI1, GSI2), bucket `fp-raw-${aws:accountId}` (versioned, lifecycle: `telemetry/` and `events/` to GLACIER_IR at 90 days), topics `fp-domain-events`, `fp-notify`, `fp-alerts`, HttpApi `fp-api` exported as `fp-core-HttpApiId` (CloudFormation Output `HttpApiId` + `HttpApiUrl`) so `fp-incidents` can attach routes to the same API, SSM `/fleetpulse/api/url` = `!GetAtt HttpApi.ApiEndpoint`, secret `fleetpulse/api/ingest-key` with `GenerateSecretString {SecretStringTemplate: "{}", GenerateStringKey: "api_key", ExcludePunctuation: true, PasswordLength: 40}`, and `fleetpulse/api/console-key` likewise.
-- `lib/auth.py`: `check_api_key(headers: dict, secret_name: str) -> bool` (case-insensitive `x-api-key`, `hmac.compare_digest`).
 - `lib/state.py`: `put_readings(table, batch: dict, now: datetime) -> int` (batch_writer, `ttl = ts + 3d`), `update_meta(table, latest_by_machine: dict[str, dict], now) -> None` (UpdateItem with `ConditionExpression attribute_not_exists(last_ts) OR last_ts < :ts`, swallow `ConditionalCheckFailedException`), `put_context(table, items: list[dict]) -> int`.
 - `lib/storage.py`: `ndjson_gz(records: list[dict]) -> bytes`, `object_key(hour_ts: str, first_ts: str) -> str` → `telemetry/dt=YYYY-MM-DD/hr=HH/<first_ts_compact>-<8hex>.ndjson.gz`.
 - `api/ingest.py`: `handler(event, context=None, state=None, inbox=None, secrets=None)` routing on `event["rawPath"]`; responses `{"statusCode", "headers": {"content-type":"application/json"}, "body"}`: 401 bad key, 400 `{"error": "<ContractError message>", "path": [...]}`, 200 `{"status":"duplicate","batch_id"}`, 202 `{"status":"accepted","batch_id","readings": n}`; `/context` 202 `{"status":"accepted","context": n}`.
@@ -230,11 +236,11 @@ def test_archiver_ignores_non_reading_items(): assert archiver.handler(stream_ev
 
 - [ ] **Step 2: Run tests to verify they fail** → `cd aws/ingest && ../../.venv/bin/pytest -q tests`
 
-- [ ] **Step 3: Implement `lib/auth.py`, `lib/state.py`, `lib/storage.py`, `api/ingest.py`, `consumidores/archiver.py`.** DynamoDB stream images are in the typed format: deserialize with `boto3.dynamodb.types.TypeDeserializer`; convert `Decimal` to float/int when serializing NDJSON. Readings are stored with numbers as `Decimal` (use `json.loads(body, parse_float=Decimal)`).
+- [ ] **Step 3: Implement `lib/state.py`, `lib/storage.py`, `api/ingest.py`, `consumidores/archiver.py`.** DynamoDB stream images are in the typed format: deserialize with `boto3.dynamodb.types.TypeDeserializer`; convert `Decimal` to float/int when serializing NDJSON. Readings are stored with numbers as `Decimal` (use `json.loads(body, parse_float=Decimal)`).
 
 - [ ] **Step 4: Write `aws/ingest/serverless.yml`**: service `fp-core`; `provider.httpApi: {name: fp-api, cors: false}`; functions `ingest` (handler `api/ingest.handler`, memory 512, timeout 29, layers `[${ssm:/fleetpulse/layers/shared}]`, events `httpApi: POST /telemetry` and `POST /context`, env `STATE_TABLE=fp-state INBOX_TABLE=fp-inbox API_KEY_SECRET=fleetpulse/api/ingest-key`) and `archiver` (handler `consumidores/archiver.handler`, memory 1024, timeout 300, env `BUCKET=fp-raw-${aws:accountId}`, event `stream: {type: dynamodb, arn: !GetAtt StateTable.StreamArn, batchSize: 1000, maximumBatchingWindow: 300, startingPosition: LATEST, bisectBatchOnFunctionError: true, maximumRetryAttempts: 3, filterPatterns: [{dynamodb: {NewImage: {SK: {S: [{prefix: "R#"}]}}}}]}`). `package.patterns: ["!**", "api/**", "consumidores/**", "lib/**", "!**/__pycache__/**"]`. Resources: the four tables (`BillingMode: PAY_PER_REQUEST`, `PointInTimeRecoverySpecification`, `DeletionProtectionEnabled: true`, `StreamSpecification NEW_IMAGE` on fp-state, fp-outbox and fp-registry, `TimeToLiveSpecification ttl`), bucket with `VersioningConfiguration Enabled`, `PublicAccessBlockConfiguration` all true, lifecycle rule GLACIER_IR at 90 days, three topics, `AWS::SSM::Parameter` for `/fleetpulse/api/url`, two `AWS::SecretsManager::Secret`. Outputs: `HttpApiId`, `HttpApiUrl`, `StateTableStreamArn`, `OutboxTableStreamArn`, `RegistryTableStreamArn`, `DomainEventsTopicArn`, `NotifyTopicArn`, `AlertsTopicArn`.
 
-- [ ] **Step 5: Run tests, lint, package** → `cd aws/ingest && ../../.venv/bin/pytest -q tests && ../../.venv/bin/ruff check . && npx -y serverless@3 package --stage ci` (set `SLS_SSM_PLACEHOLDER` is not a thing: for `package` without credentials, `${ssm:...}` resolution fails; wrap as `${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}` with that default so packaging works offline).
+- [ ] **Step 5: Run tests, lint, package** → `cd aws/ingest && ../../.venv/bin/pytest -q tests && ../../.venv/bin/ruff check . && npx -y serverless@3 package --stage ci` (for `package` without credentials, `${ssm:...}` and `${cf:...}` resolution fails; always write them with an offline default, e.g. `${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}`).
 Expected: PASS, clean, `.serverless/cloudformation-template-update-stack.json` present.
 
 - [ ] **Step 6: Commit** → `feat(aws): fp-core stack with ingest API, state tables, raw bucket and archiver (T05)`; pull --rebase; push.
@@ -327,7 +333,7 @@ Expected: PASS, clean, `.serverless/cloudformation-template-update-stack.json` p
 - `wait_for_approval.handler(event)` (invoked with `.waitForTaskToken`; input includes `token` and `approve_base_url` from `DefinitionSubstitutions`/env `API_URL` read from SSM `/fleetpulse/api/url`): publishes to `fp-notify` role `supervisor` a message with `GET <api>/approvals/<urlquoted token>?tech=<top tech_id>`; returns nothing (the task waits).
 - `api/approvals.handler(event, sfn=None)`: `GET` or `POST /approvals/{token}`; `SendTaskSuccess(taskToken=unquoted, output=json {"approval":"approved","tech_id": query tech or null})`; on `TaskTimedOut`/`TaskDoesNotExist`/`InvalidToken` → 200 with body "Esta aprobación ya fue procesada"; success → 200 HTML "Aprobado: <tech_id> asignado a <incident_id>" (incident_id parsed from query `inc`).
 - `reserve_parts.handler(event, outbox=None, registry=None)` → `$.reservation {requested: [{part_id, qty}]}`: lines = `fplib.ids.bom_for(model, failure_mode)` (fallback: `explanation.suggested_parts` with qty 1; if still empty → `requested: []` and no event); writes `part.reserve.requested` envelope (`aggregate_type part_reservation`, `aggregate_id RSV-<incident_id>`, `source aws.incident-flow`) to the outbox + registry EV item.
-- `api/close.handler(event, state=None, registry=None, outbox=None, secrets=None)`: `POST /incidents/{incident_id}/close`, header `x-api-key` checked against `fleetpulse/api/console-key` (reuse `aws/ingest/lib/auth.py` logic by copying `check_api_key` into `aws/incidents/lib/auth.py`; do not import across services); body `{"closed_by","parts_used":[{part_id,zone_id,qty}],"cause_summary"}`; 404 unknown incident, 409 already closed, 200 `{"incident_id","downtime_h"}`; effects: registry META `status closed, closed_at, downtime_h = (closed_at - opened_at) hours rounded 2, closed_by, cause_summary, GSI2PK STATUS#closed`; TECH `available=true, current_incident=None`; outbox `incident.closed` (validates).
+- `api/close.handler(event, state=None, registry=None, outbox=None, secrets=None)`: `POST /incidents/{incident_id}/close`, header `x-api-key` checked with `fplib.auth.check_api_key(headers, "fleetpulse/api/ingest-key")` OR `fplib.auth.check_api_key(headers, "fleetpulse/api/console-key")` (either key closes); body `{"closed_by","parts_used":[{part_id,zone_id,qty}],"cause_summary"}`; 404 unknown incident, 409 already closed, 200 `{"incident_id","downtime_h"}`; effects: registry META `status closed, closed_at, downtime_h = (closed_at - opened_at) hours rounded 2, closed_by, cause_summary, GSI2PK STATUS#closed`; TECH `available=true, current_incident=None`; outbox `incident.closed` (validates).
 - ASL changes: after `CheckExistingIncident`'s Choice → `CorrelateZone` → `CreateIncident` → `ExplainCause` → `RankTechnicians` → `RenderMessages` → Choice `NeedsApproval` (`$.classified.needs_approval == true` → `WaitForApproval` else `AssignTechnician`); `WaitForApproval`: `Resource arn:aws:states:::lambda:invoke.waitForTaskToken`, `Parameters.Payload {input.$: "$", token.$: "$$.Task.Token"}`, `TimeoutSeconds: 1800`, `ResultPath: $.approval`, `Catch [{ErrorEquals: ["States.Timeout"], ResultPath: "$.approval_timeout", Next: "ApprovalTimedOut"}]`; `ApprovalTimedOut` (Pass) sets `$.approval = {"approval":"timeout","tech_id": null}` → `AssignTechnician` → `NotifyByRole` → `ReserveParts` → `Succeed`.
 - `serverless.yml` additions: functions `correlateZone`, `explainCause` (timeout 15, env `INVOKER_SECRET=fleetpulse/gcp/sa-invoker`), `waitForApproval`, `reserveParts`, `approvals` (httpApi `GET /approvals/{token}` and `POST /approvals/{token}` on the shared API: `provider.httpApi.id: ${cf:fp-core-${sls:stage}.HttpApiId}` with offline default), `close` (httpApi `POST /incidents/{incident_id}/close`).
 

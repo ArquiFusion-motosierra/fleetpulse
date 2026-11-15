@@ -40,7 +40,7 @@ Modelo fijado en `docs/superpowers/plans/2026-11-14-aws-core-pipeline.md` ("Data
 | Ítem | PK / SK | Lo escribe |
 |---|---|---|
 | Incidente | `INCIDENT#<id>` / `META` (GSI1 `MACHINE#<id>` / `INC#<opened_at>`, GSI2 `STATUS#<open\|closed>` / `<opened_at>`) | `incident-flow` (abre, asigna) y `POST /incidents/{id}/close` |
-| Evento del incidente | `INCIDENT#<id>` / `EV#<occurred_at>#<event_id>` | quien escribe el evento, en la misma transacción que el outbox |
+| Evento del incidente | `INCIDENT#<id>` / `EV#<occurred_at>#<event_id>`: `event_type, source, payload` (sobre completo como JSON, igual que `fp-outbox`) | quien escribe el evento, en la misma transacción que el outbox |
 | Stock | `STOCK#<part_id>#<zone_id>` / `META`: `on_hand, reserved, available (= on_hand - reserved), reorder_point, sku, name` | seed y Lambda `registry` |
 | Reserva | `RSV#<incident_id>` / `<part_id>#<zone_id>`: `reservation_id (<event_id>#<línea>), qty, status (reserved/consumed/released)` | Lambda `registry` |
 | Movimiento | `MOVE#<part_id>#<zone_id>` / `<closed_at>#<incident_id>` | Lambda `registry` |

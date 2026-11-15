@@ -21,6 +21,7 @@ from botocore.config import Config
 
 from fplib import log
 from lib import templates
+from lib.approval_link import token_in_link
 
 AWS_CONFIG = Config(connect_timeout=3, read_timeout=5, retries={"max_attempts": 3})
 _url: str | None = None
@@ -48,7 +49,7 @@ def handler(event, context=None, sns=None, ssm=None):
     top = (state.get("ranking") or {}).get("top") or []
     proposed = top[0] if top else None
     query = {"tech": proposed["tech_id"]} if proposed else {}
-    url = (f"{_api_url(ssm or _client('ssm'))}/approvals/{quote(token, safe='')}?"
+    url = (f"{_api_url(ssm or _client('ssm'))}/approvals/{quote(token_in_link(token), safe='')}?"
            + urlencode({**query, "inc": incident_id}))
     deviated = inc.get("deviated_vars") or state.get("deviated_vars") or []
     explanation = state.get("explanation") or templates.explanation(deviated, state["failure_mode"], machine_id)

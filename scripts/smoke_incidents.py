@@ -94,7 +94,7 @@ def build_input(machine_id: str, position: dict, score: float, failure_mode: str
 def approval_link(api_url: str, token: str, tech_id: str | None, incident_id: str) -> str:
     """El mismo enlace que manda WaitForApproval (flow/wait_for_approval.py)."""
     query = {"tech": tech_id} if tech_id else {}
-    return f"{api_url.rstrip('/')}/approvals/{quote(token, safe='')}?" + urlencode({**query, "inc": incident_id})
+    return f"{api_url.rstrip('/')}/approvals/{quote(token.translate(str.maketrans('+/', '-_')), safe='')}?" + urlencode({**query, "inc": incident_id})
 
 
 def waiting_token(history: list[dict]) -> dict | None:

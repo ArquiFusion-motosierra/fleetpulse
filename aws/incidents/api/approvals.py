@@ -27,6 +27,7 @@ from botocore.config import Config
 
 from fplib import log
 from lib import registry as fp_registry
+from lib.approval_link import token_from_link
 
 TECH_RE = re.compile(r"^TEC-[0-9]{2}$")
 INC_RE = re.compile(r"^INC-((?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3})-[0-9]{8}T[0-9]{4}$")
@@ -91,7 +92,7 @@ def _confirm(tech: str | None, inc: str, ctx: dict, meta: dict | None) -> dict:
 
 
 def handler(event, context=None, sfn=None, registry=None):
-    token = unquote((event.get("pathParameters") or {}).get("token") or "")
+    token = token_from_link(unquote((event.get("pathParameters") or {}).get("token") or ""))
     query = event.get("queryStringParameters") or {}
     tech, inc = query.get("tech") or None, query.get("inc") or ""
     match = INC_RE.match(inc)

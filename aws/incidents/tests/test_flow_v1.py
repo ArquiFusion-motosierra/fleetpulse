@@ -34,6 +34,7 @@ from incidents_support import (
 from flow import correlate_zone, explain_cause, render_messages, reserve_parts, wait_for_approval
 from fplib import gcp_auth, geohash
 from lib import technicians, templates
+from lib.approval_link import token_in_link
 
 GH = geohash.encode(LAT, LON, 6)
 AUDIENCE = "https://insights-abc123-ue.a.run.app"
@@ -274,9 +275,9 @@ def test_wait_for_approval_mails_the_approve_link_to_the_supervisor(ex017, ddb, 
     assert call["TopicArn"] == "arn:aws:sns:us-east-1:000000000000:fp-notify"
     assert call["MessageAttributes"] == {"role": {"DataType": "String", "StringValue": "supervisor"}}
     assert call["Subject"] == f"[FleetPulse] Aprobar schedule EX-017 {INC}" and len(call["Subject"]) <= 100
-    link = (f"https://abc123.execute-api.us-east-1.amazonaws.com/approvals/{quote(token, safe='')}"
+    link = (f"https://abc123.execute-api.us-east-1.amazonaws.com/approvals/{quote(token_in_link(token), safe='')}"
             f"?tech=TEC-01&inc={INC}")
-    assert "%2F" in link and "%2B" in link and "%3D" in link
+    assert "%2F" not in link and "%2B" not in link and "%3D" in link  # sin `/`: API Gateway colapsa `//`
     msg = call["Message"]
     assert link in msg and INC in msg and "EX-017" in msg and "schedule" in msg and "TEC-01" in msg
     assert "30 minutos" in msg and "hydraulic_pressure_bar" in msg  # diagnostico de la plantilla

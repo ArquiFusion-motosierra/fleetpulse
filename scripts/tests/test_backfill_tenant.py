@@ -45,3 +45,8 @@ def test_run_is_idempotent_and_dry_run_writes_nothing(monkeypatch):
         meta = t.get_item(Key={"PK": "INCIDENT#INC-EX-017-20261115T1430", "SK": "META"})["Item"]
         assert meta["tenant_id"] == "mineria" and meta["GSI3PK"] == "TENANT#mineria"
         assert bf.run(t, dry_run=False) == {}
+
+
+def test_stock_tenant_is_the_tenant_of_its_zone():
+    assert bf.update_for({"PK": "STOCK#PRT-04#FUNDO-A", "SK": "META"})["ExpressionAttributeValues"] == {":t": "agro"}
+    assert bf.update_for({"PK": "STOCK#PRT-04#NORTE", "SK": "META"})["ExpressionAttributeValues"] == {":t": "mineria"}

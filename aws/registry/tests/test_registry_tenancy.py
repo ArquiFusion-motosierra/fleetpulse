@@ -112,3 +112,13 @@ def test_reservation_never_takes_stock_from_another_park(mt):
     assert reg_apply.zones_by_distance("PACKING")[0] == "PACKING"
     assert set(reg_apply.zones_by_distance("PACKING")) == {"FUNDO-A", "FUNDO-B", "PACKING"}
     assert set(reg_apply.zones_by_distance("NORTE")) == {"NORTE", "CENTRO", "SUR"}
+
+
+def test_mineria_part_stocked_in_an_agro_zone_belongs_to_agro(mt):
+    # PRT-04 (bomba de mineria) tambien en FUNDO-A: el parque del STOCK es el de su zona (demo de transferencias)
+    s = store.get(mt, "STOCK#PRT-04#FUNDO-A", "META")
+    assert s["tenant_id"] == "agro" and s["on_hand"] > 0
+    agro = call(mt, "GET /stock", tenant="agro")[1]["stock"]
+    assert any(r["part_id"] == "PRT-04" and r["zone_id"] == "FUNDO-A" and r["tenant_id"] == "agro" for r in agro)
+    mineria = call(mt, "GET /stock")[1]["stock"]
+    assert {r["zone_id"] for r in mineria if r["part_id"] == "PRT-04"} == {"NORTE", "CENTRO", "SUR"}

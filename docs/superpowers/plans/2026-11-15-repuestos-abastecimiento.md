@@ -336,13 +336,13 @@ una casilla del equipo (`role=supplier`).
 
 | Id | Tarea | Dueño | Horario Lima |
 |---|---|---|---|
-| T37 | Contratos y catálogo: `supply.yaml` (proveedores, tránsito, política, costo de parada), `supply.schema.json`, enums del sobre, ejemplos, seed con perfil `--demo-supply` | Alex | 08:30-10:00 |
-| T38 | `registry`: stock ampliado (`on_order, in_transit, safety_stock, tenant_id`), ledger `MOVE#` con tipos nuevos, reserva acotada a almacenes del mismo parque | Alex | 10:00-11:30 |
-| T39 | `aws/supply`: `supply-sourcing` (supply-q) + Step Functions `supply-flow` con aprobación y recepción | Benjamin | 10:00-13:00 |
-| T40 | `aws/supply`: API `/supply/*` con roles y tenant, `GET /supply/kpis` | Benjamin | 11:00-13:30 |
-| T41 | Consola: pestaña Abastecimiento (stock por parque, sugerencias, órdenes, recepción, KPIs) | Alex | 11:30-14:00 |
-| T42 | BigQuery: vistas `v_supply_orders`, `v_stockouts_daily`, `v_parts_consumption_daily` y `GET /supply/analytics` | Fabricio | 10:30-13:00 |
-| T43 | Prueba de punta a punta del módulo y guion de la demo | Equipo | 13:30-14:30 |
+| T37 (backlog#34) | Contratos y catálogo: `supply.yaml` (proveedores, tránsito, política, costo de parada), `supply.schema.json`, enums del sobre, ejemplos, seed con perfil `--demo-supply` | Alex | 08:30-10:00 |
+| T38 (backlog#35) | `registry`: stock ampliado (`on_order, in_transit, safety_stock, tenant_id`), ledger `MOVE#` con tipos nuevos, reserva acotada a almacenes del mismo parque | Alex | 10:00-11:30 |
+| T39 (backlog#36) | `aws/supply`: `supply-sourcing` (supply-q) + Step Functions `supply-flow` con aprobación y recepción | Benjamin | 10:00-13:00 |
+| T40 (backlog#37) | `aws/supply`: API `/supply/*` con roles y tenant, `GET /supply/kpis` | Benjamin | 11:00-13:30 |
+| T41 (backlog#38) | Consola: pestaña Abastecimiento (stock por parque, sugerencias, órdenes, recepción, KPIs) | Alex | 11:30-14:00 |
+| T42 (backlog#39) | BigQuery: vistas `v_supply_orders`, `v_stockouts_daily`, `v_parts_consumption_daily` y `GET /supply/analytics` | Fabricio | 10:30-13:00 |
+| T43 (backlog#40) | Prueba de punta a punta del módulo y guion de la demo | Equipo | 13:30-14:30 |
 
 Atajos permitidos en el MVP: una PO = un repuesto; recepción completa (sin parciales); la cola `supply-q` solo con
 `part.shortage`; el proveedor no responde (el correo es informativo).
@@ -351,9 +351,9 @@ Atajos permitidos en el MVP: una PO = un repuesto; recepción completa (sin parc
 
 | Id | Tarea | Dueño |
 |---|---|---|
-| T44 | `insights POST /supply/justify` con Gemini y su texto en la tarjeta de sugerencia | Fabricio |
-| T45 | `daily-planning` estado `PlanSupply`: convierte los `REORDER#` del día en sugerencias; `on_order` real desde `STOCK`; pronóstico ARIMA_PLUS `m_parts_demand` | Benjamin (+ Fabricio el modelo) |
-| T46 | Administración: proveedores (alta y precios) y ajuste de inventario por conteo (`stock.adjusted`, `MOVE# adjustment`) | Benjamin (API) + Alex (consola) |
+| T44 (backlog#41) | `insights POST /supply/justify` con Gemini y su texto en la tarjeta de sugerencia | Fabricio |
+| T45 (backlog#42) | `daily-planning` estado `PlanSupply`: convierte los `REORDER#` del día en sugerencias; `on_order` real desde `STOCK`; pronóstico ARIMA_PLUS `m_parts_demand` | Benjamin (+ Fabricio el modelo) |
+| T46 (backlog#43) | Administración: proveedores (alta y precios) y ajuste de inventario por conteo (`stock.adjusted`, `MOVE# adjustment`) | Benjamin (API) + Alex (consola) |
 
 ### Fuera de alcance (se dice en el video)
 

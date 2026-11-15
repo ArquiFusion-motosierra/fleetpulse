@@ -8,6 +8,8 @@
 #                               #      no entra en `all`). SCENARIO=s1|s2|all, SMOKE_ARGS="--sim --close-stale"
 #   scripts/smoke.sh reports  # T32/T33/T35: reportes del operario, /recommend-checks y admin (crea reportes e
 #                               #      incidentes reales; no entra en `all`). SMOKE_ARGS="--machine EX-019 --via-bff"
+#   scripts/smoke.sh planning # T18: daily-planning a mano: ORDER#/REORDER# en fp-registry, outbox, BigQuery y
+#                               #      consola (escribe ordenes y pedidos reales; no entra en `all`). SMOKE_ARGS="--no-rerun"
 #   scripts/smoke.sh e2e      # T17: mismo incident_id en AWS y GCP
 #   scripts/smoke.sh all      # T12: todo lo anterior en verde
 set -euo pipefail
@@ -102,6 +104,16 @@ stage_reports() {
   "${PYTHON:-.venv/bin/python}" scripts/smoke_reports.py --close-incident ${SMOKE_ARGS:-} || { fail "reports"; return 1; }
 }
 
+stage_planning() {
+  echo "[planning] T18"
+  if [ -z "${FP_TEST_PASSWORD:-}${FP_TOKEN_HEAD:-}" ]; then
+    [ "$SKIP_MISSING" = "1" ] && { skip "planning (falta FP_TEST_PASSWORD)"; return 0; }
+    fail "planning: falta FP_TEST_PASSWORD"; return 1
+  fi
+  # shellcheck disable=SC2086 # SMOKE_ARGS son varias banderas (sin comillas: vacio = ningun argumento)
+  "${PYTHON:-.venv/bin/python}" scripts/smoke_planning.py ${SMOKE_ARGS:-} || { fail "planning"; return 1; }
+}
+
 stage_gcp() {
   echo "[gcp] T11"
   [ "$SKIP_MISSING" = "1" ] && { skip "gcp"; return 0; }
@@ -131,7 +143,8 @@ case "${1:-all}" in
   gcp)     run gcp ;;
   incidents) run incidents ;;
   reports) run reports ;;
+  planning) run planning ;;
   e2e)     run e2e ;;
   all)     run ingest secrets gcp e2e ;;
-  *)       echo "uso: $0 {ingest|secrets|gcp|incidents|reports|e2e|all}" >&2 ; exit 2 ;;
+  *)       echo "uso: $0 {ingest|secrets|gcp|incidents|reports|planning|e2e|all}" >&2 ; exit 2 ;;
 esac

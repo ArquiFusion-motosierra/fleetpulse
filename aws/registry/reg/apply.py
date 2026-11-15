@@ -16,13 +16,19 @@ import time
 import uuid
 
 from botocore.exceptions import ClientError
-from fplib import clock, outbox
+from fplib import clock, ids, outbox
 
 from reg import store
 from reg.store import INBOX, OUTBOX, REGISTRY, dumps, key, ser, vals
 
 HANDLED = ("part.reserve.requested", "incident.closed", "kpi.daily", "maintenance.order.suggested")
 ZONE_COORDS = {"NORTE": (-13.9000, -71.5600), "CENTRO": (-13.9200, -71.5450), "SUR": (-13.9400, -71.5550)}
+
+
+def _zone_coords(origin: str) -> dict[str, tuple[float, float]]:
+    """Zonas del parque de `origin` (multi-tenancy: nunca se reserva stock de otro parque)."""
+    zs = ids.zones(ids.tenant_of_zone(origin))
+    return {z: (float(v["lat"]), float(v["lon"])) for z, v in zs.items()} or ZONE_COORDS
 
 
 def inbox_id(event_id: str) -> str:
@@ -73,9 +79,9 @@ def already_applied(ddb, event_id: str) -> bool:
 # ---------- reserva ----------
 
 def zones_by_distance(origin: str) -> list[str]:
-    o = ZONE_COORDS.get(origin, ZONE_COORDS["CENTRO"])
-    return sorted(ZONE_COORDS, key=lambda z: (z != origin, (ZONE_COORDS[z][0] - o[0]) ** 2
-                                              + (ZONE_COORDS[z][1] - o[1]) ** 2))
+    coords = _zone_coords(origin)
+    o = coords.get(origin) or next(iter(coords.values()))
+    return sorted(coords, key=lambda z: (z != origin, (coords[z][0] - o[0]) ** 2 + (coords[z][1] - o[1]) ** 2))
 
 
 def reserve(ddb, e: dict) -> dict:
@@ -113,6 +119,7 @@ def reserve(ddb, e: dict) -> dict:
             ddb.put_item(TableName=REGISTRY, Item=ser({
                 "PK": f"REORDER#{part}#{p['zone_id']}", "SK": e["occurred_at"], "part_id": part,
                 "zone_id": p["zone_id"], "qty": qty + int(stock.get("reorder_point", 0)), "source": "shortage",
+                "tenant_id": ids.tenant_of_zone(p["zone_id"]),
                 "incident_id": inc, "created_at": e["occurred_at"],
                 "GSI1PK": "REORDERS", "GSI1SK": f"{e['occurred_at']}#{part}#{p['zone_id']}"}))
     return {"reserved": reserved, "missing": missing, "reorder_suggested": bool(missing)}
@@ -122,7 +129,8 @@ def follow_up_events(e: dict, reservation: dict) -> list[dict]:
     """part.reserved / part.shortage (contracts/part.schema.json)."""
     base = {"schema_version": 1, "source": "aws.registry", "aggregate_type": "part_reservation",
             "aggregate_id": e["aggregate_id"], "occurred_at": clock.iso(clock.now()),
-            "incident_id": e["incident_id"], "machine_id": e["machine_id"]}
+            "incident_id": e["incident_id"], "machine_id": e["machine_id"],
+            "tenant_id": e.get("tenant_id") or ids.tenant_of_machine(e["machine_id"])}
     out = []
     if reservation["reserved"]:
         out.append({"event_id": str(uuid.uuid4()), "event_type": "part.reserved", **base,

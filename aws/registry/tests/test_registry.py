@@ -43,8 +43,9 @@ def ddb():
         c = boto3.client("dynamodb", region_name="us-east-1")
         # Mismas tablas que crea fp-core (plan de Benjamin, Task 2)
         c.create_table(TableName="fp-registry", BillingMode="PAY_PER_REQUEST", KeySchema=PK_SK,
-                       AttributeDefinitions=_attrs("PK", "SK", "GSI1PK", "GSI1SK", "GSI2PK", "GSI2SK"),
-                       GlobalSecondaryIndexes=[_gsi("GSI1"), _gsi("GSI2")])
+                       AttributeDefinitions=_attrs("PK", "SK", "GSI1PK", "GSI1SK", "GSI2PK", "GSI2SK", "GSI3PK",
+                                                   "GSI3SK"),
+                       GlobalSecondaryIndexes=[_gsi("GSI1"), _gsi("GSI2"), _gsi("GSI3")])
         c.create_table(TableName="fp-state", BillingMode="PAY_PER_REQUEST", KeySchema=PK_SK,
                        AttributeDefinitions=_attrs("PK", "SK", "GSI1PK", "GSI1SK"), GlobalSecondaryIndexes=[_gsi("GSI1")])
         c.create_table(TableName="fp-inbox", BillingMode="PAY_PER_REQUEST", AttributeDefinitions=_attrs("message_id"),

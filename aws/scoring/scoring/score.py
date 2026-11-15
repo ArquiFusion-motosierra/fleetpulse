@@ -3,7 +3,7 @@
 Funciones puras, sin I/O. Idempotencia: mismos insumos, mismo resultado, asi que reprocesar un lote
 reescribe el mismo item `S#`.
 
-score = max(peso_var * max(|z_self|, |z_peer|)) + TREND_STEP * variables en alza sostenida (3 lotes).
+score = suma(peso_var * max(|z_self|, |z_peer|)) + TREND_STEP * variables en alza sostenida (3 lotes).
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ WEIGHTS = {"hydraulic_pressure_bar": 1.0, "vibration_mm_s": 1.0, "coolant_temp_c
 THRESHOLDS = {"observe": 1.2, "schedule": 2.0, "immediate": 3.5}
 SIGMA_FLOOR = 1e-6
 DEVIATED_Z = 1.0
-TREND_STEP = 0.25
+TREND_STEP = 0.5
 
 
 def batch_means(readings: list[dict]) -> dict[str, float]:
@@ -69,7 +69,7 @@ def _dominant(zz: dict) -> float:
 def compute(means: dict, self_baseline: dict | None, peer_baseline: dict | None, previous_means: list[dict]) -> dict:
     z = zscores(means, self_baseline, peer_baseline)
     dominant = {v: _dominant(zz) for v, zz in z.items()}
-    base = max((WEIGHTS[v] * abs(d) for v, d in dominant.items()), default=0.0)
+    base = sum(WEIGHTS[v] * abs(d) for v, d in dominant.items())
     total = base + TREND_STEP * trend_bonus(means, previous_means)
     deviated = sorted(
         ({"var": v, "value": means[v], "z": d} for v, d in dominant.items() if abs(d) >= DEVIATED_Z),

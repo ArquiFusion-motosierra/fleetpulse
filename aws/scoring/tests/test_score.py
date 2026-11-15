@@ -16,6 +16,14 @@ def test_zscores_and_weights():
     assert out["deviated_vars"] == [{"var": "hydraulic_pressure_bar", "value": 274.0, "z": pytest.approx(-2.6)}]
 
 
+def test_score_is_weighted_sum_plus_trend():
+    base = {"hydraulic_pressure_bar": {"mu": 300.0, "sigma": 10.0}, "hydraulic_oil_temp_c": {"mu": 80.0, "sigma": 4.0}}
+    means = {"hydraulic_pressure_bar": 274.0, "hydraulic_oil_temp_c": 88.0}
+    assert score.compute(means, base, None, [])["score"] == pytest.approx(1.0 * 2.6 + 0.9 * 2.0)  # 4.4
+    prev = [{"hydraulic_oil_temp_c": 84.0}, {"hydraulic_oil_temp_c": 86.0}]
+    assert score.compute(means, base, None, prev)["score"] == pytest.approx(4.9)
+
+
 def test_zscores_sigma_floor_and_missing_var():
     z = score.zscores({"engine_rpm": 5.0, "vibration_mm_s": 1.0}, {"engine_rpm": {"mu": 4.0, "sigma": 0.0}}, None)
     assert z["engine_rpm"]["self"] == pytest.approx(1e6)

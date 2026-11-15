@@ -98,12 +98,12 @@ def test_scores_and_starts_execution_when_drift(table):
     iid = "INC-EX-017-20261114T1000"
     assert out == {"scored": 1, "started": [iid]}
     s = table.get_item(Key={"PK": "MACHINE#EX-017", "SK": f"S#{last}"})["Item"]
-    assert float(s["score"]) == pytest.approx(3.0) and s["severity"] == "schedule" and s["batch_id"] == "B1"
+    assert float(s["score"]) == pytest.approx(5.25) and s["severity"] == "immediate" and s["batch_id"] == "B1"
     assert float(s["z"]["hydraulic_pressure_bar"]["self"]) == pytest.approx(-3.0)
     assert "ttl" in s and "means" in s
     cell = table.get_item(Key={"PK": "CELL#6abcde", "SK": f"A#{last}#EX-017"})["Item"]
-    assert cell["machine_id"] == "EX-017" and cell["severity"] == "schedule" and "ttl" in cell
-    assert table.get_item(Key={"PK": "MACHINE#EX-017", "SK": "META"})["Item"]["status"] == "schedule"
+    assert cell["machine_id"] == "EX-017" and cell["severity"] == "immediate" and "ttl" in cell
+    assert table.get_item(Key={"PK": "MACHINE#EX-017", "SK": "META"})["Item"]["status"] == "immediate"
     (call,) = sfn.calls
     assert call["name"] == iid and call["stateMachineArn"] == ARN
     inp = json.loads(call["input"])

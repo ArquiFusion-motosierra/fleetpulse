@@ -1,0 +1,10 @@
+{
+  "name": "fleetpulse-aws-deploy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pinned Serverless Framework v3 + Compose for aws/serverless-compose.yml",
+  "devDependencies": {
+    "@serverless/compose": "1.3.0",
+    "serverless": "3.40.0"
+  }
+}

@@ -90,6 +90,13 @@ jobs:
         run: |
           python -m pip install pyyaml
           bash aws/shared/build.sh
+      - name: Compose instalado (Framework 3 + @serverless/compose fijados en aws/package.json)
+        if: steps.has.outputs.yes == 'true'
+        working-directory: aws
+        run: |
+          npm ci
+          npx serverless --version
+          test -f node_modules/@serverless/compose/package.json
       - name: Empaquetar cada servicio (compose no soporta package)
         if: steps.has.outputs.yes == 'true'
         run: |

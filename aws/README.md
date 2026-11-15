@@ -7,7 +7,7 @@ Servicios (cada uno con su `serverless.yml`), en el orden de `serverless-compose
 ## Desplegar
 ```bash
 scripts/lab-creds.sh                      # credenciales del Learner Lab (--gh las sube a GitHub)
-bash aws/shared/build.sh && cd aws && npx serverless@3 deploy
+bash aws/shared/build.sh && cd aws && npm ci && npx serverless deploy
 scripts/subscribe-notify.sh technician tu@correo.com   # tambien supervisor, management, operator
 scripts/smoke.sh ingest
 ```
@@ -16,9 +16,9 @@ un servicio, `cd aws/<servicio> && npx serverless@3 package --stage ci`.
 
 ## Simulador
 ```bash
-cd aws && npx serverless@3 deploy --param="enabled=true"    # enciende
+cd aws && npx serverless deploy --param="enabled=true"    # enciende
 scripts/drift.py on S1                                      # inyecta deriva
-cd aws && npx serverless@3 deploy --param="enabled=false"   # apaga (costo)
+cd aws && npx serverless deploy --param="enabled=false"   # apaga (costo)
 ```
 
 ## Tests

@@ -48,5 +48,5 @@ jobs:
         if: steps.go.outputs.ok == 'true'
         working-directory: aws
         run: |
-          if [ -f package.json ]; then npm ci; fi
-          npx serverless@3 deploy --stage dev --region "$AWS_REGION" --verbose
+          npm ci
+          npx serverless deploy --stage dev --region "$AWS_REGION" --verbose

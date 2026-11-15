@@ -1,0 +1,1394 @@
+{
+ "operation": "Operacion Cerro Azul",
+ "timezone": "America/Lima",
+ "zones": [
+  {
+   "zone_id": "NORTE",
+   "name": "Norte - Tajo",
+   "lat": -13.9,
+   "lon": -71.56,
+   "altitude_m": 4280,
+   "weather_risk": "dust"
+  },
+  {
+   "zone_id": "CENTRO",
+   "name": "Centro - Carga y chancado",
+   "lat": -13.92,
+   "lon": -71.545,
+   "altitude_m": 4150,
+   "weather_risk": "dust"
+  },
+  {
+   "zone_id": "SUR",
+   "name": "Sur - Botadero y vias",
+   "lat": -13.94,
+   "lon": -71.555,
+   "altitude_m": 4050,
+   "weather_risk": "rain"
+  }
+ ],
+ "fuel_stations": [
+  {
+   "station_id": "EST-NORTE",
+   "zone_id": "NORTE",
+   "lot": "L-2311"
+  },
+  {
+   "station_id": "EST-CENTRO",
+   "zone_id": "CENTRO",
+   "lot": "L-2309"
+  },
+  {
+   "station_id": "EST-SUR",
+   "zone_id": "SUR",
+   "lot": "L-2307"
+  }
+ ],
+ "models": [
+  {
+   "model_id": "EX",
+   "name": "Excavadora hidraulica",
+   "count": 20,
+   "service_interval_h": 500,
+   "fuel_lph_base": 38
+  },
+  {
+   "model_id": "CF",
+   "name": "Cargador frontal",
+   "count": 20,
+   "service_interval_h": 500,
+   "fuel_lph_base": 24
+  },
+  {
+   "model_id": "VQ",
+   "name": "Camion volquete",
+   "count": 40,
+   "service_interval_h": 600,
+   "fuel_lph_base": 45
+  },
+  {
+   "model_id": "MN",
+   "name": "Motoniveladora",
+   "count": 12,
+   "service_interval_h": 500,
+   "fuel_lph_base": 18
+  },
+  {
+   "model_id": "TO",
+   "name": "Tractor de orugas",
+   "count": 8,
+   "service_interval_h": 400,
+   "fuel_lph_base": 42
+  }
+ ],
+ "machines": [
+  {
+   "machine_id": "EX-001",
+   "model_id": "EX",
+   "serial": "AFCEX00123",
+   "zone_id": "NORTE",
+   "commissioned_at": "2023-09-15",
+   "hours_total": 1508,
+   "hours_since_service": 421
+  },
+  {
+   "machine_id": "EX-002",
+   "model_id": "EX",
+   "serial": "AFCEX00218",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2018-07-15",
+   "hours_total": 20760,
+   "hours_since_service": 122
+  },
+  {
+   "machine_id": "EX-003",
+   "model_id": "EX",
+   "serial": "AFCEX00320",
+   "zone_id": "NORTE",
+   "commissioned_at": "2020-03-15",
+   "hours_total": 21340,
+   "hours_since_service": 168
+  },
+  {
+   "machine_id": "EX-004",
+   "model_id": "EX",
+   "serial": "AFCEX00422",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2022-05-15",
+   "hours_total": 5077,
+   "hours_since_service": 75
+  },
+  {
+   "machine_id": "EX-005",
+   "model_id": "EX",
+   "serial": "AFCEX00521",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-02-15",
+   "hours_total": 6163,
+   "hours_since_service": 157
+  },
+  {
+   "machine_id": "EX-006",
+   "model_id": "EX",
+   "serial": "AFCEX00620",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2020-04-15",
+   "hours_total": 14192,
+   "hours_since_service": 31
+  },
+  {
+   "machine_id": "EX-007",
+   "model_id": "EX",
+   "serial": "AFCEX00718",
+   "zone_id": "NORTE",
+   "commissioned_at": "2018-09-15",
+   "hours_total": 10637,
+   "hours_since_service": 78
+  },
+  {
+   "machine_id": "EX-008",
+   "model_id": "EX",
+   "serial": "AFCEX00821",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2021-02-15",
+   "hours_total": 7166,
+   "hours_since_service": 463
+  },
+  {
+   "machine_id": "EX-009",
+   "model_id": "EX",
+   "serial": "AFCEX00918",
+   "zone_id": "NORTE",
+   "commissioned_at": "2018-02-15",
+   "hours_total": 17580,
+   "hours_since_service": 28
+  },
+  {
+   "machine_id": "EX-010",
+   "model_id": "EX",
+   "serial": "AFCEX01022",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2022-07-15",
+   "hours_total": 7733,
+   "hours_since_service": 406
+  },
+  {
+   "machine_id": "EX-011",
+   "model_id": "EX",
+   "serial": "AFCEX01121",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-09-15",
+   "hours_total": 5699,
+   "hours_since_service": 312
+  },
+  {
+   "machine_id": "EX-012",
+   "model_id": "EX",
+   "serial": "AFCEX01219",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2019-09-15",
+   "hours_total": 17316,
+   "hours_since_service": 139
+  },
+  {
+   "machine_id": "EX-013",
+   "model_id": "EX",
+   "serial": "AFCEX01322",
+   "zone_id": "NORTE",
+   "commissioned_at": "2022-04-15",
+   "hours_total": 2564,
+   "hours_since_service": 430
+  },
+  {
+   "machine_id": "EX-014",
+   "model_id": "EX",
+   "serial": "AFCEX01421",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2021-03-15",
+   "hours_total": 3937,
+   "hours_since_service": 90
+  },
+  {
+   "machine_id": "EX-015",
+   "model_id": "EX",
+   "serial": "AFCEX01523",
+   "zone_id": "NORTE",
+   "commissioned_at": "2023-09-15",
+   "hours_total": 8882,
+   "hours_since_service": 73
+  },
+  {
+   "machine_id": "EX-016",
+   "model_id": "EX",
+   "serial": "AFCEX01623",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2023-08-15",
+   "hours_total": 8305,
+   "hours_since_service": 23
+  },
+  {
+   "machine_id": "EX-017",
+   "model_id": "EX",
+   "serial": "AFCEX01721",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-08-15",
+   "hours_total": 2762,
+   "hours_since_service": 286
+  },
+  {
+   "machine_id": "EX-018",
+   "model_id": "EX",
+   "serial": "AFCEX01822",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2022-07-15",
+   "hours_total": 8893,
+   "hours_since_service": 208
+  },
+  {
+   "machine_id": "EX-019",
+   "model_id": "EX",
+   "serial": "AFCEX01922",
+   "zone_id": "NORTE",
+   "commissioned_at": "2022-01-15",
+   "hours_total": 3806,
+   "hours_since_service": 475
+  },
+  {
+   "machine_id": "EX-020",
+   "model_id": "EX",
+   "serial": "AFCEX02019",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2019-08-15",
+   "hours_total": 6999,
+   "hours_since_service": 33
+  },
+  {
+   "machine_id": "CF-031",
+   "model_id": "CF",
+   "serial": "AFCCF03121",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2021-05-15",
+   "hours_total": 8202,
+   "hours_since_service": 78
+  },
+  {
+   "machine_id": "CF-032",
+   "model_id": "CF",
+   "serial": "AFCCF03219",
+   "zone_id": "SUR",
+   "commissioned_at": "2019-08-15",
+   "hours_total": 19585,
+   "hours_since_service": 165
+  },
+  {
+   "machine_id": "CF-033",
+   "model_id": "CF",
+   "serial": "AFCCF03321",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2021-03-15",
+   "hours_total": 5602,
+   "hours_since_service": 396
+  },
+  {
+   "machine_id": "CF-034",
+   "model_id": "CF",
+   "serial": "AFCCF03421",
+   "zone_id": "SUR",
+   "commissioned_at": "2021-05-15",
+   "hours_total": 7987,
+   "hours_since_service": 174
+  },
+  {
+   "machine_id": "CF-035",
+   "model_id": "CF",
+   "serial": "AFCCF03523",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2023-04-15",
+   "hours_total": 1542,
+   "hours_since_service": 59
+  },
+  {
+   "machine_id": "CF-036",
+   "model_id": "CF",
+   "serial": "AFCCF03620",
+   "zone_id": "SUR",
+   "commissioned_at": "2020-08-15",
+   "hours_total": 17782,
+   "hours_since_service": 71
+  },
+  {
+   "machine_id": "CF-037",
+   "model_id": "CF",
+   "serial": "AFCCF03718",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2018-08-15",
+   "hours_total": 19358,
+   "hours_since_service": 278
+  },
+  {
+   "machine_id": "CF-038",
+   "model_id": "CF",
+   "serial": "AFCCF03823",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-07-15",
+   "hours_total": 1064,
+   "hours_since_service": 109
+  },
+  {
+   "machine_id": "CF-039",
+   "model_id": "CF",
+   "serial": "AFCCF03923",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2023-02-15",
+   "hours_total": 5302,
+   "hours_since_service": 58
+  },
+  {
+   "machine_id": "CF-040",
+   "model_id": "CF",
+   "serial": "AFCCF04019",
+   "zone_id": "SUR",
+   "commissioned_at": "2019-05-15",
+   "hours_total": 9607,
+   "hours_since_service": 240
+  },
+  {
+   "machine_id": "CF-041",
+   "model_id": "CF",
+   "serial": "AFCCF04121",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2021-08-15",
+   "hours_total": 2638,
+   "hours_since_service": 123
+  },
+  {
+   "machine_id": "CF-042",
+   "model_id": "CF",
+   "serial": "AFCCF04223",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-03-15",
+   "hours_total": 1913,
+   "hours_since_service": 239
+  },
+  {
+   "machine_id": "CF-043",
+   "model_id": "CF",
+   "serial": "AFCCF04318",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2018-05-15",
+   "hours_total": 16605,
+   "hours_since_service": 337
+  },
+  {
+   "machine_id": "CF-044",
+   "model_id": "CF",
+   "serial": "AFCCF04423",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-09-15",
+   "hours_total": 1444,
+   "hours_since_service": 311
+  },
+  {
+   "machine_id": "CF-045",
+   "model_id": "CF",
+   "serial": "AFCCF04522",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2022-04-15",
+   "hours_total": 6642,
+   "hours_since_service": 149
+  },
+  {
+   "machine_id": "CF-046",
+   "model_id": "CF",
+   "serial": "AFCCF04620",
+   "zone_id": "SUR",
+   "commissioned_at": "2020-01-15",
+   "hours_total": 20683,
+   "hours_since_service": 182
+  },
+  {
+   "machine_id": "CF-047",
+   "model_id": "CF",
+   "serial": "AFCCF04718",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2018-04-15",
+   "hours_total": 13204,
+   "hours_since_service": 354
+  },
+  {
+   "machine_id": "CF-048",
+   "model_id": "CF",
+   "serial": "AFCCF04818",
+   "zone_id": "SUR",
+   "commissioned_at": "2018-09-15",
+   "hours_total": 10458,
+   "hours_since_service": 170
+  },
+  {
+   "machine_id": "CF-049",
+   "model_id": "CF",
+   "serial": "AFCCF04921",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2021-09-15",
+   "hours_total": 3026,
+   "hours_since_service": 185
+  },
+  {
+   "machine_id": "CF-050",
+   "model_id": "CF",
+   "serial": "AFCCF05020",
+   "zone_id": "SUR",
+   "commissioned_at": "2020-09-15",
+   "hours_total": 14028,
+   "hours_since_service": 348
+  },
+  {
+   "machine_id": "VQ-001",
+   "model_id": "VQ",
+   "serial": "AFCVQ00120",
+   "zone_id": "NORTE",
+   "commissioned_at": "2020-08-15",
+   "hours_total": 20538,
+   "hours_since_service": 459
+  },
+  {
+   "machine_id": "VQ-002",
+   "model_id": "VQ",
+   "serial": "AFCVQ00218",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2018-01-15",
+   "hours_total": 11328,
+   "hours_since_service": 178
+  },
+  {
+   "machine_id": "VQ-003",
+   "model_id": "VQ",
+   "serial": "AFCVQ00321",
+   "zone_id": "SUR",
+   "commissioned_at": "2021-02-15",
+   "hours_total": 2696,
+   "hours_since_service": 545
+  },
+  {
+   "machine_id": "VQ-004",
+   "model_id": "VQ",
+   "serial": "AFCVQ00420",
+   "zone_id": "NORTE",
+   "commissioned_at": "2020-06-15",
+   "hours_total": 19297,
+   "hours_since_service": 408
+  },
+  {
+   "machine_id": "VQ-005",
+   "model_id": "VQ",
+   "serial": "AFCVQ00520",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2020-08-15",
+   "hours_total": 16104,
+   "hours_since_service": 211
+  },
+  {
+   "machine_id": "VQ-006",
+   "model_id": "VQ",
+   "serial": "AFCVQ00620",
+   "zone_id": "SUR",
+   "commissioned_at": "2020-08-15",
+   "hours_total": 7100,
+   "hours_since_service": 561
+  },
+  {
+   "machine_id": "VQ-007",
+   "model_id": "VQ",
+   "serial": "AFCVQ00721",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-02-15",
+   "hours_total": 1467,
+   "hours_since_service": 390
+  },
+  {
+   "machine_id": "VQ-008",
+   "model_id": "VQ",
+   "serial": "AFCVQ00820",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2020-08-15",
+   "hours_total": 18316,
+   "hours_since_service": 395
+  },
+  {
+   "machine_id": "VQ-009",
+   "model_id": "VQ",
+   "serial": "AFCVQ00922",
+   "zone_id": "SUR",
+   "commissioned_at": "2022-05-15",
+   "hours_total": 6814,
+   "hours_since_service": 66
+  },
+  {
+   "machine_id": "VQ-010",
+   "model_id": "VQ",
+   "serial": "AFCVQ01020",
+   "zone_id": "NORTE",
+   "commissioned_at": "2020-04-15",
+   "hours_total": 12987,
+   "hours_since_service": 110
+  },
+  {
+   "machine_id": "VQ-011",
+   "model_id": "VQ",
+   "serial": "AFCVQ01121",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-03-15",
+   "hours_total": 1320,
+   "hours_since_service": 194
+  },
+  {
+   "machine_id": "VQ-012",
+   "model_id": "VQ",
+   "serial": "AFCVQ01221",
+   "zone_id": "SUR",
+   "commissioned_at": "2021-02-15",
+   "hours_total": 2551,
+   "hours_since_service": 546
+  },
+  {
+   "machine_id": "VQ-013",
+   "model_id": "VQ",
+   "serial": "AFCVQ01318",
+   "zone_id": "NORTE",
+   "commissioned_at": "2018-03-15",
+   "hours_total": 18285,
+   "hours_since_service": 67
+  },
+  {
+   "machine_id": "VQ-014",
+   "model_id": "VQ",
+   "serial": "AFCVQ01422",
+   "zone_id": "NORTE",
+   "commissioned_at": "2022-09-15",
+   "hours_total": 6115,
+   "hours_since_service": 271
+  },
+  {
+   "machine_id": "VQ-015",
+   "model_id": "VQ",
+   "serial": "AFCVQ01523",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-04-15",
+   "hours_total": 1345,
+   "hours_since_service": 303
+  },
+  {
+   "machine_id": "VQ-016",
+   "model_id": "VQ",
+   "serial": "AFCVQ01619",
+   "zone_id": "NORTE",
+   "commissioned_at": "2019-02-15",
+   "hours_total": 12185,
+   "hours_since_service": 316
+  },
+  {
+   "machine_id": "VQ-017",
+   "model_id": "VQ",
+   "serial": "AFCVQ01722",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2022-02-15",
+   "hours_total": 8076,
+   "hours_since_service": 151
+  },
+  {
+   "machine_id": "VQ-018",
+   "model_id": "VQ",
+   "serial": "AFCVQ01823",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-09-15",
+   "hours_total": 8167,
+   "hours_since_service": 338
+  },
+  {
+   "machine_id": "VQ-019",
+   "model_id": "VQ",
+   "serial": "AFCVQ01921",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-02-15",
+   "hours_total": 4483,
+   "hours_since_service": 382
+  },
+  {
+   "machine_id": "VQ-020",
+   "model_id": "VQ",
+   "serial": "AFCVQ02023",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2023-03-15",
+   "hours_total": 4748,
+   "hours_since_service": 284
+  },
+  {
+   "machine_id": "VQ-021",
+   "model_id": "VQ",
+   "serial": "AFCVQ02120",
+   "zone_id": "SUR",
+   "commissioned_at": "2020-09-15",
+   "hours_total": 19082,
+   "hours_since_service": 246
+  },
+  {
+   "machine_id": "VQ-022",
+   "model_id": "VQ",
+   "serial": "AFCVQ02221",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-08-15",
+   "hours_total": 5781,
+   "hours_since_service": 81
+  },
+  {
+   "machine_id": "VQ-023",
+   "model_id": "VQ",
+   "serial": "AFCVQ02318",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2018-08-15",
+   "hours_total": 10236,
+   "hours_since_service": 85
+  },
+  {
+   "machine_id": "VQ-024",
+   "model_id": "VQ",
+   "serial": "AFCVQ02419",
+   "zone_id": "SUR",
+   "commissioned_at": "2019-05-15",
+   "hours_total": 16667,
+   "hours_since_service": 553
+  },
+  {
+   "machine_id": "VQ-025",
+   "model_id": "VQ",
+   "serial": "AFCVQ02521",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-01-15",
+   "hours_total": 6539,
+   "hours_since_service": 483
+  },
+  {
+   "machine_id": "VQ-026",
+   "model_id": "VQ",
+   "serial": "AFCVQ02622",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2022-04-15",
+   "hours_total": 7773,
+   "hours_since_service": 47
+  },
+  {
+   "machine_id": "VQ-027",
+   "model_id": "VQ",
+   "serial": "AFCVQ02723",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-02-15",
+   "hours_total": 5869,
+   "hours_since_service": 269
+  },
+  {
+   "machine_id": "VQ-028",
+   "model_id": "VQ",
+   "serial": "AFCVQ02821",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-09-15",
+   "hours_total": 7632,
+   "hours_since_service": 159
+  },
+  {
+   "machine_id": "VQ-029",
+   "model_id": "VQ",
+   "serial": "AFCVQ02919",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2019-03-15",
+   "hours_total": 9117,
+   "hours_since_service": 488
+  },
+  {
+   "machine_id": "VQ-030",
+   "model_id": "VQ",
+   "serial": "AFCVQ03023",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-05-15",
+   "hours_total": 8622,
+   "hours_since_service": 108
+  },
+  {
+   "machine_id": "VQ-031",
+   "model_id": "VQ",
+   "serial": "AFCVQ03121",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-01-15",
+   "hours_total": 7989,
+   "hours_since_service": 85
+  },
+  {
+   "machine_id": "VQ-032",
+   "model_id": "VQ",
+   "serial": "AFCVQ03223",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2023-05-15",
+   "hours_total": 4765,
+   "hours_since_service": 105
+  },
+  {
+   "machine_id": "VQ-033",
+   "model_id": "VQ",
+   "serial": "AFCVQ03319",
+   "zone_id": "SUR",
+   "commissioned_at": "2019-09-15",
+   "hours_total": 19934,
+   "hours_since_service": 187
+  },
+  {
+   "machine_id": "VQ-034",
+   "model_id": "VQ",
+   "serial": "AFCVQ03421",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-07-15",
+   "hours_total": 5105,
+   "hours_since_service": 495
+  },
+  {
+   "machine_id": "VQ-035",
+   "model_id": "VQ",
+   "serial": "AFCVQ03518",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2018-03-15",
+   "hours_total": 8572,
+   "hours_since_service": 117
+  },
+  {
+   "machine_id": "VQ-036",
+   "model_id": "VQ",
+   "serial": "AFCVQ03621",
+   "zone_id": "SUR",
+   "commissioned_at": "2021-08-15",
+   "hours_total": 1109,
+   "hours_since_service": 295
+  },
+  {
+   "machine_id": "VQ-037",
+   "model_id": "VQ",
+   "serial": "AFCVQ03722",
+   "zone_id": "NORTE",
+   "commissioned_at": "2022-05-15",
+   "hours_total": 6251,
+   "hours_since_service": 275
+  },
+  {
+   "machine_id": "VQ-038",
+   "model_id": "VQ",
+   "serial": "AFCVQ03819",
+   "zone_id": "CENTRO",
+   "commissioned_at": "2019-05-15",
+   "hours_total": 6312,
+   "hours_since_service": 577
+  },
+  {
+   "machine_id": "VQ-039",
+   "model_id": "VQ",
+   "serial": "AFCVQ03918",
+   "zone_id": "SUR",
+   "commissioned_at": "2018-01-15",
+   "hours_total": 7981,
+   "hours_since_service": 94
+  },
+  {
+   "machine_id": "VQ-040",
+   "model_id": "VQ",
+   "serial": "AFCVQ04023",
+   "zone_id": "NORTE",
+   "commissioned_at": "2023-08-15",
+   "hours_total": 2242,
+   "hours_since_service": 566
+  },
+  {
+   "machine_id": "MN-001",
+   "model_id": "MN",
+   "serial": "AFCMN00118",
+   "zone_id": "SUR",
+   "commissioned_at": "2018-07-15",
+   "hours_total": 5154,
+   "hours_since_service": 67
+  },
+  {
+   "machine_id": "MN-002",
+   "model_id": "MN",
+   "serial": "AFCMN00223",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-06-15",
+   "hours_total": 8857,
+   "hours_since_service": 178
+  },
+  {
+   "machine_id": "MN-003",
+   "model_id": "MN",
+   "serial": "AFCMN00320",
+   "zone_id": "SUR",
+   "commissioned_at": "2020-02-15",
+   "hours_total": 13215,
+   "hours_since_service": 96
+  },
+  {
+   "machine_id": "MN-004",
+   "model_id": "MN",
+   "serial": "AFCMN00422",
+   "zone_id": "SUR",
+   "commissioned_at": "2022-06-15",
+   "hours_total": 1711,
+   "hours_since_service": 42
+  },
+  {
+   "machine_id": "MN-005",
+   "model_id": "MN",
+   "serial": "AFCMN00519",
+   "zone_id": "SUR",
+   "commissioned_at": "2019-06-15",
+   "hours_total": 7810,
+   "hours_since_service": 347
+  },
+  {
+   "machine_id": "MN-006",
+   "model_id": "MN",
+   "serial": "AFCMN00621",
+   "zone_id": "SUR",
+   "commissioned_at": "2021-08-15",
+   "hours_total": 6567,
+   "hours_since_service": 149
+  },
+  {
+   "machine_id": "MN-007",
+   "model_id": "MN",
+   "serial": "AFCMN00718",
+   "zone_id": "SUR",
+   "commissioned_at": "2018-04-15",
+   "hours_total": 21685,
+   "hours_since_service": 346
+  },
+  {
+   "machine_id": "MN-008",
+   "model_id": "MN",
+   "serial": "AFCMN00818",
+   "zone_id": "SUR",
+   "commissioned_at": "2018-07-15",
+   "hours_total": 9609,
+   "hours_since_service": 159
+  },
+  {
+   "machine_id": "MN-009",
+   "model_id": "MN",
+   "serial": "AFCMN00920",
+   "zone_id": "SUR",
+   "commissioned_at": "2020-09-15",
+   "hours_total": 4588,
+   "hours_since_service": 127
+  },
+  {
+   "machine_id": "MN-010",
+   "model_id": "MN",
+   "serial": "AFCMN01021",
+   "zone_id": "SUR",
+   "commissioned_at": "2021-08-15",
+   "hours_total": 1973,
+   "hours_since_service": 32
+  },
+  {
+   "machine_id": "MN-011",
+   "model_id": "MN",
+   "serial": "AFCMN01119",
+   "zone_id": "SUR",
+   "commissioned_at": "2019-03-15",
+   "hours_total": 9794,
+   "hours_since_service": 114
+  },
+  {
+   "machine_id": "MN-012",
+   "model_id": "MN",
+   "serial": "AFCMN01223",
+   "zone_id": "SUR",
+   "commissioned_at": "2023-09-15",
+   "hours_total": 7079,
+   "hours_since_service": 107
+  },
+  {
+   "machine_id": "TO-001",
+   "model_id": "TO",
+   "serial": "AFCTO00118",
+   "zone_id": "NORTE",
+   "commissioned_at": "2018-02-15",
+   "hours_total": 10144,
+   "hours_since_service": 148
+  },
+  {
+   "machine_id": "TO-002",
+   "model_id": "TO",
+   "serial": "AFCTO00219",
+   "zone_id": "NORTE",
+   "commissioned_at": "2019-09-15",
+   "hours_total": 19978,
+   "hours_since_service": 291
+  },
+  {
+   "machine_id": "TO-003",
+   "model_id": "TO",
+   "serial": "AFCTO00321",
+   "zone_id": "NORTE",
+   "commissioned_at": "2021-02-15",
+   "hours_total": 4192,
+   "hours_since_service": 294
+  },
+  {
+   "machine_id": "TO-004",
+   "model_id": "TO",
+   "serial": "AFCTO00422",
+   "zone_id": "NORTE",
+   "commissioned_at": "2022-04-15",
+   "hours_total": 7963,
+   "hours_since_service": 197
+  },
+  {
+   "machine_id": "TO-005",
+   "model_id": "TO",
+   "serial": "AFCTO00520",
+   "zone_id": "NORTE",
+   "commissioned_at": "2020-04-15",
+   "hours_total": 21089,
+   "hours_since_service": 97
+  },
+  {
+   "machine_id": "TO-006",
+   "model_id": "TO",
+   "serial": "AFCTO00618",
+   "zone_id": "NORTE",
+   "commissioned_at": "2018-05-15",
+   "hours_total": 5361,
+   "hours_since_service": 372
+  },
+  {
+   "machine_id": "TO-007",
+   "model_id": "TO",
+   "serial": "AFCTO00720",
+   "zone_id": "NORTE",
+   "commissioned_at": "2020-03-15",
+   "hours_total": 17947,
+   "hours_since_service": 259
+  },
+  {
+   "machine_id": "TO-008",
+   "model_id": "TO",
+   "serial": "AFCTO00823",
+   "zone_id": "NORTE",
+   "commissioned_at": "2023-07-15",
+   "hours_total": 1879,
+   "hours_since_service": 374
+  }
+ ],
+ "technicians": [
+  {
+   "tech_id": "TEC-01",
+   "name": "Rosa Quispe",
+   "specialty": "hydraulics",
+   "zone_id": "NORTE"
+  },
+  {
+   "tech_id": "TEC-02",
+   "name": "Luis Mamani",
+   "specialty": "hydraulics",
+   "zone_id": "CENTRO"
+  },
+  {
+   "tech_id": "TEC-03",
+   "name": "Carla Huaman",
+   "specialty": "engine",
+   "zone_id": "NORTE"
+  },
+  {
+   "tech_id": "TEC-04",
+   "name": "Jorge Condori",
+   "specialty": "engine",
+   "zone_id": "SUR"
+  },
+  {
+   "tech_id": "TEC-05",
+   "name": "Ana Flores",
+   "specialty": "electrical",
+   "zone_id": "CENTRO"
+  },
+  {
+   "tech_id": "TEC-06",
+   "name": "Pedro Ccori",
+   "specialty": "transmission",
+   "zone_id": "SUR"
+  }
+ ],
+ "parts": [
+  {
+   "part_id": "PRT-01",
+   "sku": "FLT-FUEL-01",
+   "name": "Filtro de combustible",
+   "unit_cost_usd": 45
+  },
+  {
+   "part_id": "PRT-02",
+   "sku": "FLT-HYD-01",
+   "name": "Filtro hidraulico",
+   "unit_cost_usd": 60
+  },
+  {
+   "part_id": "PRT-03",
+   "sku": "SEAL-CYL-01",
+   "name": "Kit de sellos de cilindro",
+   "unit_cost_usd": 180
+  },
+  {
+   "part_id": "PRT-04",
+   "sku": "PUMP-HYD-01",
+   "name": "Bomba hidraulica",
+   "unit_cost_usd": 6800
+  },
+  {
+   "part_id": "PRT-05",
+   "sku": "INJ-01",
+   "name": "Inyector",
+   "unit_cost_usd": 520
+  },
+  {
+   "part_id": "PRT-06",
+   "sku": "TURBO-01",
+   "name": "Turbocompresor",
+   "unit_cost_usd": 2400
+  },
+  {
+   "part_id": "PRT-07",
+   "sku": "BRG-FD-01",
+   "name": "Rodamiento de mando final",
+   "unit_cost_usd": 950
+  },
+  {
+   "part_id": "PRT-08",
+   "sku": "BELT-ALT-01",
+   "name": "Correa del alternador",
+   "unit_cost_usd": 70
+  },
+  {
+   "part_id": "PRT-09",
+   "sku": "SNS-PRS-01",
+   "name": "Sensor de presion",
+   "unit_cost_usd": 210
+  },
+  {
+   "part_id": "PRT-10",
+   "sku": "OIL-HYD-20L",
+   "name": "Aceite hidraulico 20 L",
+   "unit_cost_usd": 110
+  },
+  {
+   "part_id": "PRT-11",
+   "sku": "FLT-AIR-01",
+   "name": "Filtro de aire",
+   "unit_cost_usd": 55
+  },
+  {
+   "part_id": "PRT-12",
+   "sku": "BRK-PAD-01",
+   "name": "Pastillas de freno",
+   "unit_cost_usd": 140
+  }
+ ],
+ "bom": [
+  {
+   "model_id": "EX",
+   "part_id": "PRT-04",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "hydraulic_pump"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-03",
+   "qty": 2,
+   "replace_every_h": 3000,
+   "failure_mode": "hydraulic_pump"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-10",
+   "qty": 4,
+   "replace_every_h": 2000,
+   "failure_mode": "hydraulic_overheat"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-05",
+   "qty": 1,
+   "replace_every_h": 6000,
+   "failure_mode": "fuel_contamination"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-09",
+   "qty": 1,
+   "replace_every_h": 4000,
+   "failure_mode": "sensor_fault"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-03",
+   "qty": 2,
+   "replace_every_h": 3000,
+   "failure_mode": "hydraulic_pump"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-12",
+   "qty": 4,
+   "replace_every_h": 1500,
+   "failure_mode": "brake_wear"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-08",
+   "qty": 1,
+   "replace_every_h": 2000,
+   "failure_mode": "electrical_fault"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-05",
+   "qty": 1,
+   "replace_every_h": 6000,
+   "failure_mode": "fuel_contamination"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-06",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "engine_overheat"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-12",
+   "qty": 6,
+   "replace_every_h": 1500,
+   "failure_mode": "brake_wear"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-07",
+   "qty": 1,
+   "replace_every_h": 10000,
+   "failure_mode": "final_drive"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-08",
+   "qty": 1,
+   "replace_every_h": 2000,
+   "failure_mode": "electrical_fault"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-08",
+   "qty": 1,
+   "replace_every_h": 2000,
+   "failure_mode": "electrical_fault"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-05",
+   "qty": 1,
+   "replace_every_h": 6000,
+   "failure_mode": "fuel_contamination"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-07",
+   "qty": 1,
+   "replace_every_h": 10000,
+   "failure_mode": "final_drive"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-06",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "engine_overheat"
+  }
+ ],
+ "part_stock": [
+  {
+   "part_id": "PRT-01",
+   "on_hand_per_zone": 12,
+   "reorder_point": 4
+  },
+  {
+   "part_id": "PRT-02",
+   "on_hand_per_zone": 10,
+   "reorder_point": 3
+  },
+  {
+   "part_id": "PRT-03",
+   "on_hand_per_zone": 6,
+   "reorder_point": 2
+  },
+  {
+   "part_id": "PRT-04",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1
+  },
+  {
+   "part_id": "PRT-05",
+   "on_hand_per_zone": 4,
+   "reorder_point": 2
+  },
+  {
+   "part_id": "PRT-06",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1
+  },
+  {
+   "part_id": "PRT-07",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1
+  },
+  {
+   "part_id": "PRT-08",
+   "on_hand_per_zone": 5,
+   "reorder_point": 2
+  },
+  {
+   "part_id": "PRT-09",
+   "on_hand_per_zone": 3,
+   "reorder_point": 1
+  },
+  {
+   "part_id": "PRT-10",
+   "on_hand_per_zone": 8,
+   "reorder_point": 3
+  },
+  {
+   "part_id": "PRT-11",
+   "on_hand_per_zone": 12,
+   "reorder_point": 4
+  },
+  {
+   "part_id": "PRT-12",
+   "on_hand_per_zone": 10,
+   "reorder_point": 4
+  }
+ ],
+ "failure_modes": [
+  "hydraulic_pump",
+  "hydraulic_contamination",
+  "hydraulic_overheat",
+  "fuel_contamination",
+  "engine_overheat",
+  "final_drive",
+  "brake_wear",
+  "electrical_fault",
+  "sensor_fault"
+ ],
+ "specialty_by_failure_mode": {
+  "hydraulic_pump": "hydraulics",
+  "hydraulic_contamination": "hydraulics",
+  "hydraulic_overheat": "hydraulics",
+  "fuel_contamination": "engine",
+  "engine_overheat": "engine",
+  "final_drive": "transmission",
+  "brake_wear": "transmission",
+  "electrical_fault": "electrical",
+  "sensor_fault": "electrical"
+ }
+}

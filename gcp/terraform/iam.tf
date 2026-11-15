@@ -33,7 +33,8 @@ resource "google_bigquery_dataset_iam_member" "exporter_data" {
   member     = "serviceAccount:${google_service_account.exporter.email}"
 }
 
-# fp-insights: consulta BigQuery (lectura) y corre jobs de consulta.
+# fp-insights: consulta BigQuery y corre jobs. dataEditor en el dataset (no en el proyecto) porque POST /jobs/refresh
+# (T20) hace CREATE OR REPLACE MODEL de m_peer_clusters, m_fuel_trend y m_parts_demand (el codigo no escribe tablas).
 resource "google_project_iam_member" "insights_job" {
   project = var.project_id
   role    = "roles/bigquery.jobUser"
@@ -42,6 +43,6 @@ resource "google_project_iam_member" "insights_job" {
 
 resource "google_bigquery_dataset_iam_member" "insights_data" {
   dataset_id = google_bigquery_dataset.fleetpulse.dataset_id
-  role       = "roles/bigquery.dataViewer"
+  role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.insights.email}"
 }

@@ -1,4 +1,4 @@
-"""Wrapper inyectable de BigQuery para /peers. Usa google-cloud-bigquery (NO streaming).
+"""Wrapper inyectable de BigQuery para /peers y la analitica de T20. Usa google-cloud-bigquery (NO streaming).
 
 La consulta pone maximum_bytes_billed para no salir del free tier. En los tests se inyecta un falso
 con el mismo metodo `peers`, asi no hace falta red ni credenciales.
@@ -57,6 +57,44 @@ class BqClient:
         )
         job = self._c().query(sql, job_config=job_config)
         return [dict(row) for row in job.result()]
+
+
+    def rows(self, sql: str, params: dict | None = None) -> list[dict]:
+        """Consulta con parametros con nombre (date -> DATE, int -> INT64, float -> FLOAT64, str -> STRING)."""
+        from google.cloud import bigquery
+
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter(k, _bq_type(v), v) for k, v in (params or {}).items()],
+            maximum_bytes_billed=self.max_bytes,
+        )
+        job = self._c().query(sql.format(dataset=self.dataset), job_config=job_config)
+        return [dict(row) for row in job.result()]
+
+    def submit(self, sql: str, max_bytes: int | None = None) -> str:
+        """Lanza un job (CREATE MODEL) sin esperarlo y devuelve su id."""
+        from google.cloud import bigquery
+
+        job_config = bigquery.QueryJobConfig(maximum_bytes_billed=max_bytes or self.max_bytes)
+        return self._c().query(sql, job_config=job_config).job_id
+
+    def job(self, job_id: str) -> dict:
+        j = self._c().get_job(job_id)
+        err = (j.error_result or {}).get("message") if j.state == "DONE" else None
+        return {"job_id": job_id, "state": j.state, "error": err}
+
+
+def _bq_type(v) -> str:
+    import datetime
+
+    if isinstance(v, bool):
+        return "BOOL"
+    if isinstance(v, int):
+        return "INT64"
+    if isinstance(v, float):
+        return "FLOAT64"
+    if isinstance(v, datetime.date):
+        return "DATE"
+    return "STRING"
 
 
 def build_peers_response(rows: list[dict], machine_id: str) -> dict | None:

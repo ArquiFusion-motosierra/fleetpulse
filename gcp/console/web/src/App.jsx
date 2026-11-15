@@ -1,26 +1,36 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Home from "./Home.jsx";
 import MapView from "./MapView.jsx";
 import PlanningView from "./Planning.jsx";
 import SupplyView from "./Supply.jsx";
 import { IncidentPanel, IncidentRow, MachinePanel, StockView, Sev } from "./Panels.jsx";
 import { AdminView, Login, ReportForm, ReportPanel, ReportsList } from "./Reports.jsx";
-import { api, SEVERITY, statusOf, MODE_LABEL, ROLE_LABEL, TENANT_LABEL, fmtTime, setTenant } from "./api.js";
+import { BottomNav, Sidebar, Topbar } from "./Shell.jsx";
+import { api, SEVERITY, statusOf, MODE_LABEL, TENANT_COLOR, TENANT_NAME, TENANT_OPERATION, fmtTime, setTenant } from "./api.js";
 import { completeLogin, loadConfig, logout, session } from "./auth.js";
+import { countBySeverity, needsAttention } from "./derive.js";
+import { Empty, ParkTag } from "./ui.jsx";
 
 const REFRESH_MS = 15000;
 
-// Pestanas por rol (T34). La primera es la de inicio.
-const LABELS = { map: "Mapa", incidents: "Incidentes", myincidents: "Mis incidentes", stock: "Stock", supply: "Abastecimiento", planning: "Planificación",
+// Pestanas por rol (T34). Inicio es la primera para todos.
+const LABELS = { home: "Inicio", map: "Mapa", incidents: "Incidentes", myincidents: "Mis incidentes", stock: "Stock", supply: "Abastecimiento", planning: "Planificación",
   report: "Reportar", myreports: "Mis reportes", assigned: "Reportes asignados", reports: "Reportes", admin: "Administración" };
+const ICONS = { home: "home", map: "map", incidents: "alert", myincidents: "alert", stock: "stock", supply: "supply", planning: "plan",
+  report: "report", myreports: "report", assigned: "report", reports: "report", admin: "admin" };
+// Rotulos cortos para la barra inferior del celular
+const SHORT = { myincidents: "Incidentes", assigned: "Reportes", myreports: "Mis reportes", planning: "Plan", supply: "Abastec." };
 const ROLE_TABS = {
-  operator: ["report", "myreports", "map"],
-  technician: ["myincidents", "assigned", "map", "stock"],
+  operator: ["home", "report", "myreports", "map"],
+  technician: ["home", "myincidents", "assigned", "map", "stock"],
   // T41: Abastecimiento reemplaza a Stock para supervisor, admin y jefe; el tecnico sigue con Stock de su parque
-  supervisor: ["map", "incidents", "reports", "supply", "planning"],
-  management: ["planning", "map", "incidents"],
-  admin: ["map", "incidents", "reports", "supply", "planning", "admin"],
-  maintenance_head: ["map", "incidents", "reports", "supply", "planning"],
+  supervisor: ["home", "map", "incidents", "reports", "supply", "planning"],
+  management: ["home", "planning", "map", "incidents"],
+  admin: ["home", "map", "incidents", "reports", "supply", "planning", "admin"],
+  maintenance_head: ["home", "map", "incidents", "reports", "supply", "planning"],
 };
+// Reportes que carga la consola: los propios (operario y tecnico) o todos los del alcance; direccion no los ve
+const REPORTS_QUERY = { operator: "mine=1", technician: "mine=1", supervisor: "", admin: "", maintenance_head: "" };
 const CAN_CLOSE_INCIDENT = ["technician", "supervisor", "admin", "maintenance_head"];
 
 export default function App() {
@@ -35,7 +45,7 @@ export default function App() {
 }
 
 function Console({ user }) {
-  const tabs = ROLE_TABS[user.role] || ["map"];
+  const tabs = ROLE_TABS[user.role] || ["home", "map"];
   // La pestana vive en la URL (#planning) para poder abrirla directo al grabar
   const fromHash = location.hash.slice(1);
   const [tab, setTabState] = useState(() => (tabs.includes(fromHash) ? fromHash : fromHash.startsWith("incident:") && tabs.includes("incidents") ? "incidents"
@@ -43,6 +53,8 @@ function Console({ user }) {
   const setTab = (t) => { setTabState(t); history.replaceState(null, "", `#${t}`); };
   const [machines, setMachines] = useState([]);
   const [incidents, setIncidents] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   // Enlace directo para grabar: #machine:VQ-022, #incident:INC-..., #report:RPT-...
   const [drawer, setDrawer] = useState(() => {
     const m = location.hash.match(/^#(machine|incident|report):([A-Z0-9-]+)$/);
@@ -58,15 +70,19 @@ function Console({ user }) {
 
   const refresh = useCallback(async () => {
     try {
-      const [m, i] = await Promise.all([api.machines(), api.incidents()]);
+      const rq = REPORTS_QUERY[user.role];
+      const [m, i, r] = await Promise.all([api.machines(), api.incidents(), rq == null ? [] : api.reports(rq).catch(() => [])]);
       setMachines(m);
       setIncidents(i);
+      setReports(r);
       setUpdated(new Date());
       setError("");
     } catch (e) {
       setError(e.message);
+    } finally {
+      setLoaded(true);
     }
-  }, []);
+  }, [user.role]);
 
   useEffect(() => {
     api.health().then((h) => setMode(h.mode)).catch(() => {});
@@ -79,17 +95,19 @@ function Console({ user }) {
     return () => clearInterval(t);
   }, [refresh, park]);
 
-  const parkInfo = parks.tenants.find((t) => t.tenant_id === (park || parks.tenant_id));
-  const brandLine = parkInfo ? `${parkInfo.operation} · ${parkInfo.name}` : parks.global ? "Todos los parques" : "Operación Cerro Azul";
+  const current = park || parks.tenant_id;
+  const title = current ? TENANT_NAME[current] || current : parks.global ? "Todos los parques" : "FleetPulse";
   const zonesShown = parks.zones.filter((z) => !park || z.tenant_id === park);
 
   const open = incidents.filter((i) => i.status !== "closed");
   const mine = incidents.filter((i) => i.tech_id && i.tech_id === user.tech_id);
-  const counts = useMemo(() => {
-    const c = { operating: 0, ok: 0, observe: 0, schedule: 0, immediate: 0 };
-    machines.forEach((m) => { c[m.severity || "ok"]++; if (m.status === "operating") c.operating++; });
-    return c;
-  }, [machines]);
+  const counts = useMemo(() => countBySeverity(machines), [machines]);
+  const badges = {
+    incidents: open.length,
+    myincidents: mine.filter((i) => i.status !== "closed").length,
+    reports: needsAttention([], reports).unreviewedReports.length,
+  };
+  const navTabs = tabs.map((k) => ({ key: k, label: LABELS[k], short: SHORT[k], icon: ICONS[k] }));
 
   const showMachine = (id) => setDrawer({ kind: "machine", id });
   const showIncident = (id) => setDrawer({ kind: "incident", id });
@@ -98,109 +116,83 @@ function Console({ user }) {
   const incidentTable = (rows, title) => (
     <section className="page">
       <h2>{title}</h2>
-      {rows.length === 0 && <p className="muted">Sin incidentes.</p>}
+      {rows.length === 0 && <Empty>Sin incidentes {parks.global && !park ? "en ningún parque" : `en el ${(TENANT_NAME[current] || "parque").toLowerCase()}`}. Cuando la telemetría de una máquina sale de su línea base, aparece aquí.</Empty>}
       {rows.length > 0 && (
-        <table className="grid clickable">
-          <thead>
-            <tr><th>Incidente</th>{parks.global && <th>Parque</th>}<th>Máquina</th><th>Falla</th><th>Severidad</th><th>Estado</th><th>Técnico</th><th>Abierto</th><th>Detenida</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((i) => (
-              <tr key={i.incident_id} onClick={() => showIncident(i.incident_id)} className={drawer?.id === i.incident_id ? "active" : ""}>
-                <td className="mono small">{i.incident_id}{i.recurrence_flag && <span className="tag warn">reincidencia</span>}</td>
-                {parks.global && <td>{TENANT_LABEL[i.tenant_id] || i.tenant_id || "—"}</td>}
-                <td><b>{i.machine_id}</b></td>
-                <td>{MODE_LABEL[i.failure_mode] || i.failure_mode}</td>
-                <td><Sev s={i.severity} /></td>
-                <td>{statusOf(i)}</td>
-                <td>{i.tech_id || "—"}</td>
-                <td>{fmtTime(i.opened_at)}</td>
-                <td>{i.downtime_h != null ? `${i.downtime_h} h` : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table className="grid clickable">
+            <thead>
+              <tr><th>Incidente</th>{parks.global && <th>Parque</th>}<th>Máquina</th><th>Falla</th><th>Severidad</th><th>Estado</th><th>Técnico</th><th>Abierto</th><th>Detenida</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((i) => (
+                <tr key={i.incident_id} onClick={() => showIncident(i.incident_id)} className={drawer?.id === i.incident_id ? "active" : ""}>
+                  <td className="mono small">{i.incident_id}{i.recurrence_flag && <span className="tag warn">reincidencia</span>}</td>
+                  {parks.global && <td><ParkTag tenant={i.tenant_id} /></td>}
+                  <td><b>{i.machine_id}</b></td>
+                  <td>{MODE_LABEL[i.failure_mode] || i.failure_mode}</td>
+                  <td><Sev s={i.severity} /></td>
+                  <td>{statusOf(i)}</td>
+                  <td>{i.tech_id || "—"}</td>
+                  <td>{fmtTime(i.opened_at)}</td>
+                  <td>{i.downtime_h != null ? `${i.downtime_h} h` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
 
   return (
-    <div className="app">
-      <header className="top">
-        <div className="brand">
-          <span className="logo" />
-          <div>
-            <b>FleetPulse</b>
-            <span>{brandLine} · ArquiFusion</span>
-          </div>
-          {parks.global ? (
-            <select className="park" value={park} onChange={(e) => choosePark(e.target.value)} aria-label="Parque">
-              <option value="">Todos los parques</option>
-              {parks.tenants.map((t) => <option key={t.tenant_id} value={t.tenant_id}>{TENANT_LABEL[t.tenant_id] || t.name}</option>)}
-            </select>
-          ) : parks.tenant_id && <span className="tag park-badge">{TENANT_LABEL[parks.tenant_id] || parks.tenant_id}</span>}
-        </div>
-        <nav>
-          {tabs.map((k) => (
-            <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
-              {LABELS[k]}{k === "incidents" && open.length > 0 && <em>{open.length}</em>}
-              {k === "myincidents" && mine.filter((i) => i.status !== "closed").length > 0 && <em>{mine.filter((i) => i.status !== "closed").length}</em>}
-            </button>
-          ))}
-        </nav>
-        <div className="kpis">
-          <div><b>{counts.operating}</b><span>operando</span></div>
-          {["immediate", "schedule", "observe"].map((s) => (
-            <div key={s} style={{ "--c": SEVERITY[s].color }} className="kpi-sev"><b>{counts[s]}</b><span>{SEVERITY[s].label.toLowerCase()}</span></div>
-          ))}
-        </div>
-        <div className={`live ${error ? "down" : ""}`}>
-          <i />{error ? "sin conexión" : updated ? `actualizado ${updated.toLocaleTimeString("es-PE", { timeZone: "America/Lima" })}` : "conectando"}
-          {mode === "mock" && <span className="tag">datos de prueba</span>}
-        </div>
-        <div className="who">
-          <span><b>{ROLE_LABEL[user.role]}</b><span className="muted small">{user.email}{user.tech_id ? ` · ${user.tech_id}` : ""}</span></span>
-          <button className="toggle" onClick={logout}>Salir</button>
-        </div>
-      </header>
+    <div className="app" style={{ "--park": TENANT_COLOR[current] || TENANT_COLOR.mineria }}>
+      <Sidebar tabs={navTabs} tab={tab} onTab={setTab} badges={badges} parks={parks} park={park} onPark={choosePark} user={user} onLogout={logout} />
+      <div className="main-col">
+        <Topbar title={title} detail={TENANT_OPERATION[current]} subtitle={tab === "home" ? null : LABELS[tab]} live={{ error, updated, mock: mode === "mock" }}
+          parks={parks} park={park} onPark={choosePark} />
+        {error && <div className="alert">No se pudo leer AWS: {error}. Reintentando cada 15 s.</div>}
 
-      {error && <div className="alert">No se pudo leer AWS: {error}. Reintentando cada 15 s.</div>}
+        <main className={`body ${tab}`}>
+          {tab === "home" && <Home user={user} machines={machines} incidents={incidents} reports={reports} loaded={loaded} tabs={tabs}
+            parks={parks} park={park} zones={zonesShown} onPark={choosePark} onTab={setTab} onMachine={showMachine}
+            onIncident={showIncident} onReport={showReport} />}
+          {tab === "map" && (
+            <>
+              <MapView machines={machines} selected={drawer?.kind === "machine" ? drawer.id : null} onSelect={showMachine}
+                zones={zonesShown} focusKey={park || "all"} />
+              <aside className="side">
+                <div className="legend">
+                  {Object.entries(SEVERITY).map(([k, v]) => <span key={k} style={{ "--c": v.color }}><i />{v.label} <b>{counts[k]}</b></span>)}
+                </div>
+                <h3>Incidentes activos <span className="muted">({open.length})</span></h3>
+                <div className="inc-list">
+                  {open.length === 0 && <p className="muted">Sin incidentes activos.</p>}
+                  {open.map((i) => (
+                    <IncidentRow key={i.incident_id} inc={i} active={drawer?.id === i.incident_id} onClick={() => showIncident(i.incident_id)} />
+                  ))}
+                </div>
+              </aside>
+            </>
+          )}
+          {tab === "incidents" && incidentTable(incidents, "Incidentes")}
+          {tab === "myincidents" && incidentTable(mine, user.tech_id ? `Mis incidentes (${user.tech_id})` : "Mis incidentes")}
+          {tab === "stock" && <StockView key={park} />}
+          {tab === "supply" && <SupplyView key={park} user={{ ...user, tenant_id: parks.tenant_id }} onIncident={showIncident} />}
+          {tab === "planning" && <PlanningView key={park} onMachine={showMachine} />}
+          {tab === "report" && <ReportForm machines={machines} onCreated={refresh} />}
+          {tab === "myreports" && <ReportsList title="Mis reportes" query="mine=1" onOpen={showReport} empty="Todavía no enviaste reportes." />}
+          {tab === "assigned" && <ReportsList title="Reportes asignados" query="mine=1" onOpen={showReport} empty="No tienes reportes asignados." />}
+          {tab === "reports" && <ReportsList key={park} title="Reportes del operario" query="" onOpen={showReport} empty="Sin reportes." />}
+          {tab === "admin" && <AdminView />}
 
-      <main className={`body ${tab}`}>
-        {tab === "map" && (
-          <>
-            <MapView machines={machines} selected={drawer?.kind === "machine" ? drawer.id : null} onSelect={showMachine}
-              zones={zonesShown} focusKey={park || "all"} />
-            <aside className="side">
-              <div className="legend">
-                {Object.entries(SEVERITY).map(([k, v]) => <span key={k} style={{ "--c": v.color }}><i />{v.label} <b>{counts[k]}</b></span>)}
-              </div>
-              <h3>Incidentes activos <span className="muted">({open.length})</span></h3>
-              <div className="inc-list">
-                {open.length === 0 && <p className="muted">Sin incidentes activos.</p>}
-                {open.map((i) => (
-                  <IncidentRow key={i.incident_id} inc={i} active={drawer?.id === i.incident_id} onClick={() => showIncident(i.incident_id)} />
-                ))}
-              </div>
-            </aside>
-          </>
-        )}
-        {tab === "incidents" && incidentTable(incidents, "Incidentes")}
-        {tab === "myincidents" && incidentTable(mine, `Mis incidentes (${user.tech_id})`)}
-        {tab === "stock" && <StockView key={park} />}
-        {tab === "supply" && <SupplyView key={park} user={{ ...user, tenant_id: parks.tenant_id }} onIncident={showIncident} />}
-        {tab === "planning" && <PlanningView key={park} onMachine={showMachine} />}
-        {tab === "report" && <ReportForm machines={machines} onCreated={refresh} />}
-        {tab === "myreports" && <ReportsList title="Mis reportes" query="mine=1" onOpen={showReport} empty="Todavía no enviaste reportes." />}
-        {tab === "assigned" && <ReportsList title="Reportes asignados" query="mine=1" onOpen={showReport} empty="No tienes reportes asignados." />}
-        {tab === "reports" && <ReportsList key={park} title="Reportes del operario" query="" onOpen={showReport} empty="Sin reportes." />}
-        {tab === "admin" && <AdminView />}
-
-        {drawer?.kind === "machine" && <MachinePanel id={drawer.id} onClose={() => setDrawer(null)} onOpenIncident={showIncident} />}
-        {drawer?.kind === "incident" && <IncidentPanel id={drawer.id} onClose={() => setDrawer(null)} onChanged={refresh} onMachine={showMachine}
-          onReport={showReport} canClose={CAN_CLOSE_INCIDENT.includes(user.role)} user={user} />}
-        {drawer?.kind === "report" && <ReportPanel id={drawer.id} user={user} onClose={() => setDrawer(null)} onIncident={showIncident} onChanged={refresh} />}
-      </main>
+          {drawer?.kind === "machine" && <MachinePanel id={drawer.id} onClose={() => setDrawer(null)} onOpenIncident={showIncident} />}
+          {drawer?.kind === "incident" && <IncidentPanel id={drawer.id} onClose={() => setDrawer(null)} onChanged={refresh} onMachine={showMachine}
+            onReport={showReport} canClose={CAN_CLOSE_INCIDENT.includes(user.role)} user={user} />}
+          {drawer?.kind === "report" && <ReportPanel id={drawer.id} user={user} onClose={() => setDrawer(null)} onIncident={showIncident} onChanged={refresh} />}
+          {drawer && <button className="drawer-back" onClick={() => setDrawer(null)}>← Volver</button>}
+        </main>
+      </div>
+      <BottomNav tabs={navTabs} tab={tab} onTab={setTab} badges={badges} user={user} onLogout={logout} />
     </div>
   );
 }

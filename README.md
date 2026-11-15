@@ -12,6 +12,30 @@ Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y re
 
 **Multi-tenant por parque**: `mineria` (por defecto), `agro` e `industria`, cada uno con sus máquinas, zonas, técnicos y stock. El admin de un parque solo ve el suyo; el jefe de mantenimiento ve todos. El parque viaja en grupos de Cognito, `tenant_id` en eventos y DynamoDB (GSI3), atributos SNS, prefijos S3 `tenant=` y datasets BigQuery `fp_<parque>`. Ver [docs/architecture.md](docs/architecture.md#multi-tenancy-por-parque).
 
+## Cómo evaluar
+
+Consola: **https://console-qgbfzxdq2a-ue.a.run.app** · Contraseña de todas las cuentas: `LaMotosierra123`
+
+En la pantalla de ingreso, un clic en un correo lo copia y abre el login de Cognito. Para cambiar de rol o de parque:
+**Cambiar de rol / Salir** (abajo en la barra lateral, o en **Más** en el celular) y entrar con otra cuenta.
+
+| Rol | Parque minero | Parque agrícola | Parque industrial |
+|---|---|---|---|
+| Operario | `operador@example.com` | `operador.agro@example.com` | `operador.industria@example.com` |
+| Técnico | `tecnico@example.com` (TEC-01) | `tecnico.agro@example.com` (TEC-11) | `tecnico.industria@example.com` (TEC-21) |
+| Supervisor | `supervisor@example.com` | `supervisor.agro@example.com` | `supervisor.industria@example.com` |
+| Dirección | `direccion@example.com` | `direccion.agro@example.com` | `direccion.industria@example.com` |
+| Administrador | `admin@example.com`, `admin.mineria@example.com` | `admin.agro@example.com` | `admin.industria@example.com` |
+| Jefe de mantenimiento | `jefe.mantenimiento@example.com` (los tres parques) | | |
+
+Qué ve cada rol al entrar (Inicio):
+- **Operario**: botón grande para reportar una falla, sus últimos reportes y las máquinas con alerta de su parque.
+- **Técnico**: sus incidentes y reportes asignados, el siguiente trabajo y los repuestos ya reservados para él.
+- **Supervisor**: KPI del parque, lo que requiere atención (inmediatos sin técnico, aprobaciones pendientes, reportes sin revisar), mapa y stock bajo.
+- **Dirección**: KPI del último día con datos e incidentes abiertos por severidad.
+- **Administrador**: lo del supervisor más Administración (técnicos y tipos de anormalidad).
+- **Jefe de mantenimiento**: compara los tres parques en una tabla; "Ver parque" filtra toda la consola a uno. Es la mejor cuenta para ver el multi-tenancy: un admin de parque solo ve el suyo.
+
 ## Desplegar
 1. `scripts/lab-creds.sh`
 2. `terraform -chdir=gcp/terraform apply`

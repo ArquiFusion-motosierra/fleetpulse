@@ -32,7 +32,7 @@ STATUSES = ("open", "in_review", "closed")
 CATALOG_PK = "CATALOG#abnormality_type"
 SEEDED_SK = "#seeded"
 MAX_ITEMS = 1000  # tope por consulta: la demo maneja decenas de reportes
-HIDDEN = {"PK", "SK", "GSI1PK", "GSI1SK", "GSI2PK", "GSI2SK"}
+HIDDEN = {"PK", "SK", "GSI1PK", "GSI1SK", "GSI2PK", "GSI2SK", "GSI3PK", "GSI3SK"}
 
 
 class ConditionFailed(Exception):

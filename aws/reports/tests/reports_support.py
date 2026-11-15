@@ -90,7 +90,8 @@ def hot_readings(n=10, start=NOW - timedelta(minutes=5)):
 
 def seed_tech(state, tech_id="TEC-01", zone="NORTE", specialty="hydraulics", available=True, **attrs):
     """`TECH#<id>` / `META` con los mismos atributos que siembra aws/registry/reg/seed.py (lat/lon del centroide)."""
-    lat, lon = {"NORTE": (-13.9, -71.56), "CENTRO": (-13.92, -71.545), "SUR": (-13.94, -71.555)}[zone]
+    lat, lon = {"NORTE": (-13.9, -71.56), "CENTRO": (-13.92, -71.545), "SUR": (-13.94, -71.555),
+                "FUNDO-A": (-14.07, -75.735), "PACKING": (-14.08, -75.705)}[zone]
     state.put_item(Item=dec({"PK": f"TECH#{tech_id}", "SK": "META", "tech_id": tech_id, "name": f"Tecnico {tech_id}",
                              "specialty": specialty, "zone_id": zone, "lat": lat, "lon": lon, "available": available,
                              "GSI1PK": f"ZONE#{zone}", "GSI1SK": f"TECH#{tech_id}", **attrs}))

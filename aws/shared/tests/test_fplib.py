@@ -239,3 +239,33 @@ def test_oem_specs_without_contracts_dir(monkeypatch, tmp_path):
         assert ids.oem_specs("EX") == {}
     finally:
         ids.oem_catalog.cache_clear()
+
+
+# --- schema.validate(ref=...) y eventos report.* -------------------------------------------------------------------
+
+def _report_example(name):
+    return json.loads((REPO / "contracts/examples/report" / name).read_text())
+
+
+def test_schema_validate_ref_targets_one_def():
+    schema.validate("report", _report_example("create.json"), ref="create")
+    schema.validate("report", _report_example("close.json"), ref="close")
+    with pytest.raises(schema.ContractError) as e:
+        schema.validate("report", _report_example("close.json"), ref="create")
+    assert str(e.value).startswith("report#create:")
+    with pytest.raises(schema.ContractError) as e:
+        schema.validate("report", {**_report_example("create.json"), "description": ""}, ref="create")
+    assert e.value.path == ["description"]
+    with pytest.raises(KeyError):
+        schema.validate("report", {}, ref="nope")
+
+
+def test_envelope_builds_report_events_against_their_contract():
+    for name, event_type in (("created-event.json", "report.created"), ("closed-event.json", "report.closed")):
+        ex = _report_example(name)
+        env = envelope.build(event_type, "aws.reports-api", "report", ex["aggregate_id"], ex["payload"],
+                             incident_id=ex["incident_id"], machine_id="EX-017")
+        assert env["aggregate_type"] == "report" and env["payload"] == ex["payload"]
+    bad = {k: v for k, v in _report_example("created-event.json")["payload"].items() if k != "urgency"}
+    with pytest.raises(schema.ContractError):
+        envelope.build("report.created", "aws.reports-api", "report", bad["report_id"], bad, machine_id="EX-017")

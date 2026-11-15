@@ -1,0 +1,26 @@
+{
+  "event_id": "8c2f3d4e-5a6b-4c7d-9e8f-0a1b2c3d4e5f",
+  "event_type": "report.closed",
+  "schema_version": 1,
+  "source": "aws.reports-api",
+  "aggregate_type": "report",
+  "aggregate_id": "RPT-EX-017-20261115T144012",
+  "occurred_at": "2026-11-15T16:02:30Z",
+  "incident_id": "INC-EX-017-20261115T1430",
+  "machine_id": "EX-017",
+  "payload": {
+    "report_id": "RPT-EX-017-20261115T144012",
+    "closed_at": "2026-11-15T16:02:30Z",
+    "closed_by": "TEC-01",
+    "findings": "Refrigerante con aceite y burbujas en el radiador; prueba de presion no sostiene 1,2 bar. Junta de culata con fuga.",
+    "parts_used": [
+      {
+        "part_id": "PRT-11",
+        "zone_id": "NORTE",
+        "qty": 1
+      }
+    ],
+    "confirmed_cause": "Junta de culata danada",
+    "incident_id": "INC-EX-017-20261115T1430"
+  }
+}

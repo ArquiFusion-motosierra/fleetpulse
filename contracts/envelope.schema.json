@@ -25,16 +25,18 @@
         "part.shortage",
         "kpi.daily",
         "maintenance.order.suggested",
-        "fuel.anomaly"
+        "fuel.anomaly",
+        "report.created",
+        "report.closed"
       ]
     },
     "schema_version": {"type": "integer", "const": 1},
     "source": {
       "type": "string",
-      "enum": ["aws.incident-flow", "aws.incidents-api", "aws.daily-planning", "aws.registry", "simulator.backfill"],
+      "enum": ["aws.incident-flow", "aws.incidents-api", "aws.daily-planning", "aws.registry", "aws.reports-api", "simulator.backfill"],
       "description": "Componente que escribio el evento en el outbox."
     },
-    "aggregate_type": {"type": "string", "enum": ["incident", "part_reservation", "machine", "fleet"]},
+    "aggregate_type": {"type": "string", "enum": ["incident", "part_reservation", "machine", "fleet", "report"]},
     "aggregate_id": {"type": "string", "minLength": 2, "maxLength": 64},
     "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$", "description": "ISO 8601 en UTC."},
     "incident_id": {

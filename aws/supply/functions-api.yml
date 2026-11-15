@@ -1,2 +1,29 @@
-# T40 (API /supply/*): reemplaza este placeholder con sus funciones. Debe quedar un mapa (vacio vale).
-{}
+# Funciones de la API /supply/* (T40), incluidas por serverless.yml de fp-supply (T39):
+#   functions: [ ${file(./functions-flow.yml)}, ${file(./functions-api.yml)} ]
+# Todas las rutas en la HTTP API fp-api de fp-core (provider.httpApi.id) con el autorizador JWT `cognito`
+# (custom.cognitoAuthorizer, como aws/reports). Roles y parque: api/supply_api.py. Sin CORS: la consola llama
+# desde su BFF reenviando el ID token. El paquete debe incluir `api/**`.
+supply-api:
+  handler: api/supply_api.handler
+  timeout: 10  # DynamoDB + una llamada a Step Functions
+  environment:
+    REGISTRY_TABLE: fp-registry
+    SUPPLY_FLOW_ARN: arn:aws:states:${aws:region}:${aws:accountId}:stateMachine:supply-flow
+  events:
+    - httpApi: {method: GET, path: /supply/stock, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: GET, path: /supply/suggestions, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: GET, path: /supply/suppliers, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: GET, path: /supply/movements, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: GET, path: /supply/kpis, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: GET, path: /supply/purchase-orders, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: POST, path: /supply/purchase-orders, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: GET, path: "/supply/purchase-orders/{id}", authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: POST, path: "/supply/purchase-orders/{id}/approve", authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: POST, path: "/supply/purchase-orders/{id}/reject", authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: POST, path: "/supply/purchase-orders/{id}/receive", authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: GET, path: /supply/transfers, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: POST, path: /supply/transfers, authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: GET, path: "/supply/transfers/{id}", authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: POST, path: "/supply/transfers/{id}/approve", authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: POST, path: "/supply/transfers/{id}/reject", authorizer: "${self:custom.cognitoAuthorizer}"}
+    - httpApi: {method: POST, path: "/supply/transfers/{id}/receive", authorizer: "${self:custom.cognitoAuthorizer}"}

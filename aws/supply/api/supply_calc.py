@@ -7,8 +7,9 @@ consola (gcp/console/app/mock_supply.py, la referencia de la forma de respuesta)
   la demanda de prueba del mock: punto de reorden en una semana (`max(rop, 1) / 7`).
 - `L` = lead time en dias del proveedor mas barato; `z` por criticidad (A 2,05 · B 1,65 · C 1,28).
 - `SS = max(safety_stock, ceil(z * sqrt(d) * sqrt(L)))`, `rop = max(reorder_point, ceil(d * L) + SS)`.
-- `status`: stockout si available <= 0, low si available <= rop, ok si no. `days_of_coverage = (available +
-  in_transit) / d`, redondeado a 1 decimal.
+- `status`: stockout si available <= 0, low si available <= rop, ok si no. `days_of_coverage = available / d`,
+  redondeado a 1 decimal: lo que esta en el estante y libre (lo reservado ya tiene dueno y lo en transito aun no
+  llega; `in_transit` y `on_order` van en su propia columna). Disponible 0 -> 0 d.
 """
 from __future__ import annotations
 
@@ -65,7 +66,7 @@ def stock_row(item: dict, part: dict, consumed_30d: float = 0) -> dict:
             "sku": part.get("sku"), "name": part.get("name"), "on_hand": on_hand, "reserved": reserved,
             "available": available, "on_order": on_order, "in_transit": in_transit, "reorder_point": reorder_point,
             "safety_stock": safety, "criticality": crit, "rop": rop,
-            "days_of_coverage": round((available + in_transit) / demand, 1), "status": status,
+            "days_of_coverage": round(max(available, 0) / demand, 1), "status": status,
             "demand_d": round(d, 3), "unit_cost_usd": unit_cost(part)}
 
 

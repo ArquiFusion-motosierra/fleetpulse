@@ -1,0 +1,79 @@
+# Stack fp-incidents: maquina de estados Standard incident-flow (T09) y sus Lambdas.
+# La inicia `score` (aws/scoring) con nombre = incident_id. Tablas y topics los crea fp-core (aws/ingest).
+service: fp-incidents
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 30
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+  layers:
+    - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+  environment:
+    STATE_TABLE: fp-state
+    REGISTRY_TABLE: fp-registry
+    OUTBOX_TABLE: fp-outbox
+
+package:
+  patterns:
+    - "!**"
+    - "flow/**"
+    - "lib/**"
+    - "!**/__pycache__/**"
+
+functions:
+  classify:
+    handler: flow/classify.handler
+  checkExisting:
+    handler: flow/check_existing.handler
+  createIncident:
+    handler: flow/create_incident.handler
+  rankTechnicians:
+    handler: flow/rank_technicians.handler
+  renderMessages:
+    handler: flow/render_messages.handler
+  assignTechnician:
+    handler: flow/assign_technician.handler
+
+resources:
+  Resources:
+    IncidentFlowLogs:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/states/incident-flow
+        RetentionInDays: 14
+
+    IncidentFlow:
+      Type: AWS::StepFunctions::StateMachine
+      Properties:
+        StateMachineName: incident-flow
+        StateMachineType: STANDARD
+        RoleArn: arn:aws:iam::${aws:accountId}:role/LabRole
+        Definition: ${file(statemachine/incident-flow.asl.json)}
+        DefinitionSubstitutions:
+          ClassifyArn: !GetAtt ClassifyLambdaFunction.Arn
+          CheckExistingArn: !GetAtt CheckExistingLambdaFunction.Arn
+          CreateIncidentArn: !GetAtt CreateIncidentLambdaFunction.Arn
+          RankTechniciansArn: !GetAtt RankTechniciansLambdaFunction.Arn
+          RenderMessagesArn: !GetAtt RenderMessagesLambdaFunction.Arn
+          AssignTechnicianArn: !GetAtt AssignTechnicianLambdaFunction.Arn
+          NotifyTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-notify
+          AlertsTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts
+        LoggingConfiguration:
+          Level: ALL
+          IncludeExecutionData: true
+          Destinations:
+            - CloudWatchLogsLogGroup:
+                LogGroupArn: !GetAtt IncidentFlowLogs.Arn
+
+  Outputs:
+    IncidentFlowArn:
+      Value: !Ref IncidentFlow
+      Export: {Name: "${self:service}-IncidentFlowArn"}

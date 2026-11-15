@@ -1,0 +1,362 @@
+{
+  "Comment": "incident-flow v0 (T09): clasifica, crea el incidente, rankea, asigna y notifica por rol. T14 agrega CorrelateZone, ExplainCause, NeedsApproval/WaitForApproval y ReserveParts.",
+  "StartAt": "ClassifySeverity",
+  "States": {
+    "ClassifySeverity": {
+      "Type": "Task",
+      "Resource": "${ClassifyArn}",
+      "ResultPath": "$.classified",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "CheckExistingIncident"
+    },
+    "CheckExistingIncident": {
+      "Type": "Task",
+      "Resource": "${CheckExistingArn}",
+      "ResultPath": "$.existing",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "AlreadyOpen?"
+    },
+    "AlreadyOpen?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.existing.found",
+          "BooleanEquals": true,
+          "Next": "EscalatedOrIgnored"
+        }
+      ],
+      "Default": "CreateIncident"
+    },
+    "EscalatedOrIgnored": {
+      "Type": "Succeed"
+    },
+    "CreateIncident": {
+      "Type": "Task",
+      "Resource": "${CreateIncidentArn}",
+      "ResultPath": "$.incident",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "RankTechnicians"
+    },
+    "RankTechnicians": {
+      "Type": "Task",
+      "Resource": "${RankTechniciansArn}",
+      "ResultPath": "$.ranking",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "RenderMessages"
+    },
+    "RenderMessages": {
+      "Type": "Task",
+      "Resource": "${RenderMessagesArn}",
+      "ResultPath": "$.messages",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "AssignTechnician"
+    },
+    "AssignTechnician": {
+      "Type": "Task",
+      "Resource": "${AssignTechnicianArn}",
+      "ResultPath": "$.assignment",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "NotifyByRole"
+    },
+    "NotifyByRole": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "NotifyTechnician",
+          "States": {
+            "NotifyTechnician": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "$.messages.subject",
+                "Message.$": "$.messages.technician",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "technician"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "NotifySupervisor",
+          "States": {
+            "NotifySupervisor": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "$.messages.subject",
+                "Message.$": "$.messages.supervisor",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "supervisor"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "ManagementNeeded?",
+          "States": {
+            "ManagementNeeded?": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Or": [
+                    {
+                      "Variable": "$.classified.severity",
+                      "StringEquals": "immediate"
+                    },
+                    {
+                      "And": [
+                        {
+                          "Variable": "$.incident.group_id",
+                          "IsPresent": true
+                        },
+                        {
+                          "Variable": "$.incident.group_id",
+                          "IsNull": false
+                        }
+                      ]
+                    }
+                  ],
+                  "Next": "NotifyManagement"
+                }
+              ],
+              "Default": "SkipManagement"
+            },
+            "NotifyManagement": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "$.messages.subject",
+                "Message.$": "$.messages.management",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "management"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            },
+            "SkipManagement": {
+              "Type": "Pass",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "NotifyOperator",
+          "States": {
+            "NotifyOperator": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "$.messages.subject",
+                "Message.$": "$.messages.operator",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "operator"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "Done"
+    },
+    "Done": {
+      "Type": "Succeed"
+    },
+    "PublishAlert": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertsTopicArn}",
+        "Subject.$": "States.Format('[FleetPulse] incident-flow fallo {}', $$.Execution.Name)",
+        "Message.$": "States.Format('incident-flow {} fallo: {} - {}', $$.Execution.Name, $.Error, $.Cause)"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Failed"
+    },
+    "Failed": {
+      "Type": "Fail",
+      "Error": "IncidentFlowFailed",
+      "Cause": "Ver el mensaje en fp-alerts y el historial de la ejecucion"
+    }
+  }
+}

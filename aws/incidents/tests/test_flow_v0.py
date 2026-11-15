@@ -125,9 +125,11 @@ def test_check_existing_escalates_open_incident(ex017, ddb):
     seed_incident(ddb.registry, old, "2026-11-15T14:05:00Z", severity="schedule", score=Decimal("2.2"))
     ev = classified({**ex017, "score": 3.62})
     out = check_existing.handler(ev, registry=ddb.registry, outbox=ddb.outbox)
-    # from/to/score: los usa el aviso de escalamiento de la maquina de estados (Escalated? -> NotifyEscalation)
+    # from/to/score: los usa el aviso de escalamiento de la maquina de estados (Escalated? -> NotifyEscalation);
+    # operator_message: la instruccion de la nueva severidad para el operador, el mismo texto de RenderMessages
     assert out == {"found": True, "incident_id": old, "escalated": True, "from_severity": "schedule",
-                   "to_severity": "immediate", "score": 3.62}
+                   "to_severity": "immediate", "score": 3.62,
+                   "operator_message": "EX-017: detenga la maquina en un lugar seguro y espere al tecnico."}
     assert get_meta(ddb.registry, old)["severity"] == "immediate"
     (env,) = outbox_events(ddb.outbox, "incident.escalated")
     assert env["incident_id"] == old and env["aggregate_id"] == old

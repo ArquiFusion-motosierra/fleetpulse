@@ -1,5 +1,5 @@
 {
-  "Comment": "incident-flow (T09 + T14): clasifica; si la maquina ya tiene un incidente abierto lo escala (y avisa a supervisor y direccion si sube la severidad) y termina; si no, correlaciona por celda y zona, crea el incidente, pide la explicacion a Cloud Run (plantilla si falla), rankea, espera la aprobacion del supervisor si la severidad es schedule (30 min, luego asignacion automatica), asigna (termina si el incidente ya se cerro), arma los textos con el tecnico asignado, notifica por rol y pide la reserva de repuestos. CorrelateZone, ExplainCause y WaitForApproval degradan en vez de fallar.",
+  "Comment": "incident-flow (T09 + T14): clasifica; si la maquina ya tiene un incidente abierto lo escala (y avisa a supervisor, direccion y al operador si sube la severidad) y termina; si no, correlaciona por celda y zona, crea el incidente, pide la explicacion a Cloud Run (plantilla si falla), rankea, espera la aprobacion del supervisor si la severidad es schedule (30 min, luego asignacion automatica), asigna (termina si el incidente ya se cerro), arma los textos con el tecnico asignado, notifica por rol y pide la reserva de repuestos. CorrelateZone, ExplainCause y WaitForApproval degradan en vez de fallar.",
   "StartAt": "ClassifySeverity",
   "States": {
     "ClassifySeverity": {
@@ -120,6 +120,37 @@
                   "role": {
                     "DataType": "String",
                     "StringValue": "management"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "NotifyEscalationOperator",
+          "States": {
+            "NotifyEscalationOperator": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "States.Format('[FleetPulse] escalado {} {}', $.machine_id, $.existing.incident_id)",
+                "Message.$": "$.existing.operator_message",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "operator"
                   }
                 }
               },

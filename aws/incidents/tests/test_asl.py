@@ -227,21 +227,22 @@ def _render(expr: str, state: dict) -> str:
     return template
 
 
-def test_escalation_notifies_supervisor_and_management():
+def test_escalation_notifies_supervisor_management_and_operator():
     par = ASL["States"]["NotifyEscalation"]
-    assert par["Type"] == "Parallel" and len(par["Branches"]) == 2
+    assert par["Type"] == "Parallel" and len(par["Branches"]) == 3
     assert par["ResultSelector"] == {"published": True} and par["ResultPath"] == "$.escalation_notified"
     assert par["Catch"] == [ALERT]
     publishes = [st for b in par["Branches"] for _, st in _states(b)]
-    assert {st["Parameters"]["MessageAttributes"]["role"]["StringValue"] for st in publishes} == {
-        "supervisor", "management"}
+    by_role = {st["Parameters"]["MessageAttributes"]["role"]["StringValue"]: st for st in publishes}
+    assert set(by_role) == {"supervisor", "management", "operator"}
     for st in publishes:
         p = st["Parameters"]
         assert st["Resource"] == "arn:aws:states:::sns:publish" and st["Retry"] == RETRY and st["End"] is True
         assert p["TopicArn"] == "${NotifyTopicArn}" and p["MessageAttributes"]["role"]["DataType"] == "String"
         assert p["Subject.$"] == "States.Format('[FleetPulse] escalado {} {}', $.machine_id, $.existing.incident_id)"
-    first, second = (st["Parameters"]["Message.$"] for st in publishes)
-    assert first == second
+    assert by_role["supervisor"]["Parameters"]["Message.$"] == by_role["management"]["Parameters"]["Message.$"]
+    # el operador recibe la instruccion de la nueva severidad (immediate: detener la maquina), armada por la Lambda
+    assert by_role["operator"]["Parameters"]["Message.$"] == "$.existing.operator_message"
 
 
 def test_escalation_texts_render_from_check_existing_output(ex017, ddb):
@@ -256,8 +257,7 @@ def test_escalation_texts_render_from_check_existing_output(ex017, ddb):
     state = classified({**ex017, "score": 3.62})
     state["existing"] = check_existing.handler(state, registry=ddb.registry, outbox=ddb.outbox)
     assert state["existing"]["escalated"] is True
-    params = ASL["States"]["NotifyEscalation"]["Branches"][0]["States"]
-    (st,) = params.values()
+    (st,) = ASL["States"]["NotifyEscalation"]["Branches"][0]["States"].values()
     subject = _render(st["Parameters"]["Subject.$"], state)
     message = _render(st["Parameters"]["Message.$"], state)
     assert subject == f"[FleetPulse] escalado EX-017 {old}" and len(subject) <= 100  # tope de Subject en SNS

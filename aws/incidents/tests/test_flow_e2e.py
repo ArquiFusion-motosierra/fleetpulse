@@ -172,7 +172,10 @@ def test_s1_schedule_waits_for_email_approval_escalates_then_assigns_reserves_an
     (escalated,) = _envs(world, "incident.escalated", INC)
     assert escalated["payload"] == {"from_severity": "schedule", "to_severity": "immediate", "score": 3.62}
     roles = {c["MessageAttributes"]["role"]["StringValue"] for c in world.sns.calls if "escalado" in c["Subject"]}
-    assert roles == {"supervisor", "management"}
+    assert roles == {"supervisor", "management", "operator"}
+    (stop,) = [c for c in world.sns.calls if "escalado" in c["Subject"] and
+               c["MessageAttributes"]["role"]["StringValue"] == "operator"]
+    assert stop["Message"] == "EX-017: detenga la maquina en un lugar seguro y espere al tecnico."
     assert ex.status == "WAITING"
 
     # minuto 17: el supervisor hace clic en el enlace -> SendTaskSuccess reanuda la ejecucion

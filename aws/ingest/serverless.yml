@@ -70,7 +70,7 @@ functions:
           type: dynamodb
           arn: !GetAtt StateTable.StreamArn
           batchSize: 1000
-          batchWindow: 300
+          batchWindow: 60
           startingPosition: LATEST
           bisectBatchOnFunctionError: true
           maximumRetryAttempts: 3

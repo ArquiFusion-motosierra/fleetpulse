@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { framePoints } from "./mapframe.js";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { SEVERITY } from "./api.js";
@@ -61,7 +62,7 @@ export default function MapView({ machines, selected, onSelect, zones, focusKey 
   const ready = useRef(false);
   const latest = useRef(machines);
   latest.current = machines;
-  const zoneList = zones?.length ? zones.map((z) => ({ id: z.zone_id, name: z.name, lon: z.lon, lat: z.lat })) : ZONES;
+  const zoneList = zones?.length ? zones.map((z) => ({ id: z.zone_id, name: z.name, lon: z.lon, lat: z.lat, tenant: z.tenant_id })) : ZONES;
   const latestZones = useRef(zoneList);
   latestZones.current = zoneList;
   const focused = useRef(null);
@@ -101,8 +102,10 @@ export default function MapView({ machines, selected, onSelect, zones, focusKey 
     if (!ready.current) return;
     map.current.getSource("machines")?.setData(toGeoJSON(machines));
     map.current.getSource("zones")?.setData(zonesGeoJSON(latestZones.current));
-    // Al cambiar de parque (selector del jefe de mantenimiento) se encuadran sus maquinas una vez
-    const pts = machines.filter((x) => x.lat != null && x.lon != null);
+    // Al cambiar de parque (selector del jefe de mantenimiento) se encuadra una vez. Los limites salen de las zonas del
+    // parque (siempre tienen lat/lon) y de sus maquinas con posicion: sin simulador en vivo casi ninguna maquina tiene
+    // posicion, y justo despues del cambio `machines` todavia es del parque anterior (backlog #50).
+    const pts = framePoints(latestZones.current, machines);
     if (focused.current !== focusKey && pts.length) {
       focused.current = focusKey;
       const b = new maplibregl.LngLatBounds();

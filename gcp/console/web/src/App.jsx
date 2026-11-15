@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Home from "./Home.jsx";
 import MapView from "./MapView.jsx";
 import PlanningView from "./Planning.jsx";
 import SupplyView from "./Supply.jsx";
@@ -17,6 +18,8 @@ const LABELS = { home: "Inicio", map: "Mapa", incidents: "Incidentes", myinciden
   report: "Reportar", myreports: "Mis reportes", assigned: "Reportes asignados", reports: "Reportes", admin: "Administración" };
 const ICONS = { home: "home", map: "map", incidents: "alert", myincidents: "alert", stock: "stock", supply: "supply", planning: "plan",
   report: "report", myreports: "report", assigned: "report", reports: "report", admin: "admin" };
+// Rotulos cortos para la barra inferior del celular
+const SHORT = { myincidents: "Incidentes", assigned: "Reportes", myreports: "Mis reportes", planning: "Plan", supply: "Abastec." };
 const ROLE_TABS = {
   operator: ["home", "report", "myreports", "map"],
   technician: ["home", "myincidents", "assigned", "map", "stock"],
@@ -104,7 +107,7 @@ function Console({ user }) {
     myincidents: mine.filter((i) => i.status !== "closed").length,
     reports: needsAttention([], reports).unreviewedReports.length,
   };
-  const navTabs = tabs.map((k) => ({ key: k, label: LABELS[k], icon: ICONS[k] }));
+  const navTabs = tabs.map((k) => ({ key: k, label: LABELS[k], short: SHORT[k], icon: ICONS[k] }));
 
   const showMachine = (id) => setDrawer({ kind: "machine", id });
   const showIncident = (id) => setDrawer({ kind: "incident", id });
@@ -148,7 +151,9 @@ function Console({ user }) {
         {error && <div className="alert">No se pudo leer AWS: {error}. Reintentando cada 15 s.</div>}
 
         <main className={`body ${tab}`}>
-          {tab === "home" && <section className="page"><p>Inicio</p></section>}
+          {tab === "home" && <Home user={user} machines={machines} incidents={incidents} reports={reports} loaded={loaded} tabs={tabs}
+            parks={parks} park={park} zones={zonesShown} onPark={choosePark} onTab={setTab} onMachine={showMachine}
+            onIncident={showIncident} onReport={showReport} />}
           {tab === "map" && (
             <>
               <MapView machines={machines} selected={drawer?.kind === "machine" ? drawer.id : null} onSelect={showMachine}

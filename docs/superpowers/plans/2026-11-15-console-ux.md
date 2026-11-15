@@ -153,9 +153,9 @@ Contenido por rol (copiar los bocetos de la spec, sección "Inicio por rol"):
 - **Jefe de mantenimiento:** si `park === ""`, tabla `parkSummary(machines, incidents, parks.scope)` (filas Máquinas/Operando/Inmediato/Programar/Abiertos; columnas con `ParkTag`; botón "Ver parque" → `onPark(t)`) + lista de incidentes abiertos con `ParkTag`; si hay `park`, `HomeSupervisor` de ese parque con enlace "← Comparar los tres parques" → `onPark("")`.
 - Cada tarjeta con lista vacía usa `Empty` con un texto que explique cuándo se llena (Review Focus 1), p. ej. "Sin incidentes abiertos en el Parque agrícola. Cuando la telemetría de una máquina sale de su línea base, aparece aquí."
 
-- [ ] **Step 1:** Implementar `Home.jsx` y conectarlo en `App.jsx`.
-- [ ] **Step 2:** Verificar en mock: operador, técnico (TEC-01), supervisor, dirección, admin, `admin_agro` (sin incidentes → vacíos explicados) y jefe (tabla con 100/12/12 máquinas, "Ver parque" y volver).
-- [ ] **Step 3:** `npm test` y `npm run build` en verde; commit `feat(console): inicio por rol (operador, tecnico, supervisor, direccion, jefe de mantenimiento)`.
+- [x] **Step 1:** Implementar `Home.jsx` y conectarlo en `App.jsx`.
+- [x] **Step 2:** Verificar en mock: operador, técnico (TEC-01), supervisor, dirección, admin, `admin_agro` (sin incidentes → vacíos explicados) y jefe (tabla con 100/12/12 máquinas, "Ver parque" y volver).
+- [x] **Step 3:** `npm test` y `npm run build` en verde; commit `feat(console): inicio por rol (operador, tecnico, supervisor, direccion, jefe de mantenimiento)`.
 
 ### Task 5: Login de evaluación y README "Cómo evaluar"
 

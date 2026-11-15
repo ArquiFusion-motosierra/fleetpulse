@@ -1,3 +1,4 @@
+import { Component } from "react";
 import { TENANT_COLOR, TENANT_LABEL } from "./api.js";
 
 // Piezas visuales compartidas por Inicio, la barra lateral y las vistas (sin librerias: iconos SVG de linea)
@@ -63,4 +64,11 @@ export function Icon({ name, size = 18 }) {
       <path d={PATHS[name] || PATHS.more} />
     </svg>
   );
+}
+
+// Aisla un fallo de dibujo (p. ej. MapLibre sin WebGL) para que no tumbe toda la consola
+export class ErrorBoundary extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }

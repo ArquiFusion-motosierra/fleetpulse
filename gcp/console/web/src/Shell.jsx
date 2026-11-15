@@ -3,7 +3,7 @@ import { ROLE_LABEL, TENANT_LABEL, TENANT_NAME, TENANT_OPERATION } from "./api.j
 import { Icon } from "./ui.jsx";
 
 // Esqueleto de la consola: barra lateral (escritorio), cabecera con el contexto y barra inferior (celular).
-// `tabs` = [{ key, label, icon }]; `badges` = { [key]: numero }.
+// `tabs` = [{ key, label, short?, icon }] (short: rotulo de la barra inferior); `badges` = { [key]: numero }.
 
 function Badge({ n }) {
   return n > 0 ? <em className="badge">{n}</em> : null;
@@ -33,10 +33,10 @@ export function ParkBlock({ parks, park, onPark, compact = false }) {
   );
 }
 
-function NavButton({ t, on, badge, onTab }) {
+function NavButton({ t, on, badge, onTab, short = false }) {
   return (
     <button className={on ? "on" : ""} onClick={() => onTab(t.key)} title={t.label} aria-current={on ? "page" : undefined}>
-      <Icon name={t.icon} /><span className="nav-label">{t.label}</span><Badge n={badge} />
+      <Icon name={t.icon} /><span className="nav-label">{short ? t.short || t.label : t.label}</span><Badge n={badge} />
     </button>
   );
 }
@@ -100,7 +100,7 @@ export function BottomNav({ tabs, tab, onTab, badges, user, onLogout }) {
         </div>
       )}
       <nav className="bottom-nav" aria-label="Secciones">
-        {first.map((t) => <NavButton key={t.key} t={t} on={tab === t.key} badge={badges[t.key]} onTab={go} />)}
+        {first.map((t) => <NavButton key={t.key} t={t} on={tab === t.key} badge={badges[t.key]} onTab={go} short />)}
         <button className={more || rest.some((t) => t.key === tab) ? "on" : ""} onClick={() => setMore(!more)} aria-expanded={more}>
           <Icon name="more" /><span className="nav-label">Más</span>
         </button>

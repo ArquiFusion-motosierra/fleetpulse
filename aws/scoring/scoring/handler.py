@@ -128,6 +128,7 @@ def _score_group(table, sfn, machine_id: str, batch_id: str, readings: list[dict
         "zone_id": meta.get("zone_id", ""), "lat": lat, "lon": lon, "geohash6": gh, "ts": last_ts, "batch_id": batch_id,
         "score": res["score"], "severity": res["severity"], "z": res["z"], "deviated_vars": res["deviated_vars"],
         "failure_mode": failure_mode.infer(res["deviated_vars"]), "hours_total": _num(meta.get("hours_total", 0)),
+        "tenant_id": meta.get("tenant_id") or ids.tenant_of_machine(machine_id),
     }
     try:
         sfn.start_execution(stateMachineArn=os.environ["STATE_MACHINE_ARN"], name=incident_id,

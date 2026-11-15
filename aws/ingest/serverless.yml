@@ -147,6 +147,8 @@ resources:
           - {AttributeName: GSI1SK, AttributeType: S}
           - {AttributeName: GSI2PK, AttributeType: S}
           - {AttributeName: GSI2SK, AttributeType: S}
+          - {AttributeName: GSI3PK, AttributeType: S}
+          - {AttributeName: GSI3SK, AttributeType: S}
         KeySchema:
           - {AttributeName: PK, KeyType: HASH}
           - {AttributeName: SK, KeyType: RANGE}
@@ -160,6 +162,14 @@ resources:
             KeySchema:
               - {AttributeName: GSI2PK, KeyType: HASH}
               - {AttributeName: GSI2SK, KeyType: RANGE}
+            Projection: {ProjectionType: ALL}
+          # Multi-tenancy: todo lo de un parque. GSI3PK = TENANT#<tenant_id>, GSI3SK = INC#<opened_at> | RPT#<reported_at>.
+          # Los IDs de negocio son unicos entre parques, asi que las claves base no cambian (sin migracion); los items
+          # viejos sin GSI3 son de mineria (scripts/backfill-tenant.py los estampa). CloudFormation: un GSI por despliegue.
+          - IndexName: GSI3
+            KeySchema:
+              - {AttributeName: GSI3PK, KeyType: HASH}
+              - {AttributeName: GSI3SK, KeyType: RANGE}
             Projection: {ProjectionType: ALL}
         PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
         DeletionProtectionEnabled: true
@@ -190,6 +200,9 @@ resources:
     DomainEventsTopic:
       Type: AWS::SNS::Topic
       Properties: {TopicName: fp-domain-events}
+    # fp-domain-events y fp-notify son compartidos por los parques: cada mensaje lleva el atributo `tenant_id` y cada
+    # suscripcion filtra por parque (FilterPolicy, ver scripts/subscribe-notify.sh); el jefe de mantenimiento se
+    # suscribe sin filtro de parque.
     NotifyTopic:
       Type: AWS::SNS::Topic
       Properties: {TopicName: fp-notify}

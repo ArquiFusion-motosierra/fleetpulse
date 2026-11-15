@@ -1,0 +1,23 @@
+# Credenciales y estado local
+.env
+.env.*
+*.pem
+*.key
+*.p12
+wallet/
+Wallet_*/
+.aws/
+.serverless/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+# Datos generados por el simulador
+simulator/out/
+*.ndjson

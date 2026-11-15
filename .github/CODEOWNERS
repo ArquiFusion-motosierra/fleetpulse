@@ -1,0 +1,10 @@
+# Cada frente aprueba los cambios de su carpeta.
+*                 @btoroled
+/contracts/       @btoroled @AIexander-lx @cruz-eng
+/aws/             @btoroled
+/scripts/         @btoroled
+/.github/         @btoroled
+/oci/             @AIexander-lx
+/simulator/       @AIexander-lx
+/gcp/             @cruz-eng
+/docs/            @cruz-eng

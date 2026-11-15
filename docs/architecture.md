@@ -185,7 +185,7 @@ La telemetría nunca entra a `fp-registry`: el registro guarda decisiones, no le
 
 | Guarda | Dónde | Qué hace |
 |---|---|---|
-| Alerta de presupuesto `fleetpulse-creditos-consumo` | GCP (Billing) | S/ 50 al mes **sin descontar créditos**; avisos al 20, 50, 80 y 100 % del gasto y por pronóstico. Avisa, no corta |
+| Alerta de presupuesto `fleetpulse-creditos-consumo` | GCP (Billing) | S/ 900 al mes **sin descontar créditos** (≈ el crédito restante del Free Trial el 15 nov); avisos al 25, 50, 75, 90 y 100 % del gasto y al 90 % por pronóstico. Avisa, no corta |
 | `maximum_bytes_billed` | Toda consulta y job de BigQuery (`gcp/insights/app/bq.py`, `analytics.py`, `supply.py`, `gcp/bq/apply_models.sh`) | Un job que escanearía más del tope falla en vez de cobrar |
 | Tope de 30 GiB al día | Cuota de consultas del proyecto BigQuery | Techo duro diario aunque falle una guarda por consulta |
 | `require_partition_filter`, load jobs | Tablas de BigQuery | Sin escaneos completos; nunca streaming |

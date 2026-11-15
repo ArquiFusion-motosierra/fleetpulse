@@ -1,0 +1,115 @@
+# Stack fp-auth: identidad y roles con Cognito. La consola (Cloud Run) inicia sesion por la Hosted UI
+# y el HTTP API fp-api valida el JWT. Otros stacks leen Outputs (cf:) o los parametros SSM /fleetpulse/auth/*.
+service: fp-auth
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+
+custom:
+  consoleUrl: ${param:consoleUrl, 'https://console-qgbfzxdq2a-ue.a.run.app/'}
+
+resources:
+  Resources:
+    UserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: fleetpulse-users
+        UsernameAttributes: [email]
+        AutoVerifiedAttributes: [email]
+        MfaConfiguration: "OFF"
+        AdminCreateUserConfig:
+          AllowAdminCreateUserOnly: true
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: true
+            RequireUppercase: true
+            RequireNumbers: true
+            RequireSymbols: false
+        Schema:
+          - {Name: role, AttributeDataType: String, Mutable: true}
+          - {Name: tech_id, AttributeDataType: String, Mutable: true}
+        AccountRecoverySetting:
+          RecoveryMechanisms:
+            - {Name: admin_only, Priority: 1}
+
+    UserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: fleetpulse-console
+        UserPoolId: !Ref UserPool
+        GenerateSecret: false
+        PreventUserExistenceErrors: ENABLED
+        AllowedOAuthFlowsUserPoolClient: true
+        AllowedOAuthFlows: [code]
+        AllowedOAuthScopes: [openid, email, profile]
+        SupportedIdentityProviders: [COGNITO]
+        ExplicitAuthFlows:
+          - ALLOW_USER_PASSWORD_AUTH
+          - ALLOW_REFRESH_TOKEN_AUTH
+          - ALLOW_USER_SRP_AUTH
+        CallbackURLs:
+          - ${self:custom.consoleUrl}
+          - http://localhost:5173/
+        LogoutURLs:
+          - ${self:custom.consoleUrl}
+          - http://localhost:5173/
+        IdTokenValidity: 8
+        AccessTokenValidity: 8
+        TokenValidityUnits:
+          IdToken: hours
+          AccessToken: hours
+          RefreshToken: days
+        ReadAttributes: [email, "custom:role", "custom:tech_id"]
+        # custom:role y custom:tech_id NO son escribibles por el cliente: si lo fueran, cualquier usuario
+        # podria auto-asignarse admin con update-user-attributes. Solo un administrador los cambia con
+        # admin-create-user / admin-update-user-attributes (scripts/cognito-seed.sh), que ignoran este filtro.
+        WriteAttributes: [email]
+
+    UserPoolDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: fleetpulse-${aws:accountId}
+        UserPoolId: !Ref UserPool
+
+    UserPoolIdParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/auth/user_pool_id
+        Type: String
+        Value: !Ref UserPool
+    ClientIdParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/auth/client_id
+        Type: String
+        Value: !Ref UserPoolClient
+    DomainParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/auth/domain
+        Type: String
+        Value: fleetpulse-${aws:accountId}.auth.us-east-1.amazoncognito.com
+    IssuerParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/auth/issuer
+        Type: String
+        Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+
+  Outputs:
+    UserPoolId:
+      Value: !Ref UserPool
+    ClientId:
+      Value: !Ref UserPoolClient
+    IssuerUrl:
+      Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+    HostedUiDomain:
+      Value: fleetpulse-${aws:accountId}.auth.us-east-1.amazoncognito.com

@@ -14,7 +14,7 @@ import sys
 from datetime import datetime, timezone
 
 PARAM = "/fleetpulse/sim/scenarios"
-LIVE = ("S1", "S2", "S5")  # S3, S4 y S6 son rasgos fijos de la flota: siempre activos
+LIVE = ("S1", "S2", "S5", "S7")  # S3, S4 y S6 son rasgos fijos de la flota: siempre activos
 
 
 def read(ssm) -> dict:

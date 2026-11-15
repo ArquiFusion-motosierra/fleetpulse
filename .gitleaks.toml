@@ -1,0 +1,20 @@
+# Configuracion de gitleaks para FleetPulse. Extiende las reglas por defecto.
+# Lista de permitidos acotada a dos falsos positivos conocidos:
+#  - Los NOMBRES de secretos siguen el patron fleetpulse/<nube>/<nombre> (contracts/secrets.md); nunca son valores.
+#  - Los tests usan claves ficticias evidentes como "console-key-123" / "ingest-key-456".
+# Cualquier otro hallazgo sigue bloqueando el CI.
+title = "FleetPulse gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Nombres de secretos y claves ficticias de tests"
+regexes = [
+  '''fleetpulse/(aws|gcp|oci|api)/[a-z0-9_-]+''',
+  '''(console|ingest)-key-[0-9]{3}''',
+]
+paths = [
+  '''(^|/)tests/[^/]+\.py$''',
+  '''^aws/integrations/oci-writer/''',
+]

@@ -3,6 +3,8 @@
 Si hay uno abierto y la nueva severidad es mayor, escribe `incident.escalated` (fp-outbox + EV#) y sube la
 severidad del META en una sola transaccion condicionada a la severidad leida.
 Idempotencia: al reintentar, la severidad ya subio (o cambio en paralelo) y no se emite un segundo evento.
+Si escalo, devuelve tambien `from_severity`, `to_severity` y `score`: con ellos la maquina de estados arma el aviso
+a supervisor y direccion (`Escalated?` -> `NotifyEscalation`).
 """
 from __future__ import annotations
 
@@ -37,4 +39,5 @@ def handler(event, context=None, registry=None, outbox=None):
         log.event("escalamiento_ya_aplicado", severity=old, new_severity=new, **ctx)
         return {"found": True, "incident_id": open_id, "escalated": False}
     log.event("incidente_escalado", from_severity=old, to_severity=new, event_id=env["event_id"], **ctx)
-    return {"found": True, "incident_id": open_id, "escalated": True}
+    return {"found": True, "incident_id": open_id, "escalated": True, "from_severity": old, "to_severity": new,
+            "score": round(score, 2)}

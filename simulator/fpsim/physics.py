@@ -11,6 +11,7 @@ import math
 import random
 from datetime import datetime, timedelta, timezone
 
+from fpsim import oem
 from fpsim.fleet import MODEL_PARAMS, NOISE_SIGMA, STATIONS, Machine, unit_hash, zones
 from fpsim.scenarios import Effect
 
@@ -18,6 +19,7 @@ ANCHOR = datetime(2026, 10, 1, tzinfo=timezone.utc)
 LIMA = timedelta(hours=-5)
 NOMINAL_ON_H = 14.0  # 12 h de turno pleno + 4 h a media carga
 ZONE_ORDER = ("NORTE", "CENTRO", "SUR")
+RESONANCE_GAIN = 1.6  # el RMS de vibracion sube cuando un armonico de las rpm cruza una frecuencia natural
 
 
 def iso(t: datetime) -> str:
@@ -131,6 +133,9 @@ def reading(m: Machine, t: datetime, effect: Effect | None = None, warp_extra_h:
         if status != "off":
             v += rng.gauss(0, NOISE_SIGMA[var] * eff.noise.get(var, 1.0) * (1 + 0.5 * wear))
         values[var] = max(v, 0.0)
+    # Resonancia: un armonico de la velocidad de operacion cruza una frecuencia natural del modelo (oem_specs)
+    if status == "operating" and oem.resonance(m.model, values["rpm"]):
+        values["vibration"] *= RESONANCE_GAIN
 
     e_h = elapsed_hours(t, warp_extra_h)
     op_rate, idle_rate = rates(m)

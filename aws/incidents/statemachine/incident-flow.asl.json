@@ -1,5 +1,5 @@
 {
-  "Comment": "incident-flow (T09 + T14): clasifica, correlaciona por celda y zona, crea el incidente, pide la explicacion a Cloud Run (plantilla si falla), rankea, espera la aprobacion del supervisor si la severidad es schedule (30 min, luego asignacion automatica), asigna (termina si el incidente ya se cerro), arma los textos con el tecnico asignado, notifica por rol y pide la reserva de repuestos. CorrelateZone, ExplainCause y WaitForApproval degradan en vez de fallar.",
+  "Comment": "incident-flow (T09 + T14): clasifica; si la maquina ya tiene un incidente abierto lo escala (y avisa a supervisor y direccion si sube la severidad) y termina; si no, correlaciona por celda y zona, crea el incidente, pide la explicacion a Cloud Run (plantilla si falla), rankea, espera la aprobacion del supervisor si la severidad es schedule (30 min, luego asignacion automatica), asigna (termina si el incidente ya se cerro), arma los textos con el tecnico asignado, notifica por rol y pide la reserva de repuestos. CorrelateZone, ExplainCause y WaitForApproval degradan en vez de fallar.",
   "StartAt": "ClassifySeverity",
   "States": {
     "ClassifySeverity": {
@@ -56,10 +56,101 @@
         {
           "Variable": "$.existing.found",
           "BooleanEquals": true,
-          "Next": "EscalatedOrIgnored"
+          "Next": "Escalated?"
         }
       ],
       "Default": "CorrelateZone"
+    },
+    "Escalated?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.existing.escalated",
+          "BooleanEquals": true,
+          "Next": "NotifyEscalation"
+        }
+      ],
+      "Default": "EscalatedOrIgnored"
+    },
+    "NotifyEscalation": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "NotifyEscalationSupervisor",
+          "States": {
+            "NotifyEscalationSupervisor": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "States.Format('[FleetPulse] escalado {} {}', $.machine_id, $.existing.incident_id)",
+                "Message.$": "States.Format('El incidente {} de la maquina {} (zona {}) subio de severidad {} a {} con score {}. Si aun espera aprobacion, el supervisor puede aprobarlo ya desde el correo anterior; revisar asignacion y repuestos en la consola.', $.existing.incident_id, $.machine_id, $.zone_id, $.existing.from_severity, $.existing.to_severity, $.existing.score)",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "supervisor"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "NotifyEscalationManagement",
+          "States": {
+            "NotifyEscalationManagement": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "States.Format('[FleetPulse] escalado {} {}', $.machine_id, $.existing.incident_id)",
+                "Message.$": "States.Format('El incidente {} de la maquina {} (zona {}) subio de severidad {} a {} con score {}. Si aun espera aprobacion, el supervisor puede aprobarlo ya desde el correo anterior; revisar asignacion y repuestos en la consola.', $.existing.incident_id, $.machine_id, $.zone_id, $.existing.from_severity, $.existing.to_severity, $.existing.score)",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "management"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultSelector": {
+        "published": true
+      },
+      "ResultPath": "$.escalation_notified",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "EscalatedOrIgnored"
     },
     "EscalatedOrIgnored": {
       "Type": "Succeed"

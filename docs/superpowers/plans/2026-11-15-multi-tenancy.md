@@ -86,7 +86,7 @@ Los cinco roles de hoy pasan a estar **acotados a un parque**. Se agrega un rol 
 
 - `fp-registry` gana **`GSI3`** (`GSI3PK = TENANT#<tenant>`, `GSI3SK = <TIPO>#<ts>`), proyección ALL. Lo escriben incidentes (`INC#<opened_at>`) y reportes (`RPT#<reported_at>`). Es el índice "todo lo de un parque".
 - `fp-state`: META de máquina y `TECH#` llevan `tenant_id`; la consulta por parque usa el GSI1 existente por zona (las zonas pertenecen a un parque), así que no hace falta otro índice.
-- Ítems viejos sin `tenant_id`: se tratan como del tenant del catálogo de su máquina/zona (`mineria`). `scripts/backfill-tenant.py` (lo corre el usuario, idempotente, `--dry-run`) estampa `tenant_id` y `GSI3*` en incidentes y reportes existentes. Mientras no se corra, la API de `mineria` une los incidentes sin `tenant_id` del GSI2 con los del GSI3.
+- Ítems viejos sin `tenant_id`: se tratan como del tenant del catálogo de su máquina/zona (`mineria`). `scripts/backfill_tenant.py` (lo corre el usuario, idempotente, `--dry-run`) estampa `tenant_id` y `GSI3*` en incidentes y reportes existentes. Mientras no se corra, la API de `mineria` une los incidentes sin `tenant_id` del GSI2 con los del GSI3.
 - CloudFormation crea un solo GSI por tabla por despliegue: este cambio agrega **uno** en `fp-registry` y ninguno en `fp-state`.
 
 ## 5. Infraestructura por tenant
@@ -141,7 +141,7 @@ Vistas autorizadas y no row-level security: funcionan con la versión de proveed
 1. Merge a `main` → GitHub Actions despliega los stacks AWS por compose (`auth` crea los grupos; `core` agrega `GSI3` a `fp-registry`; el resto toma la nueva layer). Todo es aditivo: atributos nuevos, un GSI nuevo, grupos nuevos, atributos SNS nuevos.
 2. Usuario: `FP_TEST_PASSWORD=... scripts/cognito-seed.sh` (usuarios por parque y jefe de mantenimiento).
 3. Usuario: `python scripts/seed-registry.py` (stock y máquinas/técnicos de agro e industria; idempotente) y `python scripts/seed-baselines.py` (líneas base de las máquinas nuevas).
-4. Usuario: `python scripts/backfill-tenant.py --dry-run` y luego sin `--dry-run`.
+4. Usuario: `python scripts/backfill_tenant.py --dry-run` y luego sin `--dry-run`.
 5. Fabricio / usuario: `terraform apply` en `gcp/terraform` (columna `tenant_id`, datasets por tenant, vistas autorizadas).
 6. Redeploy de la consola (`gcp/console/deploy.sh`) con `AWS_INCIDENTS_URL` ya configurado (lo usa para `/whoami`).
 

@@ -65,7 +65,7 @@ def _zones(tenants) -> list[str]:
 
 def tenant_incidents(client, tenants) -> list[dict]:
     """Incidentes de los parques (GSI3 `TENANT#<t>` / `INC#`), mas reciente primero. En el parque por defecto se suman
-    los incidentes anteriores al multi-tenancy (sin GSI3PK) que estan en GSI2, hasta correr scripts/backfill-tenant.py."""
+    los incidentes anteriores al multi-tenancy (sin GSI3PK) que estan en GSI2, hasta correr scripts/backfill_tenant.py."""
     rows: dict[str, dict] = {}
     for t in tenants:
         for i in store.query_all(client, TableName=REGISTRY, IndexName="GSI3", ScanIndexForward=False,

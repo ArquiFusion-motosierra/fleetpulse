@@ -165,7 +165,7 @@ resources:
             Projection: {ProjectionType: ALL}
           # Multi-tenancy: todo lo de un parque. GSI3PK = TENANT#<tenant_id>, GSI3SK = INC#<opened_at> | RPT#<reported_at>.
           # Los IDs de negocio son unicos entre parques, asi que las claves base no cambian (sin migracion); los items
-          # viejos sin GSI3 son de mineria (scripts/backfill-tenant.py los estampa). CloudFormation: un GSI por despliegue.
+          # viejos sin GSI3 son de mineria (scripts/backfill_tenant.py los estampa). CloudFormation: un GSI por despliegue.
           - IndexName: GSI3
             KeySchema:
               - {AttributeName: GSI3PK, KeyType: HASH}

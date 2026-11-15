@@ -1,0 +1,1 @@
+# La Lambda solo usa la libreria estandar y boto3 (incluido en el runtime python3.12).

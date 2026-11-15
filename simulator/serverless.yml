@@ -1,0 +1,48 @@
+# Lambda simulator (T06). Se despliega desde aws/serverless-compose.yml:
+#   simulator:
+#     path: ../simulator
+# Apagado por defecto (costo): se enciende con --param="enabled=true" o en la consola de EventBridge.
+service: fp-simulator
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 512
+  timeout: 50
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+  environment:
+    TIME_WARP: "5"
+    SCENARIOS_PARAM: /fleetpulse/sim/scenarios
+    API_URL_PARAM: /fleetpulse/api/url
+    API_KEY_SECRET: fleetpulse/api/ingest-key
+    HTTP_TIMEOUT_S: "10"
+    LIVE_ANCHOR: ${param:liveAnchor, ''}
+
+params:
+  default:
+    enabled: false
+    liveAnchor: ""
+
+package:
+  patterns:
+    - "!**"
+    - fpsim/**
+    - "!fpsim/**/__pycache__/**"
+    - "!fpsim/sync_ids.py"
+    - "!fpsim/backfill.py"
+
+functions:
+  simulator:
+    handler: fpsim/handler.handler
+    description: Envia 10 lecturas por maquina por minuto a POST /telemetry (TIME_WARP=5)
+    maximumRetryAttempts: 1
+    events:
+      - schedule:
+          rate: rate(1 minute)
+          enabled: ${param:enabled}

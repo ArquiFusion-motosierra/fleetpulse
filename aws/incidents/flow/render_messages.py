@@ -1,7 +1,8 @@
 """Lambda `render_messages` (RenderMessages): textos por rol y asunto que publica NotifyByRole en fp-notify.
 
 Corre despues de AssignTechnician: nombra al tecnico de `$.assignment.tech_id` (nombre y distancia desde
-`$.ranking.top`, o solo el id si no esta ahi), la aprobacion y `$.assignment.tech_busy`. Usa `$.explanation` si
+`$.ranking.top`, o solo el id si no esta ahi), la aprobacion y `$.assignment.tech_busy`. La severidad es la vigente
+(`$.assignment.severity`, por si el incidente escalo mientras esperaba la aprobacion) o la de `$.classified`. Usa `$.explanation` si
 existe (T14) o la plantilla sobre `$.incident.deviated_vars`, y `$.approve_url` si existe.
 Idempotencia: funcion pura del input.
 """
@@ -20,7 +21,7 @@ def handler(event, context=None):
                     {"tech_id": tech_id, "name": tech_id, "distance_km": None})
     incident = {
         "incident_id": event["incident_id"], "machine_id": event["machine_id"],
-        "severity": event["classified"]["severity"], "score": float(event["score"]),
+        "severity": assignment.get("severity") or event["classified"]["severity"], "score": float(event["score"]),
         "failure_mode": event["failure_mode"], "zone_id": inc["zone_id"], "lat": event["lat"], "lon": event["lon"],
         "deviated_vars": deviated, "group_id": inc.get("group_id"),
         "recurrence_flag": inc.get("recurrence_flag", False), "tech_busy": bool(assignment.get("tech_busy")),

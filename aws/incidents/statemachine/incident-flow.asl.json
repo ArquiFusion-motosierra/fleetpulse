@@ -484,7 +484,7 @@
                 {
                   "Or": [
                     {
-                      "Variable": "$.classified.severity",
+                      "Variable": "$.assignment.severity",
                       "StringEquals": "immediate"
                     },
                     {

@@ -13,6 +13,8 @@ Si nadie esta libre se asigna el primero de la lista sin tocar su `TECH#` (no se
 El META tambien exige `status = open`: si el incidente se cerro mientras esperaba la aprobacion (POST /close), no se
 asigna ni se reserva a nadie, se devuelve `skipped: closed` (log `incidente_ya_cerrado`) y la ASL termina en Done.
 Idempotencia: un reintento choca con la condicion del META y devuelve la asignacion guardada sin emitir otro evento.
+`severity` de la salida es la vigente del META, no la de `$.classified`: si otra ejecucion escalo el incidente
+mientras este esperaba la aprobacion, RenderMessages y la rama de direccion de NotifyByRole usan la nueva.
 """
 from __future__ import annotations
 
@@ -70,6 +72,12 @@ def handler(event, context=None, state=None, registry=None, outbox=None):
     state = state or fp_registry.table_from_env("STATE_TABLE")
     registry = registry or fp_registry.table_from_env("REGISTRY_TABLE")
     outbox = outbox or fp_registry.table_from_env("OUTBOX_TABLE")
+    out = _assign(event, state, registry, outbox)
+    meta = fp_registry.get_incident(registry, event["incident_id"]) or {}
+    return {**out, "severity": meta.get("severity") or event["classified"]["severity"]}
+
+
+def _assign(event: dict, state, registry, outbox) -> dict:
     incident_id, machine_id = event["incident_id"], event["machine_id"]
     ctx = {"incident_id": incident_id, "machine_id": machine_id}
     order = _order(event)

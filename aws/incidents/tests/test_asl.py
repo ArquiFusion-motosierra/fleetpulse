@@ -169,7 +169,10 @@ def test_notify_by_role_has_four_branches():
     (mgmt,) = [b for b in par["Branches"] if b["States"][b["StartAt"]]["Type"] == "Choice"]
     choice = mgmt["States"][mgmt["StartAt"]]
     rules = json.dumps(choice["Choices"])
-    assert "$.classified.severity" in rules and '"immediate"' in rules and "$.incident.group_id" in rules
+    # severidad vigente (AssignTechnician la relee del META): un incidente escalado mientras esperaba la aprobacion
+    # avisa a direccion aunque se haya clasificado schedule
+    assert "$.assignment.severity" in rules and '"immediate"' in rules and "$.incident.group_id" in rules
+    assert "$.classified.severity" not in rules
     assert mgmt["States"][choice["Default"]]["Type"] == "Pass"
 
 

@@ -188,8 +188,13 @@ def test_s1_schedule_waits_for_email_approval_escalates_then_assigns_reserves_an
     (assigned,) = _envs(world, "incident.assigned", INC)
     assert assigned["payload"]["tech_id"] == "TEC-01" and assigned["payload"]["approval"] == "approved"
     assert assigned["payload"]["explanation"]["source"] == "gemini"
-    (tech_mail,) = _mails(world, INC, "technician")
-    assert "Asignado a: TEC-01" in tech_mail["Message"]
+    # los avisos salen con la severidad vigente (immediate), no con la del cruce: el operador detiene la maquina
+    notified = {c["MessageAttributes"]["role"]["StringValue"]: c for c in _mails(world, INC)
+                if c["Subject"].startswith("[FleetPulse] immediate")}
+    assert set(notified) == {"technician", "supervisor", "management", "operator"}
+    assert notified["operator"]["Message"] == "EX-017: detenga la maquina en un lugar seguro y espere al tecnico."
+    assert "Asignado a: TEC-01" in notified["technician"]["Message"]
+    assert "aprobacion approved" in notified["supervisor"]["Message"]
     # reserva de bomba y sellos (BOM de EX para hydraulic_pump)
     (rsv,) = _envs(world, "part.reserve.requested", INC, contract="part")
     assert rsv["aggregate_id"] == f"RSV-{INC}"

@@ -20,7 +20,7 @@ rm -rf python/fplib/contracts python/fplib/data
 mkdir -p python/fplib/contracts python/fplib/data
 cp ../../contracts/*.schema.json python/fplib/contracts/
 # Un solo ids.json con los tres parques: cada maquina, zona y tecnico lleva su tenant_id.
-"$PY" -c 'import json,sys; sys.path.insert(0, "python"); from fplib.ids import merge_catalogs; json.dump(merge_catalogs(sys.argv[1]), open(sys.argv[2],"w"))' \
+"$PY" -c 'import json,sys; sys.path.append("python"); from fplib.ids import merge_catalogs; json.dump(merge_catalogs(sys.argv[1]), open(sys.argv[2],"w"))' \
   ../../contracts python/fplib/data/ids.json
 if [ -f ../../contracts/oem_specs.yaml ]; then
   "$PY" -c 'import yaml,json,sys; json.dump(yaml.safe_load(open(sys.argv[1])), open(sys.argv[2],"w"))' \

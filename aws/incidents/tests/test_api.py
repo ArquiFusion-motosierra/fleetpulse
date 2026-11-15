@@ -32,6 +32,7 @@ from incidents_support import (
 )
 
 from api import approvals, close
+from lib.approval_link import token_in_link
 from flow import reserve_parts
 from fplib import clock
 from lib import registry, technicians
@@ -124,6 +125,17 @@ def test_approval_post_accepts_an_already_decoded_token():
     sfn = FakeSfn()
     resp = approvals.handler(_approve(token=TOKEN), sfn=sfn)
     assert resp["statusCode"] == 200 and sfn.calls[0]["taskToken"] == TOKEN
+
+
+def test_approval_post_survives_a_token_with_double_slash():
+    """API Gateway colapsa `//` en la ruta: el enlace lleva el token en base64 url-safe (sin `/` ni `+`) y la Lambda
+    lo devuelve a base64 estandar. Un token real con `//` daba TaskTimedOut (15 nov, INC-EX-017-...T1715)."""
+    token = "AAAAKgAAAAIAAAAA//AAAQ+6C4y/7ZgXt=="
+    sfn = FakeSfn()
+    link_token = quote(token_in_link(token), safe="")
+    assert "%2F" not in link_token and "%2B" not in link_token and "-" in link_token and "_" in link_token
+    resp = approvals.handler(_approve(token=link_token), sfn=sfn)
+    assert resp["statusCode"] == 200 and sfn.calls[0]["taskToken"] == token
 
 
 def test_approval_post_without_tech_lets_the_ranking_decide():

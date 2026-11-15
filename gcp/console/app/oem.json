@@ -498,7 +498,7 @@
        "change": "unstable"
       }
      ],
-     "spectrum": "1x y 2x irregulares; si las rpm suben ~13 %, el 2x cruza el segundo modo del chasis (62 Hz)",
+     "spectrum": "1x y 2x irregulares; si las rpm suben ~15 %, el 2x cruza el segundo modo del chasis (62 Hz)",
      "fault_codes": [
       111,
       110

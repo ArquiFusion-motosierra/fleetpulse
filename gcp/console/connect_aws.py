@@ -51,6 +51,14 @@ def aws():
             for name in ("registry", "api")}
     key = json.loads(s.client("secretsmanager").get_secret_value(SecretId="fleetpulse/api/console-key")
                      ["SecretString"])["api_key"]
+    # Login de la consola (T31/T34): User Pool, cliente y dominio del Hosted UI; son publicos, no secretos
+    auth = {}
+    for name in ("user_pool_id", "client_id", "domain"):
+        try:
+            auth[name] = ssm.get_parameter(Name=f"/fleetpulse/auth/{name}")["Parameter"]["Value"]
+        except ssm.exceptions.ParameterNotFound:
+            print(f"Aviso: falta /fleetpulse/auth/{name}; la consola queda sin login (desplegar aws/auth)")
+    urls["auth"] = auth
     return urls, key
 
 
@@ -68,7 +76,7 @@ def main() -> None:
     ap.add_argument("--check", action="store_true", help="solo verificar, sin tocar GCP")
     a = ap.parse_args()
     urls, key = aws()
-    print(f"registry: {urls['registry']}\napi:      {urls['api']}")
+    print(f"registry: {urls['registry']}\napi:      {urls['api']}\nlogin:    {urls['auth'].get('domain', 'sin configurar')}")
     check_registry(urls["registry"], key)
     if a.check:
         return
@@ -82,6 +90,9 @@ def main() -> None:
     print(f"GCP: nueva version de {GCP_SECRET}; {SA} puede leerla")
     env = (f"MOCK=0,GCP_PROJECT_ID={PROJECT},AWS_KEY_SECRET={GCP_SECRET},"
            f"AWS_REGISTRY_URL={urls['registry']},AWS_INCIDENTS_URL={urls['api']}")
+    a = urls["auth"]
+    if len(a) == 3:
+        env += f",AUTH_USER_POOL_ID={a['user_pool_id']},AUTH_CLIENT_ID={a['client_id']},AUTH_DOMAIN={a['domain']}"
     os.chdir(HERE)
     out = run(["run", "deploy", "console", "--region", REGION, "--source", ".", "--service-account", SA,
                "--min-instances", "0", "--max-instances", "2", "--memory", "512Mi", "--cpu", "1",

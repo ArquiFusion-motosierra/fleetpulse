@@ -27,3 +27,8 @@ recordings/
 # Llaves JSON de service accounts de GCP
 *-sa.json
 sa-*.json
+# Layer fp-shared: salida de aws/shared/build.sh
+aws/shared/python/*
+!aws/shared/python/fplib
+aws/shared/python/fplib/data/
+aws/shared/python/fplib/contracts/

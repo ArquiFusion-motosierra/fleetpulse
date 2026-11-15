@@ -1,0 +1,39 @@
+# Layer compartida fp-shared (fplib + jsonschema + google-auth + contratos).
+# Publica el ARN de la version en SSM /fleetpulse/layers/shared; los demas servicios la consumen con
+#   layers: [${ssm:/fleetpulse/layers/shared}]
+# Ejecutar `bash build.sh` antes de `serverless deploy` / `package`.
+service: fp-shared
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+
+layers:
+  shared:
+    path: .
+    name: fp-shared
+    description: fplib (contratos, outbox/inbox, ids, geohash, secretos) + jsonschema + google-auth
+    compatibleRuntimes: [python3.12]
+    compatibleArchitectures: [arm64]
+    retain: false
+    package:
+      patterns:
+        - "!**"
+        - "python/**"
+        - "!python/**/__pycache__/**"
+
+resources:
+  Resources:
+    SharedLayerParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/layers/shared
+        Type: String
+        Value: !Ref SharedLambdaLayer

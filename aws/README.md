@@ -27,3 +27,19 @@ Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el
 .venv/bin/pytest -q $(find aws simulator -type d -name tests)
 ```
 Los servicios de otros pueden necesitar su propio `requirements-dev.txt`.
+
+## Usuarios y roles
+Cognito (`aws/auth`, stack `fp-auth`) emite los JWT; el HTTP API `fp-api` los valida con el authorizer
+`cognito` (hoy solo `GET /whoami`; `/telemetry` y `/context` siguen con `x-api-key`). Roles en `custom:role`:
+`operator`, `technician` (con `custom:tech_id`), `supervisor`, `management`, `admin`.
+
+Orden: `auth` se despliega antes que `core` (ya esta en `serverless-compose.yml`). Luego los usuarios de prueba:
+```bash
+FP_TEST_PASSWORD='…' scripts/cognito-seed.sh     # operador@, tecnico@, supervisor@, direccion@, admin@example.com
+TOKEN=$(aws cognito-idp initiate-auth --auth-flow USER_PASSWORD_AUTH \
+  --client-id $(aws ssm get-parameter --name /fleetpulse/auth/client_id --query Parameter.Value --output text) \
+  --auth-parameters USERNAME=operador@example.com,PASSWORD=… --query AuthenticationResult.IdToken --output text)
+curl -H "Authorization: Bearer $TOKEN" $API/whoami
+```
+`$API` es el valor de `/fleetpulse/api/url`. La URL de la consola para los callbacks se cambia con
+`--param="consoleUrl=https://…/"`.

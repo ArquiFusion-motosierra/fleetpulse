@@ -4,9 +4,12 @@ services:
   shared:
     path: shared
 
+  auth:
+    path: auth
+
   core:
     path: ingest
-    dependsOn: [shared]
+    dependsOn: [shared, auth]
 
   outbox-publisher:
     path: integrations/outbox-publisher

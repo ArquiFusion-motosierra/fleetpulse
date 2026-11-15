@@ -15,6 +15,13 @@ provider:
   httpApi:
     name: fp-api
     cors: false
+    authorizers:
+      cognito:
+        type: jwt
+        identitySource: $request.header.Authorization
+        issuerUrl: "${cf:fp-auth-${sls:stage}.IssuerUrl, 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_offline'}"
+        audience:
+          - "${cf:fp-auth-${sls:stage}.ClientId, 'offline'}"
 
 package:
   patterns:
@@ -38,6 +45,18 @@ functions:
     events:
       - httpApi: POST /telemetry
       - httpApi: POST /context
+  whoami:
+    handler: api/whoami.handler
+    memorySize: 128
+    timeout: 5
+    layers:
+      - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+    events:
+      - httpApi:
+          method: GET
+          path: /whoami
+          authorizer:
+            name: cognito
   archiver:
     handler: consumidores/archiver.handler
     memorySize: 1024

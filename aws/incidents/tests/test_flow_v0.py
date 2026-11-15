@@ -153,6 +153,28 @@ def test_create_incident_tolerates_sparse_meta(ex017, ddb):
     assert env["payload"]["zone_id"] == "NORTE"
 
 
+
+def test_create_incident_derives_deviated_vars_from_z_when_empty(ex017, ddb, caplog):
+    # score >= 2.0 sin ninguna |z| >= 1.0: score trae deviated_vars vacio
+    z = {"hydraulic_pressure_bar": {"self": -0.9, "peer": -0.95}, "coolant_temp_c": {"self": 0.8, "peer": None},
+         "vibration_mm_s": {"self": None, "peer": 0.7}, "engine_rpm": {"self": None, "peer": None}}
+    ev = _classified({**ex017, "deviated_vars": [], "z": z})
+    with caplog.at_level("INFO", logger="fplib"):
+        out = create_incident.handler(ev, registry=ddb.registry, outbox=ddb.outbox)
+    assert out["incident_id"] == INC
+    (env,) = _events(ddb.outbox, "incident.opened")
+    assert env["payload"]["deviated_vars"] == [{"var": "hydraulic_pressure_bar", "value": -0.95, "z": -0.95}]
+    (line,) = [json.loads(r.getMessage()) for r in caplog.records if "deviated_vars_derived" in r.getMessage()]
+    assert line["incident_id"] == INC and line["machine_id"] == "EX-017" and line["var"] == "hydraulic_pressure_bar"
+
+
+@pytest.mark.parametrize("z", [{}, {"engine_rpm": {"self": None, "peer": None}}])
+def test_create_incident_without_deviated_vars_or_z_fails_clearly(ex017, ddb, z):
+    ev = _classified({**ex017, "deviated_vars": [], "z": z})
+    with pytest.raises(ValueError, match="deviated_vars"):
+        create_incident.handler(ev, registry=ddb.registry, outbox=ddb.outbox)
+    assert ddb.outbox.scan()["Items"] == [] and _meta(ddb.registry, INC) is None
+
 def test_create_incident_sets_recurrence_when_same_mode_closed_recently(ex017, ddb):
     _seed_incident(ddb.registry, "INC-EX-017-20261113T0900", "2026-11-13T09:05:00Z", status="closed",
                    failure_mode="hydraulic_pump", closed_at=clock.iso(NOW - timedelta(days=2)))

@@ -5,6 +5,11 @@ Idempotencia: el incident_id es el nombre de la ejecucion, asi que un reintento 
 se cancela sin escribir nada y se devuelve el incidente ya creado.
 `zone_id` puede llegar vacio (META escasa en fp-state): se toma la zona de la maquina en ids.yaml o, si no esta,
 la zona cuyo centroide queda mas cerca.
+`deviated_vars` puede llegar vacio (score >= 2.0 con todas las |z| < 1.0), pero `incident.opened` exige al menos
+una. Entonces se deriva una sola entrada del mapa `z` de la entrada: la variable con mayor |z| dominante (la de
+mayor modulo entre self y peer, igual que en aws/scoring). La entrada no trae medias, asi que `value` lleva la misma
+z dominante como marcador y se registra `deviated_vars_derived`. Sin `z` utilizable se registra y se lanza
+ValueError, para que la alerta de fp-alerts diga por que.
 """
 from __future__ import annotations
 
@@ -28,6 +33,23 @@ def _zone(zone_id: str | None, machine_id: str, lat: float, lon: float) -> str:
     return min(zones, key=lambda z: haversine_km(lat, lon, zones[z]["lat"], zones[z]["lon"]))
 
 
+def _deviated(event: dict, ctx: dict) -> list[dict]:
+    given = event.get("deviated_vars") or []
+    if given:
+        return [{"var": d["var"], "value": d["value"], "z": d["z"]} for d in given]
+    dominant = {}
+    for var, zz in (event.get("z") or {}).items():
+        vals = [x for x in ((zz or {}).get("self"), (zz or {}).get("peer")) if x is not None]
+        if vals:
+            dominant[var] = max(vals, key=abs)
+    if not dominant:
+        log.error("sin_deviated_vars", **ctx)
+        raise ValueError(f"{ctx['incident_id']}: deviated_vars vacio y sin z para derivarlo")
+    var = max(dominant, key=lambda v: abs(dominant[v]))
+    log.event("deviated_vars_derived", var=var, z=dominant[var], **ctx)
+    return [{"var": var, "value": dominant[var], "z": dominant[var]}]
+
+
 def _result(item: dict) -> dict:
     return {k: fp_registry.from_ddb(item.get(k)) for k in RESULT_KEYS}
 
@@ -42,11 +64,12 @@ def handler(event, context=None, registry=None, outbox=None):
     lat, lon = float(event["lat"]), float(event["lon"])
     zone = _zone(event.get("zone_id"), machine_id, lat, lon)
     severity, mode = event["classified"]["severity"], event["failure_mode"]
+    deviated = _deviated(event, ctx)
     group_id = (event.get("correlation") or {}).get("group_id")
     recurrence = fp_registry.recent_closed_same_mode(registry, machine_id, mode, now - RECURRENCE_WINDOW)
     payload = {
         "zone_id": zone, "severity": severity, "score": float(event["score"]), "failure_mode": mode,
-        "deviated_vars": [{"var": d["var"], "value": d["value"], "z": d["z"]} for d in event["deviated_vars"]],
+        "deviated_vars": deviated,
         "group_id": group_id, "recurrence_flag": recurrence, "opened_at": opened_at, "lat": lat, "lon": lon,
     }
     env = envelope.build("incident.opened", "aws.incident-flow", "incident", incident_id, payload,

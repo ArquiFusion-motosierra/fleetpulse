@@ -174,3 +174,30 @@ def test_context_stored_under_zone(deps):
 def test_context_rejects_invalid_item(deps):
     r = handler(api_event("/context", [{"type": "weather"}], key="k"), **deps)
     assert r["statusCode"] == 400 and "error" in json.loads(r["body"])
+
+
+def test_weather_missing_condition_is_rejected(deps):
+    w = load("fuel.refill/weather.json")
+    del w["condition"]
+    assert handler(api_event("/context", [w]), **deps)["statusCode"] == 400
+
+
+def test_refill_missing_fuel_lot_is_rejected(deps):
+    r = load("fuel.refill/refill.json")
+    del r["fuel_lot"]
+    assert handler(api_event("/context", [r]), **deps)["statusCode"] == 400
+
+
+def test_contract_error_log_carries_batch_id(deps, caplog):
+    caplog.set_level("INFO", logger="fplib")
+    handler(api_event("/telemetry", {"batch_id": "B-x"}), **deps)
+    lines = [json.loads(r.message) for r in caplog.records if r.name == "fplib"]
+    assert any(line["msg"] == "contrato invalido" and line["batch_id"] == "B-x" for line in lines)
+
+
+def test_malformed_json_is_logged(deps, caplog):
+    caplog.set_level("INFO", logger="fplib")
+    ev = api_event("/telemetry", {})
+    ev["body"] = "{nope"
+    handler(ev, **deps)
+    assert any("body no es JSON" in r.message for r in caplog.records)

@@ -56,7 +56,8 @@ functions:
           bisectBatchOnFunctionError: true
           maximumRetryAttempts: 3
           filterPatterns:
-            - dynamodb:
+            - eventName: [INSERT]
+              dynamodb:
                 NewImage:
                   SK:
                     S:

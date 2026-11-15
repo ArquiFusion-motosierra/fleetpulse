@@ -55,6 +55,7 @@ def _telemetry(batch, state, inbox_table) -> dict:
 def _context(items, state) -> dict:
     items = items if isinstance(items, list) else [items]
     for it in items:
+        # fuel.refill.schema.json cubre refill y weather: ramas if/then por `type` exigen campos propios.
         validate("fuel.refill", it)
     n = fp_state.put_context(state, items)
     log.event("contexto aceptado", context=n)
@@ -70,6 +71,7 @@ def handler(event, context=None, state=None, inbox=None, secrets=None):
     try:
         payload = _parse(event)
     except ValueError:
+        log.event("body no es JSON", path_requested=path)
         return _resp(400, {"error": "body is not valid JSON", "path": []})
     state = state or _state_table()
     try:
@@ -77,5 +79,6 @@ def handler(event, context=None, state=None, inbox=None, secrets=None):
             return _telemetry(payload, state, inbox or os.environ["INBOX_TABLE"])
         return _context(payload, state)
     except ContractError as e:
-        log.event("contrato invalido", error=e.message, path=e.path)
+        batch_id = payload.get("batch_id") if isinstance(payload, dict) else None
+        log.event("contrato invalido", batch_id=batch_id, error=e.message, path=e.path)
         return _resp(400, {"error": e.message, "path": e.path})

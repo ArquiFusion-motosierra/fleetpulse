@@ -30,7 +30,7 @@ def _client():
 def _readings(event: dict) -> list[dict]:
     out = []
     for rec in event.get("Records", []):
-        if rec.get("eventName") not in ("INSERT", "MODIFY"):
+        if rec.get("eventName") != "INSERT":  # MODIFY = reescritura de un lote repetido: ya archivado
             continue
         image = (rec.get("dynamodb") or {}).get("NewImage")
         if not image:

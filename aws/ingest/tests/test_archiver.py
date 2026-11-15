@@ -82,3 +82,9 @@ def test_object_key_format():
 def test_ndjson_gz_roundtrip():
     out = gzip.decompress(storage.ndjson_gz([{"a": Decimal("1.5"), "b": Decimal("2")}, {"c": 1}])).decode()
     assert out == '{"a":1.5,"b":2}\n{"c":1}\n'
+
+
+def test_archiver_ignores_modify_events(s3):
+    rec = reading("2026-11-15T14:35:00Z")
+    rec["eventName"] = "MODIFY"
+    assert archiver.handler({"Records": [rec]}, s3=s3) == {"objects": 0, "records": 0}

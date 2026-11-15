@@ -1,0 +1,28 @@
+{
+  "event_id": "a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d",
+  "event_type": "supply.suggested",
+  "schema_version": 1,
+  "source": "aws.supply",
+  "aggregate_type": "transfer",
+  "aggregate_id": "TRF-FUNDO-A-NORTE-PRT-04-20261115T1430",
+  "occurred_at": "2026-11-15T14:35:00Z",
+  "tenant_id": "mineria",
+  "incident_id": "INC-EX-017-20261115T1430",
+  "payload": {
+    "kind": "transfer",
+    "tenant_id": "mineria",
+    "zone_id": "NORTE",
+    "from_zone": "FUNDO-A",
+    "part_id": "PRT-04",
+    "qty": 1,
+    "status": "suggested",
+    "incident_id": "INC-EX-017-20261115T1430",
+    "cost_usd": 180,
+    "downtime_avoided_h": 152,
+    "downtime_avoided_usd": 68400,
+    "options": [
+      {"source_kind": "transfer", "from_zone": "FUNDO-A", "eta_h": 16, "cost_usd": 180, "total_cost_usd": 7380},
+      {"source_kind": "purchase", "supplier_id": "SUP-HIDRA", "eta_h": 168, "cost_usd": 6800, "total_cost_usd": 82400}
+    ]
+  }
+}

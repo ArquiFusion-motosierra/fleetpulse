@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fleetpulse.arquifusion/contracts/supply.schema.json",
+  "title": "Supply events",
+  "description": "Eventos del modulo de abastecimiento (T37-T46): ciclo faltante -> sugerencia -> aprobacion -> despacho -> recepcion de una orden de compra (PO) o transferencia entre parques (TRF). Los emite aws/supply (supply-flow) al outbox -> SNS -> gcp-events-q -> BigQuery domain_events. Payload comun con status por etapa. stock.adjusted (ajuste de inventario) queda para T46.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "tenant_id", "payload"],
+  "properties": {
+    "event_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "event_type": {"type": "string", "enum": ["supply.suggested", "supply.approved", "supply.cancelled", "po.ordered", "transfer.shipped", "supply.received"]},
+    "schema_version": {"const": 1},
+    "source": {"const": "aws.supply"},
+    "aggregate_type": {"type": "string", "enum": ["purchase_order", "transfer"]},
+    "aggregate_id": {"type": "string", "pattern": "^(PO|TRF)-[A-Z0-9-]+-[0-9]{8}T[0-9]{4}$", "description": "PO-<zone>-<part>-<YYYYMMDDTHHMM> o TRF-<from_zone>-<to_zone>-<part>-<YYYYMMDDTHHMM>; tambien es el nombre de la ejecucion de supply-flow (idempotencia)."},
+    "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "tenant_id": {"$ref": "#/$defs/tenant_id"},
+    "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$", "description": "Presente cuando el abastecimiento resuelve el faltante de un incidente."},
+    "trace_id": {"type": "string", "maxLength": 64},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "tenant_id", "zone_id", "part_id", "qty", "status"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["po", "transfer"]},
+        "tenant_id": {"$ref": "#/$defs/tenant_id", "description": "Parque destino."},
+        "zone_id": {"$ref": "#/$defs/zone_id", "description": "Almacen destino (= zona)."},
+        "from_zone": {"$ref": "#/$defs/zone_id", "description": "Almacen de origen de una transferencia."},
+        "part_id": {"$ref": "#/$defs/part_id"},
+        "qty": {"type": "integer", "minimum": 1},
+        "status": {"type": "string", "enum": ["suggested", "approved", "ordered", "in_transit", "received", "cancelled"]},
+        "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$"},
+        "supplier_id": {"$ref": "#/$defs/supplier_id", "description": "Proveedor de una PO."},
+        "eta": {"type": "string", "format": "date-time", "pattern": "Z$", "description": "Llegada estimada."},
+        "cost_usd": {"type": "number", "minimum": 0, "description": "Costo de la opcion elegida (precio de compra o flete)."},
+        "downtime_avoided_h": {"type": "number", "minimum": 0},
+        "downtime_avoided_usd": {"type": "number", "minimum": 0},
+        "reason": {"type": "string", "description": "Motivo de cancelacion u override."},
+        "options": {
+          "type": "array",
+          "description": "Opciones evaluadas (solo en supply.suggested): para BigQuery y el texto de Gemini.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_kind", "eta_h", "cost_usd", "total_cost_usd"],
+            "properties": {
+              "source_kind": {"type": "string", "enum": ["same_park", "transfer", "purchase"]},
+              "from_zone": {"$ref": "#/$defs/zone_id"},
+              "supplier_id": {"$ref": "#/$defs/supplier_id"},
+              "eta_h": {"type": "number", "minimum": 0},
+              "cost_usd": {"type": "number", "minimum": 0},
+              "total_cost_usd": {"type": "number", "minimum": 0, "description": "cost_usd + eta_h * costo de parada del modelo."}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "tenant_id": {"type": "string", "enum": ["mineria", "agro", "industria"]},
+    "zone_id": {"enum": ["NORTE", "CENTRO", "SUR", "FUNDO-A", "FUNDO-B", "PACKING", "PLANTA-1", "PLANTA-2", "ALMACEN"]},
+    "part_id": {"type": "string", "pattern": "^PRT-[0-9]{2}$"},
+    "supplier_id": {"type": "string", "pattern": "^SUP-[A-Z]{3,6}$"}
+  }
+}

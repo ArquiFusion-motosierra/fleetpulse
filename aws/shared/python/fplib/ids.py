@@ -162,3 +162,32 @@ def oem_specs(model: str) -> dict:
     """Ficha del fabricante del modelo (`models.<model>` de oem_specs.yaml: limits, service_schedule,
     typical_failures, ...), copia independiente; {} si no hay ficha o el modelo no aparece."""
     return copy.deepcopy((oem_catalog().get("models") or {}).get(model) or {})
+
+
+@lru_cache(maxsize=1)
+def supply() -> dict:
+    """`supply.yaml` completo (T37): proveedores, `supplier_parts`, `part_policy`, `transit_h`,
+    `downtime_cost_usd_h` y `approval_threshold_usd`; {} si todavia no existe. En la layer va como `data/supply.json`."""
+    bundled = HERE / "data" / "supply.json"
+    if bundled.is_file():
+        return json.loads(bundled.read_text()) or {}
+    try:
+        path = schema.contracts_dir() / "supply.yaml"
+    except FileNotFoundError:
+        return {}
+    if not path.is_file():
+        return {}
+    import yaml  # solo en desarrollo
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def part_policy(part_id: str) -> dict:
+    """Criticidad y stock de seguridad del repuesto; sin fila en `part_policy`: criticidad C y safety_stock 0."""
+    row = next((p for p in supply().get("part_policy") or [] if p["part_id"] == part_id), None)
+    return {"criticality": (row or {}).get("criticality", "C"), "safety_stock": int((row or {}).get("safety_stock", 0))}
+
+
+def supplier_parts(part_id: str) -> list[dict]:
+    """Ofertas de proveedores para el repuesto, la mas barata primero."""
+    rows = [dict(r) for r in supply().get("supplier_parts") or [] if r["part_id"] == part_id]
+    return sorted(rows, key=lambda r: (r["unit_price_usd"], r["lead_time_d"]))

@@ -199,7 +199,13 @@ class MockReports:
     def list_types(self, user: dict) -> list[dict]:
         return list(self.types.values())
 
-    # ---------- administracion (T35) ----------
+    # ---------- administracion (T35, misma forma que aws/reports/api/admin.py) ----------
+    def list_techs(self, user: dict) -> dict:
+        require(user, ("admin",))
+        return {"technicians": list(self.techs.values()),
+                "allowed": {"zone_id": ["CENTRO", "NORTE", "SUR"],
+                            "specialty": ["electrical", "engine", "hydraulics", "transmission"]}}
+
     def get_tech(self, user: dict, tech_id: str) -> dict:
         require(user, ("admin",))
         if tech_id not in self.techs:
@@ -214,18 +220,17 @@ class MockReports:
             t["zone_id"] = body["zone_id"]
         if body.get("specialty") in ("hydraulics", "engine", "electrical", "transmission"):
             t["specialty"] = body["specialty"]
-        return t
+        return {"technician": t}
 
     def add_type(self, user: dict, body: dict) -> dict:
         require(user, ("admin",))
         code = str(body.get("code") or "").strip()
         if not code.replace("_", "").isalnum() or not code[:1].isalpha() or not body.get("label_es"):
             raise BadRequest("code (minusculas y _) y label_es son obligatorios")
-        if code in self.types:
-            raise Conflict("abnormality type already exists")
+        created = code not in self.types  # como admin.py: crea (201) o reemplaza (200)
         self.types[code] = {"code": code, "label_es": body["label_es"][:80],
                             "default_checks": [s[:200] for s in body.get("default_checks") or []][:6]}
-        return self.types[code]
+        return created, self.types[code]
 
     def delete_type(self, user: dict, code: str) -> None:
         require(user, ("admin",))

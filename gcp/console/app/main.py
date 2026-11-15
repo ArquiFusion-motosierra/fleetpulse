@@ -266,21 +266,12 @@ def abnormality_types(request: Request):
     return _as_user(request, "GET", "/abnormality-types")
 
 
-TECH_IDS = [f"TEC-0{i}" for i in range(1, 7)]
-
-
 @app.get("/api/admin/technicians")
 def admin_technicians(request: Request):
-    """Los 6 tecnicos del catalogo, cada uno leido de GET /admin/technicians/{id} (T35)."""
+    """Tecnicos con su estado (aws/reports/api/admin.py, T35): {technicians, allowed: {zone_id, specialty}}."""
     if app.state.reports:
-        return {"technicians": [_mock(request, app.state.reports.get_tech, t) for t in TECH_IDS]}
-    out = []
-    for t in TECH_IDS:
-        resp = _as_user(request, "GET", f"/admin/technicians/{t}")
-        if resp.status_code != 200:
-            return resp
-        out.append(json.loads(resp.body))
-    return {"technicians": out}
+        return _mock(request, app.state.reports.list_techs)
+    return _as_user(request, "GET", "/admin/technicians")
 
 
 @app.put("/api/admin/technicians/{tech_id}")
@@ -297,7 +288,8 @@ async def admin_put_technician(request: Request, tech_id: str):
 async def admin_add_type(request: Request):
     body = await _json(request)
     if app.state.reports:
-        return JSONResponse(_mock(request, app.state.reports.add_type, body), status_code=201)
+        created, entry = _mock(request, app.state.reports.add_type, body)
+        return JSONResponse(entry, status_code=201 if created else 200)
     return _as_user(request, "POST", "/admin/abnormality-types", body)
 
 

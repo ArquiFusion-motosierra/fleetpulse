@@ -199,13 +199,17 @@ def test_technician_cannot_close_someone_elses_report(mock_client):
 def test_admin_changes_technician_and_types(mock_client):
     assert mock_client.put("/api/admin/technicians/TEC-01", json={"available": False}, headers=H("operator")).status_code == 403
     t = mock_client.put("/api/admin/technicians/TEC-01", json={"available": False}, headers=H("admin")).json()
-    assert t["available"] is False
-    techs = mock_client.get("/api/admin/technicians", headers=H("admin")).json()["technicians"]
-    assert len(techs) == 6
+    assert t["technician"]["available"] is False
+    listing = mock_client.get("/api/admin/technicians", headers=H("admin")).json()
+    assert len(listing["technicians"]) == 6 and "NORTE" in listing["allowed"]["zone_id"]
+    assert mock_client.get("/api/admin/technicians", headers=H("operator")).status_code == 403
     assert mock_client.post("/api/admin/abnormality-types", json={"code": "brake_noise", "label_es": "Ruido de frenos"},
                             headers=H("admin")).status_code == 201
     codes = [x["code"] for x in mock_client.get("/api/abnormality-types", headers=H("operator")).json()["abnormality_types"]]
     assert "brake_noise" in codes and len(codes) == 11
+    again = mock_client.post("/api/admin/abnormality-types", json={"code": "brake_noise", "label_es": "Chirrido de frenos"},
+                             headers=H("admin"))
+    assert again.status_code == 200  # reemplaza, como admin.py
     assert mock_client.delete("/api/admin/abnormality-types/brake_noise", headers=H("admin")).status_code == 200
 
 

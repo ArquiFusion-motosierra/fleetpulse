@@ -17,6 +17,44 @@ def _iso(t: datetime) -> str:
     return t.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# Informes tecnicos de ejemplo (explanation.report, T26/T28), contra contracts/oem_specs.yaml (ilustrativa)
+REPORT_EX017 = {
+    "summary": "Presion hidraulica bajo el minimo del fabricante con aceite y vibracion en alza: bomba gastada.",
+    "findings": [
+        {"parameter": "hydraulic_pressure_bar", "value": 268.4, "unit": "bar", "status": "warning",
+         "oem_limit": "normal 280-345 bar; advertencia bajo 270; critico bajo 250"},
+        {"parameter": "hydraulic_oil_temp_c", "value": 71.9, "unit": "C", "status": "normal",
+         "oem_limit": "normal 35-75 C; advertencia 82 C", "note": "En alza: +12 C en 15 minutos"},
+        {"parameter": "vibration_mm_s", "value": 9.8, "unit": "mm/s", "status": "warning",
+         "oem_limit": "normal hasta 9,0 mm/s; advertencia 11,2"}],
+    "probable_cause": "Desgaste interno de la bomba hidraulica: pierde caudal y presion, y el aceite se calienta.",
+    "failure_mode": "hydraulic_pump",
+    "resonance": None,
+    "recommended_action": "Detener a la brevedad; medir caudal y presion de la bomba; reemplazar bomba y sellos.",
+    "parts": [{"part_id": "PRT-04", "qty": 1}, {"part_id": "PRT-03", "qty": 2}],
+    "oem_reference": "Ficha EX v1 (ilustrativa): limites hidraulicos y falla tipica 'bomba hidraulica gastada'",
+}
+REPORT_VQ022 = {
+    "summary": "Refrigerante sobre la advertencia, perdida de refrigerante (SPN 111) y resonancia del chasis por rpm elevadas.",
+    "findings": [
+        {"parameter": "coolant_temp_c", "value": 104.2, "unit": "C", "status": "warning",
+         "oem_limit": "normal 65-97 C; advertencia 103 C; critico 108 C"},
+        {"parameter": "engine_rpm", "value": 1868, "unit": "rpm", "status": "warning",
+         "oem_limit": "nominal 1650 rpm; maximo 2000 rpm", "note": "Inestable, +13 % sobre la nominal"},
+        {"parameter": "vibration_mm_s", "value": 8.6, "unit": "mm/s", "status": "warning",
+         "oem_limit": "normal hasta 7,5 mm/s; advertencia 11,2", "note": "Salta cuando el 2x cruza los 62 Hz"}],
+    "probable_cause": "Perdida de compresion por la junta de culata: el regulador sube las rpm y el 2x entra en "
+                      "resonancia con el segundo modo del chasis.",
+    "failure_mode": "head_gasket",
+    "resonance": {"harmonic": "2x", "frequency_hz": 62.3, "natural_frequency_hz": 62,
+                  "component": "Chasis y tolva (segundo modo)"},
+    "recommended_action": "Detener y enfriar; revisar nivel y presion del sistema de refrigeracion; prueba de "
+                          "compresion; reemplazar la junta.",
+    "parts": [{"part_id": "PRT-13", "qty": 1}],
+    "oem_reference": "Ficha VQ v1 (ilustrativa): limites de refrigerante y modo 3 del chasis",
+}
+
+
 class MockRegistry:
     def __init__(self, now: datetime | None = None, clock=time.monotonic):
         with open(os.path.join(HERE, "fleet.json"), encoding="utf-8") as f:
@@ -54,7 +92,10 @@ class MockRegistry:
                        closed=past + timedelta(hours=3), parts=[("PRT-03", 2), ("PRT-02", 1)])
         # En vivo: EX-017 (S1), reincidencia de EX-009 (S5) y el grupo de la zona norte (S2)
         self._incident("EX-017", now - timedelta(minutes=6), "schedule", "hydraulic_pump", tech="TEC-01",
-                       reserve=[("PRT-04", 1), ("PRT-03", 2)], score=2.31)
+                       reserve=[("PRT-04", 1), ("PRT-03", 2)], score=2.31, distance_km=0.4, report=REPORT_EX017)
+        # S7 (T27): junta de culata en VQ-022 con resonancia del chasis
+        self._incident("VQ-022", now - timedelta(minutes=4), "schedule", "head_gasket", tech="TEC-03",
+                       reserve=[("PRT-13", 1)], score=2.6, distance_km=1.1, report=REPORT_VQ022)
         self._incident("EX-009", now - timedelta(minutes=25), "observe", "hydraulic_contamination", recurrence=True,
                        score=1.4)
         for mid in ("EX-003", "VQ-011", "VQ-014", "TO-002"):
@@ -62,7 +103,7 @@ class MockRegistry:
                            group="GRP-6mc5ns-20261115T14", reserve=[("PRT-01", 1)], score=2.05)
 
     def _incident(self, mid, opened, sev, mode, tech=None, closed=None, parts=(), reserve=(), group=None,
-                  recurrence=False, score=2.2):
+                  recurrence=False, score=2.2, distance_km=None, report=None):
         m = self.machines[mid]
         window = opened.replace(minute=opened.minute - opened.minute % 15, second=0)
         inc_id = f"INC-{mid}-{window.strftime('%Y%m%dT%H%M')}"
@@ -79,10 +120,17 @@ class MockRegistry:
                                     "la bomba hidraulica." if mode == "hydraulic_pump" else
                                     "Cuatro maquinas de la zona norte con la misma firma tras cargar el lote "
                                     "L-2311 en la estacion norte: combustible contaminado." if group else
-                                    f"Firma de {mode}."),
+                                    report["summary"] if report else f"Firma de {mode}."),
                        explanation_src="gemini")
+            # Misma forma que el payload de incident.assigned (contracts/incident.schema.json)
+            assigned = {"tech_id": tech, "assigned_at": _iso(at), "approval": "approved",
+                        "explanation": {"source": "gemini", "summary": inc["explanation"]}}
+            if distance_km is not None:
+                assigned["distance_km"] = distance_km
+            if report:
+                assigned["explanation"]["report"] = report
             timeline.append({"type": "incident.assigned", "source": "aws.incident-flow", "ts": _iso(at),
-                             "payload": {"tech_id": tech}})
+                             "payload": assigned})
         for i, (part, qty) in enumerate(reserve):
             s = self.stock[(part, m["zone_id"])]
             zone = m["zone_id"]

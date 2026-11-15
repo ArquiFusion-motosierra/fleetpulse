@@ -137,7 +137,7 @@ def follow_up_events(e: dict, reservation: dict) -> list[dict]:
                     "payload": {"reservations": reservation["reserved"]}})
     if reservation["missing"]:
         out.append({"event_id": str(uuid.uuid4()), "event_type": "part.shortage", **base,
-                    "payload": {"missing": reservation["missing"],
+                    "payload": {"missing": reservation["missing"], "zone_id": e["payload"]["zone_id"],
                                 "reorder_suggested": reservation["reorder_suggested"]}})
     return out
 
@@ -170,7 +170,9 @@ def consume_items(ddb, e: dict) -> list[dict]:
                                    q=q, h=h, d=h - q))
         if q:
             items.append({"Put": {"TableName": REGISTRY, "Item": ser({
-                "PK": f"MOVE#{part}#{zone}", "SK": f"{p['closed_at']}#{inc}", "qty": q, "kind": "consumption",
+                # Ledger (diseno de abastecimiento 4.2): qty con signo, ref y tenant_id; incident_id se mantiene
+                "PK": f"MOVE#{part}#{zone}", "SK": f"{p['closed_at']}#{inc}", "qty": -q, "kind": "consumption",
+                "ref": inc, "tenant_id": ids.tenant_of_zone(zone),
                 "incident_id": inc})}})
     return items
 

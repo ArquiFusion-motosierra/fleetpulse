@@ -181,10 +181,15 @@ def list_stock(client, tenants=None) -> list[dict]:
     for s in found:
         _, part, zone = s["PK"].split("#")
         avail = s.get("available", s["on_hand"] - s["reserved"])
-        out.append({"part_id": part, "zone_id": zone, "tenant_id": ids.tenant_of_zone(zone),
+        policy = ids.part_policy(part)
+        out.append({"part_id": part, "zone_id": zone, "tenant_id": s.get("tenant_id") or ids.tenant_of_zone(zone),
                     "sku": parts[part]["sku"], "name": parts[part]["name"],
                     "on_hand": s["on_hand"], "reserved": s["reserved"], "available": avail,
-                    "reorder_point": s["reorder_point"], "below_reorder": avail <= s["reorder_point"]})
+                    "reorder_point": s["reorder_point"], "below_reorder": avail <= s["reorder_point"],
+                    # Abastecimiento (T38): faltantes se leen como 0; criticidad y seguridad desde supply.yaml
+                    "on_order": s.get("on_order", 0), "in_transit": s.get("in_transit", 0),
+                    "safety_stock": s.get("safety_stock", policy["safety_stock"]),
+                    "criticality": s.get("criticality", policy["criticality"])})
     return sorted(out, key=lambda r: (r["part_id"], r["zone_id"]))
 
 

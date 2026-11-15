@@ -1,5 +1,7 @@
 """Pruebas de la Lambda `supply-api` (T40): cada ruta `/supply/*`, roles, aislamiento por parque, 404 cruzado y 409.
 fp-registry en moto y Step Functions con un doble (sin red)."""
+import json
+
 import boto3
 import pytest
 from moto import mock_aws
@@ -203,7 +205,8 @@ def test_jefe_aprueba_la_transferencia(supplyapi, caplog):
     assert doc["status"] == "approved" and doc["flow_pending"] is True and doc["approved_by"]
     ((name, kw),) = supplyapi.sfn.calls
     assert name == "send_task_success" and kw["taskToken"] == TOKEN
-    assert '"decision": "approved"' in kw["output"] and '"override": false' in kw["output"]
+    assert json.loads(kw["output"]) == {"approved_by": doc["approved_by"], "role": "maintenance_head",
+                                        "override": False}
     meta = supplyapi.meta(TRF)
     assert "waiting_for" not in meta and meta["approved_by"] == doc["approved_by"]
     assert TOKEN not in caplog.text
@@ -251,7 +254,8 @@ def test_rechazo_manda_send_task_failure(supplyapi):
                                  body={"reason": "ya hay filtros en camino"})
     assert status == 200 and doc["status"] == "cancelled"
     ((name, kw),) = supplyapi.sfn.calls
-    assert name == "send_task_failure" and kw["error"] == "Rejected" and "ya hay filtros" in kw["cause"]
+    assert name == "send_task_failure" and kw["error"] == "SupplyRejected"
+    assert json.loads(kw["cause"]) == {"reason": "ya hay filtros en camino", "by": "admin.mineria@example.com"}
     assert supplyapi.meta(PO_SUR)["rejected_by"]
 
 
@@ -279,7 +283,8 @@ def test_recepcion_por_el_parque_destino(supplyapi):
     status, doc = supplyapi.call("POST /supply/purchase-orders/{id}/receive", ADMIN_IND, path={"id": PO_IND})
     assert status == 200 and doc["status"] == "received" and doc["received_by"]
     ((name, kw),) = supplyapi.sfn.calls
-    assert name == "send_task_success" and kw["taskToken"] == TOKEN + "-ind" and "received" in kw["output"]
+    assert name == "send_task_success" and kw["taskToken"] == TOKEN + "-ind"
+    assert json.loads(kw["output"]) == {"received_by": "admin.industria@example.com"}
     status, body = supplyapi.call("POST /supply/purchase-orders/{id}/receive", HEAD, path={"id": PO_IND})
     assert status == 409  # doble clic
 
@@ -394,3 +399,11 @@ def test_kpis(supplyapi):
     assert set(k["inventory_value_usd"]) == {"mineria"} and k["downtime_avoided_h"] == 0
     assert supplyapi.call("GET /supply/kpis", SUP_MIN)[0] == 403
     assert supplyapi.call("GET /supply/kpis", ADMIN_MIN, qs={"tenant": "industria"})[0] == 403
+
+
+def test_receiver_roles_del_documento_mandan(supplyapi):
+    supplyapi.registry.update_item(Key={"PK": f"PO#{PO_IND}", "SK": "META"}, UpdateExpression="SET receiver_roles = :r",
+                                   ExpressionAttributeValues={":r": ["admin"]})
+    tech_ind = {"custom:role": "technician", "email": "t@example.com", "sub": "s", "cognito:groups": "[tenant-industria]"}
+    assert supplyapi.call("POST /supply/purchase-orders/{id}/receive", tech_ind, path={"id": PO_IND})[0] == 403
+    assert supplyapi.call("POST /supply/purchase-orders/{id}/receive", ADMIN_IND, path={"id": PO_IND})[0] == 200

@@ -16,8 +16,10 @@ las de gcp/console/app/mock_supply.py, que es lo que pinta la pestana Abastecimi
   `suggested` (source manual) y arrancan `supply-flow` (`SUPPLY_FLOW_ARN`) con nombre de ejecucion = id. 201.
 - `POST /supply/{purchase-orders|transfers}/{id}/approve | reject` (roles `approver_roles` del documento, tabla 5.4,
   y del parque destino salvo el jefe): toma la espera `approval` y llama SendTaskSuccess / SendTaskFailure con el
-  `task_token` guardado. `approve` de una transferencia que dejaria al donante bajo su stock de seguridad -> 409
-  salvo `{"override": true}`. `receive` (admin o technician del parque destino, maintenance_head): toma la espera
+  `task_token` guardado (salida `{approved_by, role, override}`; rechazo con error `SupplyRejected` y causa
+  `{reason, by}`). `approve` de una transferencia que dejaria al donante bajo su stock de seguridad -> 409
+  salvo `{"override": true}`. `receive` (`receiver_roles` del documento; por defecto admin o technician del parque destino y
+  maintenance_head): toma la espera
   `receipt` (status ordered | in_transit) y llama SendTaskSuccess. Responden la PO/TRF con el estado que deja la
   decision (`approved`, `cancelled`, `received`) y `flow_pending: true`: el flujo escribe el resto.
 - `GET /supply/suppliers` (admin, maintenance_head) -> `{suppliers}` de supply.yaml con sus repuestos.
@@ -391,7 +393,7 @@ def decide(kind: str, action: str):
         doc = _load_doc(event, deps, kind)
         user = _user(event)
         if action == "receive":
-            _require(event, RECEIVE_ROLES)
+            _require(event, tuple(doc.get("receiver_roles") or RECEIVE_ROLES))
             _own_destination(event, doc, "solo el parque destino confirma la recepcion")
             if doc.get("waiting_for") != "receipt" or doc.get("status") not in ("ordered", "in_transit") \
                     or not doc["_task_token"]:
@@ -402,7 +404,7 @@ def decide(kind: str, action: str):
             except store.ConditionFailed:
                 raise _invalid(doc) from None
             _send(deps, doc, "receipt", "send_task_success",
-                  output=json.dumps({"decision": "received", "received_by": user}))
+                  output=json.dumps({"received_by": user}))
             log.event("supply_recibida", id=doc["id"], by=user, role=_role(event))
             return resp(200, _out(doc, status="received", received_by=user, waiting_for=None, flow_pending=True))
         _require(event, tuple(doc["approver_roles"]))
@@ -425,11 +427,12 @@ def decide(kind: str, action: str):
             raise _invalid(doc) from None
         if action == "approve":
             _send(deps, doc, "approval", "send_task_success",
-                  output=json.dumps({"decision": "approved", "approved_by": user, "override": override}))
+                  output=json.dumps({"approved_by": user, "role": _role(event), "override": override}))
             log.event("supply_aprobada", id=doc["id"], by=user, role=_role(event), override=override)
             return resp(200, _out(doc, status="approved", approved_by=user, waiting_for=None, flow_pending=True))
         reason = body.get("reason") if isinstance(body.get("reason"), str) else "rechazada en la consola"
-        _send(deps, doc, "approval", "send_task_failure", error="Rejected", cause=f"{user}: {reason}"[:MAX_REASON])
+        _send(deps, doc, "approval", "send_task_failure", error="SupplyRejected",
+              cause=json.dumps({"reason": reason[:MAX_REASON], "by": user}))
         log.event("supply_rechazada", id=doc["id"], by=user, role=_role(event))
         return resp(200, _out(doc, status="cancelled", rejected_by=user, waiting_for=None, flow_pending=True))
     return route

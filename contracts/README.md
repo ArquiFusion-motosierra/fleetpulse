@@ -11,6 +11,7 @@ Fuente de verdad de lo que cruza entre nubes. Se congelan con el tag `m1-contrat
 | `kpi.daily.schema.json` | KPIs de flota por dia y maquina | daily-planning → registry `KPI#<day>`, BigQuery |
 | `maintenance.order.schema.json` | `maintenance.order.suggested`: orden preventiva o correctiva (propuesta para T18, la confirma Benjamin) | daily-planning → registry `ORDER#`, consola |
 | `fuel.refill.schema.json` | Contexto por zona: recarga con lote de combustible y clima | simulator → `POST /context` → CorrelateZone |
+| `oem_specs.yaml` + `oem_specs.schema.json` | Ficha técnica **ilustrativa** por modelo: rangos de operación, plan de servicio por horas motor, frecuencias naturales y de defecto (vibración) y fallas típicas con síntomas (T26) | simulador, `/explain` (informe técnico), consola |
 | `ids.yaml` | Maquinas, zonas, estaciones de combustible, tecnicos, repuestos, BOM y stock inicial | `seed-registry.py` (fp-registry, fp-state) y simulador |
 | `secrets.md` | Nombres de secretos, modelo de `fp-registry`, API de lectura de la consola y endpoints (nunca valores) | `push-secrets.sh`, consola |
 
@@ -20,6 +21,8 @@ Fuente de verdad de lo que cruza entre nubes. Se congelan con el tag `m1-contrat
 - `group_id` = `GRP-<geohash6>-<hora UTC>`; `batch_id` = `B-<sent_at>-<8 hex>`; solicitud de reserva = `RSV-<incident_id>`; cada línea reservada = `<event_id>#<línea>`.
 - Severidad: `observe` (≥ 1,2), `schedule` (≥ 2,0), `immediate` (≥ 3,5). En el mapa se suma `ok`.
 - IDs: máquinas `EX-001..020`, `CF-031..050` (para que exista CF-042 del escenario S3), `VQ-001..040`, `MN-001..012`, `TO-001..008`; zonas `NORTE`, `CENTRO`, `SUR`; técnicos `TEC-01..06`; repuestos `PRT-01..12`. Todo en `ids.yaml`.
+- `incident.assigned.explanation.report` (opcional): informe técnico de anormalidad contra la ficha del fabricante, con hallazgos, causa, resonancia, acción y repuestos (T26/T28). Ejemplo en `examples/incident/assigned-with-report.json`.
+- Falla nueva `head_gasket` (junta de culata, SPN 111) y repuesto `PRT-13` (kit de junta de culata) para el escenario S7.
 - `maintenance.order.suggested` tiene contrato propuesto (`maintenance.order.schema.json`); `fuel.anomaly` (incremento T18) sigue solo en el enum del sobre.
 - Validar en local: `python -m check_jsonschema --schemafile contracts/incident.schema.json contracts/examples/incident/*.json`.
 

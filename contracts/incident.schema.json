@@ -4,90 +4,244 @@
   "title": "Incident events",
   "description": "incident.opened | incident.escalated | incident.assigned | incident.closed, completos con su sobre (ver envelope.schema.json). Productor: incident-flow y POST /incidents/{id}/close en AWS. Consumidores: registry (fp-registry) y BigQuery domain_events.",
   "type": "object",
-  "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "incident_id", "machine_id", "payload"],
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "source",
+    "aggregate_type",
+    "aggregate_id",
+    "occurred_at",
+    "incident_id",
+    "machine_id",
+    "payload"
+  ],
   "properties": {
-    "event_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
-    "schema_version": {"const": 1},
-    "source": {"enum": ["aws.incident-flow", "aws.incidents-api", "simulator.backfill"]},
-    "aggregate_type": {"const": "incident"},
-    "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
-    "incident_id": {"$ref": "#/$defs/incident_id"},
-    "machine_id": {"$ref": "#/$defs/machine_id"},
-    "trace_id": {"type": "string", "maxLength": 64}
+    "event_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "source": {
+      "enum": [
+        "aws.incident-flow",
+        "aws.incidents-api",
+        "simulator.backfill"
+      ]
+    },
+    "aggregate_type": {
+      "const": "incident"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "incident_id": {
+      "$ref": "#/$defs/incident_id"
+    },
+    "machine_id": {
+      "$ref": "#/$defs/machine_id"
+    },
+    "trace_id": {
+      "type": "string",
+      "maxLength": 64
+    }
   },
   "oneOf": [
     {
       "properties": {
-        "event_type": {"const": "incident.opened"},
+        "event_type": {
+          "const": "incident.opened"
+        },
         "payload": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["zone_id", "severity", "score", "failure_mode", "deviated_vars", "recurrence_flag", "opened_at", "lat", "lon"],
+          "required": [
+            "zone_id",
+            "severity",
+            "score",
+            "failure_mode",
+            "deviated_vars",
+            "recurrence_flag",
+            "opened_at",
+            "lat",
+            "lon"
+          ],
           "properties": {
-            "zone_id": {"$ref": "#/$defs/zone_id"},
-            "severity": {"$ref": "#/$defs/severity"},
-            "score": {"type": "number", "minimum": 0},
-            "failure_mode": {"$ref": "#/$defs/failure_mode"},
+            "zone_id": {
+              "$ref": "#/$defs/zone_id"
+            },
+            "severity": {
+              "$ref": "#/$defs/severity"
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0
+            },
+            "failure_mode": {
+              "$ref": "#/$defs/failure_mode"
+            },
             "deviated_vars": {
               "type": "array",
               "minItems": 1,
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["var", "value", "z"],
+                "required": [
+                  "var",
+                  "value",
+                  "z"
+                ],
                 "properties": {
-                  "var": {"type": "string", "enum": ["coolant_temp_c", "hydraulic_oil_temp_c", "hydraulic_pressure_bar", "vibration_mm_s", "engine_rpm", "fuel_rate_lph"]},
-                  "value": {"type": "number"},
-                  "z": {"type": "number"}
+                  "var": {
+                    "type": "string",
+                    "enum": [
+                      "coolant_temp_c",
+                      "hydraulic_oil_temp_c",
+                      "hydraulic_pressure_bar",
+                      "vibration_mm_s",
+                      "engine_rpm",
+                      "fuel_rate_lph"
+                    ]
+                  },
+                  "value": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
                 }
               }
             },
-            "group_id": {"type": ["string", "null"], "pattern": "^GRP-[0-9a-z]{6}-[0-9]{8}T[0-9]{2}$", "description": "GRP-<geohash6>-<hora UTC>. null si no esta agrupado."},
-            "recurrence_flag": {"type": "boolean"},
-            "opened_at": {"type": "string", "format": "date-time"},
-            "lat": {"type": "number"},
-            "lon": {"type": "number"}
+            "group_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^GRP-[0-9a-z]{6}-[0-9]{8}T[0-9]{2}$",
+              "description": "GRP-<geohash6>-<hora UTC>. null si no esta agrupado."
+            },
+            "recurrence_flag": {
+              "type": "boolean"
+            },
+            "opened_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "lat": {
+              "type": "number"
+            },
+            "lon": {
+              "type": "number"
+            }
           }
         }
       }
     },
     {
       "properties": {
-        "event_type": {"const": "incident.escalated"},
+        "event_type": {
+          "const": "incident.escalated"
+        },
         "payload": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["from_severity", "to_severity", "score"],
+          "required": [
+            "from_severity",
+            "to_severity",
+            "score"
+          ],
           "properties": {
-            "from_severity": {"$ref": "#/$defs/severity"},
-            "to_severity": {"$ref": "#/$defs/severity"},
-            "score": {"type": "number", "minimum": 0}
+            "from_severity": {
+              "$ref": "#/$defs/severity"
+            },
+            "to_severity": {
+              "$ref": "#/$defs/severity"
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0
+            }
           }
         }
       }
     },
     {
       "properties": {
-        "event_type": {"const": "incident.assigned"},
+        "event_type": {
+          "const": "incident.assigned"
+        },
         "payload": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["tech_id", "assigned_at", "approval", "explanation"],
+          "required": [
+            "tech_id",
+            "assigned_at",
+            "approval",
+            "explanation"
+          ],
           "properties": {
-            "tech_id": {"$ref": "#/$defs/tech_id"},
-            "assigned_at": {"type": "string", "format": "date-time"},
-            "approval": {"enum": ["auto", "approved", "timeout"], "description": "auto = inmediato; approved = por correo; timeout = 30 min sin respuesta."},
-            "distance_km": {"type": "number", "minimum": 0},
+            "tech_id": {
+              "$ref": "#/$defs/tech_id"
+            },
+            "assigned_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "approval": {
+              "enum": [
+                "auto",
+                "approved",
+                "timeout"
+              ],
+              "description": "auto = inmediato; approved = por correo; timeout = 30 min sin respuesta."
+            },
+            "distance_km": {
+              "type": "number",
+              "minimum": 0
+            },
             "explanation": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["source", "summary"],
+              "required": [
+                "source",
+                "summary"
+              ],
               "properties": {
-                "source": {"enum": ["gemini", "template"]},
-                "summary": {"type": "string", "maxLength": 1000},
-                "probable_component": {"type": "string", "maxLength": 200},
-                "suggested_parts": {"type": "array", "items": {"$ref": "#/$defs/part_id"}},
-                "common_cause": {"type": ["string", "null"], "maxLength": 300, "description": "Solo si el incidente esta agrupado (ej. lote L-2311)."}
+                "source": {
+                  "enum": [
+                    "gemini",
+                    "template"
+                  ]
+                },
+                "summary": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "probable_component": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "suggested_parts": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/part_id"
+                  }
+                },
+                "common_cause": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 300,
+                  "description": "Solo si el incidente esta agrupado (ej. lote L-2311)."
+                },
+                "report": {
+                  "$ref": "#/$defs/report"
+                }
               }
             }
           }
@@ -96,41 +250,256 @@
     },
     {
       "properties": {
-        "event_type": {"const": "incident.closed"},
+        "event_type": {
+          "const": "incident.closed"
+        },
         "payload": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["closed_at", "downtime_h", "parts_used", "closed_by"],
+          "required": [
+            "closed_at",
+            "downtime_h",
+            "parts_used",
+            "closed_by"
+          ],
           "properties": {
-            "closed_at": {"type": "string", "format": "date-time"},
-            "downtime_h": {"type": "number", "minimum": 0},
+            "closed_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "downtime_h": {
+              "type": "number",
+              "minimum": 0
+            },
             "parts_used": {
               "type": "array",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["part_id", "zone_id", "qty"],
+                "required": [
+                  "part_id",
+                  "zone_id",
+                  "qty"
+                ],
                 "properties": {
-                  "part_id": {"$ref": "#/$defs/part_id"},
-                  "zone_id": {"$ref": "#/$defs/zone_id"},
-                  "qty": {"type": "integer", "minimum": 1}
+                  "part_id": {
+                    "$ref": "#/$defs/part_id"
+                  },
+                  "zone_id": {
+                    "$ref": "#/$defs/zone_id"
+                  },
+                  "qty": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
                 }
               }
             },
-            "cause_summary": {"type": "string", "maxLength": 1000},
-            "closed_by": {"type": "string", "maxLength": 64, "description": "tech_id o usuario de la consola."}
+            "cause_summary": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "closed_by": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "tech_id o usuario de la consola."
+            }
           }
         }
       }
     }
   ],
   "$defs": {
-    "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$", "description": "INC-<machine_id>-<inicio de la ventana de 15 min, UTC>. Igual al nombre de ejecucion de incident-flow."},
-    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
-    "zone_id": {"enum": ["NORTE", "CENTRO", "SUR"]},
-    "tech_id": {"type": "string", "pattern": "^TEC-[0-9]{2}$"},
-    "part_id": {"type": "string", "pattern": "^PRT-[0-9]{2}$"},
-    "severity": {"enum": ["observe", "schedule", "immediate"], "description": "observar >= 1.2, programar >= 2.0, inmediato >= 3.5"},
-    "failure_mode": {"enum": ["hydraulic_pump", "hydraulic_contamination", "hydraulic_overheat", "fuel_contamination", "engine_overheat", "final_drive", "brake_wear", "electrical_fault", "sensor_fault"]}
+    "incident_id": {
+      "type": "string",
+      "pattern": "^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$",
+      "description": "INC-<machine_id>-<inicio de la ventana de 15 min, UTC>. Igual al nombre de ejecucion de incident-flow."
+    },
+    "machine_id": {
+      "type": "string",
+      "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"
+    },
+    "zone_id": {
+      "enum": [
+        "NORTE",
+        "CENTRO",
+        "SUR"
+      ]
+    },
+    "tech_id": {
+      "type": "string",
+      "pattern": "^TEC-[0-9]{2}$"
+    },
+    "part_id": {
+      "type": "string",
+      "pattern": "^PRT-[0-9]{2}$"
+    },
+    "severity": {
+      "enum": [
+        "observe",
+        "schedule",
+        "immediate"
+      ],
+      "description": "observar >= 1.2, programar >= 2.0, inmediato >= 3.5"
+    },
+    "failure_mode": {
+      "enum": [
+        "head_gasket",
+        "hydraulic_pump",
+        "hydraulic_contamination",
+        "hydraulic_overheat",
+        "fuel_contamination",
+        "engine_overheat",
+        "final_drive",
+        "brake_wear",
+        "electrical_fault",
+        "sensor_fault"
+      ]
+    },
+    "report": {
+      "type": "object",
+      "description": "Informe tecnico de anormalidad (T26/T28): lo que el parametro muestra contra la ficha del fabricante (contracts/oem_specs.yaml). Opcional; lo llena /explain (Gemini o plantilla).",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "findings",
+        "probable_cause",
+        "failure_mode",
+        "recommended_action",
+        "parts",
+        "oem_reference"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "findings": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "parameter",
+              "value",
+              "unit",
+              "oem_limit",
+              "status"
+            ],
+            "properties": {
+              "parameter": {
+                "enum": [
+                  "coolant_temp_c",
+                  "hydraulic_oil_temp_c",
+                  "hydraulic_pressure_bar",
+                  "vibration_mm_s",
+                  "engine_rpm",
+                  "fuel_rate_lph",
+                  "speed_kmh",
+                  "vibration_spectrum"
+                ]
+              },
+              "value": {
+                "type": "number"
+              },
+              "unit": {
+                "type": "string",
+                "maxLength": 12
+              },
+              "oem_limit": {
+                "type": "string",
+                "maxLength": 120,
+                "description": "Ej. 'normal 280-345 bar; critico bajo 250 bar'"
+              },
+              "status": {
+                "enum": [
+                  "normal",
+                  "warning",
+                  "critical"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 300
+              }
+            }
+          }
+        },
+        "probable_cause": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "failure_mode": {
+          "$ref": "#/$defs/failure_mode"
+        },
+        "resonance": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "harmonic",
+                "frequency_hz",
+                "natural_frequency_hz",
+                "component"
+              ],
+              "properties": {
+                "harmonic": {
+                  "enum": [
+                    "1x",
+                    "2x",
+                    "3x"
+                  ]
+                },
+                "frequency_hz": {
+                  "type": "number"
+                },
+                "natural_frequency_hz": {
+                  "type": "number"
+                },
+                "component": {
+                  "type": "string",
+                  "maxLength": 80
+                }
+              }
+            }
+          ]
+        },
+        "recommended_action": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "part_id",
+              "qty"
+            ],
+            "properties": {
+              "part_id": {
+                "$ref": "#/$defs/part_id"
+              },
+              "qty": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "oem_reference": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Ej. 'Ficha VQ v1 (ilustrativa): limites de refrigerante y modo 3 del chasis'"
+        }
+      }
+    }
   }
 }

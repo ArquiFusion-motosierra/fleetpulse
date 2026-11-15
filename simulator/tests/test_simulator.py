@@ -171,3 +171,62 @@ def test_drift_script_apply():
     assert drift.apply(st, "off", "all", NOW) == {"S1": False, "S2": False, "S5": False}
     with pytest.raises(SystemExit):
         drift.apply({}, "on", "S3", NOW)
+
+
+# ---------- T26: ficha del fabricante ----------
+
+def test_oem_specs_valid_and_in_sync():
+    yaml = pytest.importorskip("yaml")
+    with open(os.path.join(ROOT, "contracts", "oem_specs.yaml"), encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    jsonschema.validate(data, SCHEMA("oem_specs.schema.json"))
+    with open(os.path.join(ROOT, "simulator", "fpsim", "oem.json"), encoding="utf-8") as f:
+        assert json.load(f) == data, "corre: python simulator/fpsim/sync_ids.py"
+    parts = {p["part_id"] for p in yaml.safe_load(open(os.path.join(ROOT, "contracts", "ids.yaml"), encoding="utf-8"))["parts"]}
+    for m in data["models"].values():
+        for s in m["service_schedule"]:
+            assert {p["part_id"] for p in s["parts"]} <= parts
+
+
+VAR_TO_LIMIT = {"coolant_temp_c": "coolant_temp_c", "hydraulic_oil_temp_c": "hydraulic_oil_temp_c",
+                "hydraulic_pressure_bar": "hydraulic_pressure_bar", "vibration_mm_s": "vibration_mm_s",
+                "fuel_rate_lph": "fuel_rate_lph"}
+
+
+def test_normal_operation_stays_inside_oem_normal_ranges():
+    """La ficha y el simulador no se contradicen: operando sin escenarios, >= 99 % dentro del rango normal."""
+    from fpsim import oem
+    inside = total = 0
+    worst = {}
+    for h in range(0, 24, 3):
+        t = NOW.replace(hour=h)
+        for r in live.build_batch(t, {})["readings"]:
+            if r["engine_status"] != "operating":
+                continue
+            lim = oem.model(r["model"])["limits"]
+            for var, key in VAR_TO_LIMIT.items():
+                lo, hi = lim[key]["normal"]
+                ok = lo <= r[var] <= hi
+                inside += ok
+                total += 1
+                if not ok:
+                    worst[(r["model"], var)] = worst.get((r["model"], var), 0) + 1
+    assert inside / total >= 0.99, sorted(worst.items(), key=lambda x: -x[1])[:5]
+
+
+def test_normal_harmonics_do_not_cross_natural_frequencies():
+    from fpsim import oem
+    for model_id in ("EX", "CF", "VQ", "MN", "TO"):
+        rated = oem.model(model_id)["rated_rpm"]
+        for rpm in range(int(rated * 0.93), int(rated * 1.03), 5):
+            assert oem.resonance(model_id, rpm) is None, (model_id, rpm, oem.resonance(model_id, rpm))
+
+
+def test_head_gasket_raises_rpm_into_vq_chassis_resonance():
+    from fpsim import oem
+    from fpsim.scenarios import signature
+    eff = signature("head_gasket", 1.0)
+    rpm = oem.model("VQ")["rated_rpm"] * eff.mult["rpm"]
+    hit = oem.resonance("VQ", rpm)
+    assert hit and hit["harmonic"] == "2x" and hit["natural_frequency_hz"] == 62
+    assert eff.faults[0]["spn"] == 111

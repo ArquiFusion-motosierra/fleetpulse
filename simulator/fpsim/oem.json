@@ -1,0 +1,835 @@
+{
+ "illustrative": true,
+ "version": 1,
+ "resonance_tolerance_pct": 3,
+ "models": {
+  "EX": {
+   "name": "Excavadora hidraulica",
+   "rated_rpm": 1800,
+   "idle_rpm": 750,
+   "max_rpm": 2100,
+   "rated_fuel_lph": 38,
+   "limits": {
+    "coolant_temp_c": {
+     "normal": [
+      65,
+      96
+     ],
+     "warning": 102,
+     "critical": 108
+    },
+    "hydraulic_oil_temp_c": {
+     "normal": [
+      35,
+      75
+     ],
+     "warning": 82,
+     "critical": 90
+    },
+    "hydraulic_pressure_bar": {
+     "normal": [
+      280,
+      345
+     ],
+     "low_warning": 270,
+     "low_critical": 250
+    },
+    "vibration_mm_s": {
+     "normal": [
+      0,
+      9.0
+     ],
+     "warning": 11.2,
+     "critical": 18.0
+    },
+    "fuel_rate_lph": {
+     "normal": [
+      0,
+      42
+     ],
+     "warning": 47.5,
+     "critical": 53
+    }
+   },
+   "service_schedule": [
+    {
+     "every_h": 250,
+     "task": "Inspeccion general y filtro de aire",
+     "parts": [
+      {
+       "part_id": "PRT-11",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 500,
+     "task": "Filtros de combustible e hidraulico",
+     "parts": [
+      {
+       "part_id": "PRT-01",
+       "qty": 1
+      },
+      {
+       "part_id": "PRT-02",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 2000,
+     "task": "Cambio de aceite hidraulico",
+     "parts": [
+      {
+       "part_id": "PRT-10",
+       "qty": 4
+      }
+     ]
+    },
+    {
+     "every_h": 3000,
+     "task": "Sellos de cilindros",
+     "parts": [
+      {
+       "part_id": "PRT-03",
+       "qty": 2
+      }
+     ]
+    }
+   ],
+   "vibration": {
+    "pump_vane_order": 9,
+    "gear_mesh_order": 23,
+    "bearing_bpfo_order": 3.58,
+    "bearing_bpfi_order": 5.42,
+    "natural_frequencies": [
+     {
+      "mode": 1,
+      "component": "Pluma (primer modo)",
+      "hz": 15.5
+     },
+     {
+      "mode": 2,
+      "component": "Cabina",
+      "hz": 42
+     },
+     {
+      "mode": 3,
+      "component": "Pluma (segundo modo)",
+      "hz": 72
+     },
+     {
+      "mode": 4,
+      "component": "Bastidor superior",
+      "hz": 110
+     }
+    ]
+   },
+   "typical_failures": [
+    {
+     "failure_mode": "hydraulic_pump",
+     "name": "Bomba hidraulica gastada",
+     "symptoms": [
+      {
+       "var": "hydraulic_pressure_bar",
+       "change": "down"
+      },
+      {
+       "var": "hydraulic_oil_temp_c",
+       "change": "up"
+      },
+      {
+       "var": "vibration_mm_s",
+       "change": "up"
+      },
+      {
+       "var": "fuel_rate_lph",
+       "change": "up"
+      }
+     ],
+     "spectrum": "Paso de paletas (9x) en alza",
+     "fault_codes": [
+      520193
+     ],
+     "action": "Detener a la brevedad; medir caudal y presion de la bomba; reemplazar bomba y sellos."
+    },
+    {
+     "failure_mode": "head_gasket",
+     "name": "Junta de culata danada",
+     "symptoms": [
+      {
+       "var": "coolant_temp_c",
+       "change": "up"
+      },
+      {
+       "var": "engine_rpm",
+       "change": "unstable"
+      },
+      {
+       "var": "fuel_rate_lph",
+       "change": "unstable"
+      }
+     ],
+     "spectrum": "1x y 2x irregulares por combustion desigual",
+     "fault_codes": [
+      111,
+      110
+     ],
+     "action": "Revisar nivel y presion del sistema de refrigeracion; prueba de compresion; reemplazar junta."
+    }
+   ]
+  },
+  "CF": {
+   "name": "Cargador frontal",
+   "rated_rpm": 1700,
+   "idle_rpm": 750,
+   "max_rpm": 2000,
+   "rated_fuel_lph": 24,
+   "limits": {
+    "coolant_temp_c": {
+     "normal": [
+      65,
+      95
+     ],
+     "warning": 102,
+     "critical": 108
+    },
+    "hydraulic_oil_temp_c": {
+     "normal": [
+      35,
+      70
+     ],
+     "warning": 80,
+     "critical": 88
+    },
+    "hydraulic_pressure_bar": {
+     "normal": [
+      190,
+      240
+     ],
+     "low_warning": 180,
+     "low_critical": 165
+    },
+    "vibration_mm_s": {
+     "normal": [
+      0,
+      8.0
+     ],
+     "warning": 11.2,
+     "critical": 18.0
+    },
+    "fuel_rate_lph": {
+     "normal": [
+      0,
+      28
+     ],
+     "warning": 30,
+     "critical": 34
+    }
+   },
+   "service_schedule": [
+    {
+     "every_h": 250,
+     "task": "Inspeccion general y filtro de aire",
+     "parts": [
+      {
+       "part_id": "PRT-11",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 500,
+     "task": "Filtros de combustible e hidraulico",
+     "parts": [
+      {
+       "part_id": "PRT-01",
+       "qty": 1
+      },
+      {
+       "part_id": "PRT-02",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 1500,
+     "task": "Pastillas de freno",
+     "parts": [
+      {
+       "part_id": "PRT-12",
+       "qty": 4
+      }
+     ]
+    },
+    {
+     "every_h": 2000,
+     "task": "Correa del alternador",
+     "parts": [
+      {
+       "part_id": "PRT-08",
+       "qty": 1
+      }
+     ]
+    }
+   ],
+   "vibration": {
+    "pump_vane_order": 9,
+    "gear_mesh_order": 27,
+    "bearing_bpfo_order": 3.62,
+    "bearing_bpfi_order": 5.38,
+    "natural_frequencies": [
+     {
+      "mode": 1,
+      "component": "Brazo de carga",
+      "hz": 17
+     },
+     {
+      "mode": 2,
+      "component": "Chasis (torsion)",
+      "hz": 40
+     },
+     {
+      "mode": 3,
+      "component": "Cucharon y articulacion",
+      "hz": 68
+     },
+     {
+      "mode": 4,
+      "component": "Bastidor",
+      "hz": 105
+     }
+    ]
+   },
+   "typical_failures": [
+    {
+     "failure_mode": "brake_wear",
+     "name": "Desgaste de frenos",
+     "symptoms": [
+      {
+       "var": "vibration_mm_s",
+       "change": "up"
+      },
+      {
+       "var": "speed_kmh",
+       "change": "down"
+      }
+     ],
+     "spectrum": "Bandas laterales alrededor del engrane (27x)",
+     "fault_codes": [],
+     "action": "Inspeccionar discos y pastillas; reemplazar pastillas."
+    },
+    {
+     "failure_mode": "head_gasket",
+     "name": "Junta de culata danada",
+     "symptoms": [
+      {
+       "var": "coolant_temp_c",
+       "change": "up"
+      },
+      {
+       "var": "engine_rpm",
+       "change": "unstable"
+      },
+      {
+       "var": "fuel_rate_lph",
+       "change": "unstable"
+      }
+     ],
+     "spectrum": "1x y 2x irregulares por combustion desigual",
+     "fault_codes": [
+      111,
+      110
+     ],
+     "action": "Revisar nivel y presion del sistema de refrigeracion; prueba de compresion; reemplazar junta."
+    }
+   ]
+  },
+  "VQ": {
+   "name": "Camion volquete",
+   "rated_rpm": 1650,
+   "idle_rpm": 750,
+   "max_rpm": 2000,
+   "rated_fuel_lph": 45,
+   "limits": {
+    "coolant_temp_c": {
+     "normal": [
+      65,
+      97
+     ],
+     "warning": 103,
+     "critical": 108
+    },
+    "hydraulic_oil_temp_c": {
+     "normal": [
+      30,
+      62
+     ],
+     "warning": 75,
+     "critical": 85
+    },
+    "hydraulic_pressure_bar": {
+     "normal": [
+      138,
+      175
+     ],
+     "low_warning": 130,
+     "low_critical": 120
+    },
+    "vibration_mm_s": {
+     "normal": [
+      0,
+      7.5
+     ],
+     "warning": 11.2,
+     "critical": 18.0
+    },
+    "fuel_rate_lph": {
+     "normal": [
+      0,
+      50
+     ],
+     "warning": 56,
+     "critical": 63
+    }
+   },
+   "service_schedule": [
+    {
+     "every_h": 300,
+     "task": "Inspeccion general y filtro de aire",
+     "parts": [
+      {
+       "part_id": "PRT-11",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 600,
+     "task": "Filtro de combustible",
+     "parts": [
+      {
+       "part_id": "PRT-01",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 1500,
+     "task": "Pastillas de freno",
+     "parts": [
+      {
+       "part_id": "PRT-12",
+       "qty": 6
+      }
+     ]
+    },
+    {
+     "every_h": 10000,
+     "task": "Rodamiento de mando final",
+     "parts": [
+      {
+       "part_id": "PRT-07",
+       "qty": 1
+      }
+     ]
+    }
+   ],
+   "vibration": {
+    "pump_vane_order": 9,
+    "gear_mesh_order": 31,
+    "bearing_bpfo_order": 3.55,
+    "bearing_bpfi_order": 5.45,
+    "natural_frequencies": [
+     {
+      "mode": 1,
+      "component": "Suspension",
+      "hz": 12.5
+     },
+     {
+      "mode": 2,
+      "component": "Chasis (primer modo)",
+      "hz": 38
+     },
+     {
+      "mode": 3,
+      "component": "Chasis y tolva (segundo modo)",
+      "hz": 62
+     },
+     {
+      "mode": 4,
+      "component": "Cabina",
+      "hz": 96
+     }
+    ]
+   },
+   "typical_failures": [
+    {
+     "failure_mode": "final_drive",
+     "name": "Rodamiento de mando final",
+     "symptoms": [
+      {
+       "var": "vibration_mm_s",
+       "change": "up"
+      },
+      {
+       "var": "speed_kmh",
+       "change": "down"
+      }
+     ],
+     "spectrum": "BPFO (3,55x) y sus armonicos",
+     "fault_codes": [],
+     "action": "Analizar aceite del mando final; reemplazar rodamiento."
+    },
+    {
+     "failure_mode": "head_gasket",
+     "name": "Junta de culata danada",
+     "symptoms": [
+      {
+       "var": "coolant_temp_c",
+       "change": "up"
+      },
+      {
+       "var": "engine_rpm",
+       "change": "unstable"
+      },
+      {
+       "var": "fuel_rate_lph",
+       "change": "unstable"
+      }
+     ],
+     "spectrum": "1x y 2x irregulares; si las rpm suben ~13 %, el 2x cruza el segundo modo del chasis (62 Hz)",
+     "fault_codes": [
+      111,
+      110
+     ],
+     "action": "Revisar nivel y presion del sistema de refrigeracion; prueba de compresion; reemplazar junta."
+    }
+   ]
+  },
+  "MN": {
+   "name": "Motoniveladora",
+   "rated_rpm": 1600,
+   "idle_rpm": 750,
+   "max_rpm": 1950,
+   "rated_fuel_lph": 18,
+   "limits": {
+    "coolant_temp_c": {
+     "normal": [
+      65,
+      96
+     ],
+     "warning": 102,
+     "critical": 108
+    },
+    "hydraulic_oil_temp_c": {
+     "normal": [
+      30,
+      66
+     ],
+     "warning": 78,
+     "critical": 86
+    },
+    "hydraulic_pressure_bar": {
+     "normal": [
+      155,
+      195
+     ],
+     "low_warning": 145,
+     "low_critical": 135
+    },
+    "vibration_mm_s": {
+     "normal": [
+      0,
+      7.0
+     ],
+     "warning": 11.2,
+     "critical": 18.0
+    },
+    "fuel_rate_lph": {
+     "normal": [
+      0,
+      21
+     ],
+     "warning": 22.5,
+     "critical": 25
+    }
+   },
+   "service_schedule": [
+    {
+     "every_h": 250,
+     "task": "Inspeccion general y filtro de aire",
+     "parts": [
+      {
+       "part_id": "PRT-11",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 500,
+     "task": "Filtros de combustible e hidraulico",
+     "parts": [
+      {
+       "part_id": "PRT-01",
+       "qty": 1
+      },
+      {
+       "part_id": "PRT-02",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 2000,
+     "task": "Correa del alternador",
+     "parts": [
+      {
+       "part_id": "PRT-08",
+       "qty": 1
+      }
+     ]
+    }
+   ],
+   "vibration": {
+    "pump_vane_order": 7,
+    "gear_mesh_order": 25,
+    "bearing_bpfo_order": 3.6,
+    "bearing_bpfi_order": 5.4,
+    "natural_frequencies": [
+     {
+      "mode": 1,
+      "component": "Hoja y circulo",
+      "hz": 16
+     },
+     {
+      "mode": 2,
+      "component": "Bastidor delantero",
+      "hz": 37
+     },
+     {
+      "mode": 3,
+      "component": "Cabina",
+      "hz": 64
+     },
+     {
+      "mode": 4,
+      "component": "Tandem",
+      "hz": 100
+     }
+    ]
+   },
+   "typical_failures": [
+    {
+     "failure_mode": "engine_overheat",
+     "name": "Sobrecalentamiento de motor",
+     "symptoms": [
+      {
+       "var": "coolant_temp_c",
+       "change": "up"
+      },
+      {
+       "var": "fuel_rate_lph",
+       "change": "up"
+      }
+     ],
+     "spectrum": "Sin firma espectral propia",
+     "fault_codes": [
+      110
+     ],
+     "action": "Revisar radiador, termostato y bomba de agua."
+    },
+    {
+     "failure_mode": "head_gasket",
+     "name": "Junta de culata danada",
+     "symptoms": [
+      {
+       "var": "coolant_temp_c",
+       "change": "up"
+      },
+      {
+       "var": "engine_rpm",
+       "change": "unstable"
+      },
+      {
+       "var": "fuel_rate_lph",
+       "change": "unstable"
+      }
+     ],
+     "spectrum": "1x y 2x irregulares por combustion desigual",
+     "fault_codes": [
+      111,
+      110
+     ],
+     "action": "Revisar nivel y presion del sistema de refrigeracion; prueba de compresion; reemplazar junta."
+    }
+   ]
+  },
+  "TO": {
+   "name": "Tractor de orugas",
+   "rated_rpm": 1900,
+   "idle_rpm": 750,
+   "max_rpm": 2200,
+   "rated_fuel_lph": 42,
+   "limits": {
+    "coolant_temp_c": {
+     "normal": [
+      65,
+      98
+     ],
+     "warning": 104,
+     "critical": 110
+    },
+    "hydraulic_oil_temp_c": {
+     "normal": [
+      35,
+      78
+     ],
+     "warning": 85,
+     "critical": 93
+    },
+    "hydraulic_pressure_bar": {
+     "normal": [
+      245,
+      300
+     ],
+     "low_warning": 235,
+     "low_critical": 220
+    },
+    "vibration_mm_s": {
+     "normal": [
+      0,
+      10.5
+     ],
+     "warning": 12.5,
+     "critical": 18.0
+    },
+    "fuel_rate_lph": {
+     "normal": [
+      0,
+      46
+     ],
+     "warning": 52.5,
+     "critical": 59
+    }
+   },
+   "service_schedule": [
+    {
+     "every_h": 200,
+     "task": "Inspeccion general y filtro de aire",
+     "parts": [
+      {
+       "part_id": "PRT-11",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 400,
+     "task": "Filtros de combustible e hidraulico",
+     "parts": [
+      {
+       "part_id": "PRT-01",
+       "qty": 1
+      },
+      {
+       "part_id": "PRT-02",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 8000,
+     "task": "Inspeccion del turbo",
+     "parts": [
+      {
+       "part_id": "PRT-06",
+       "qty": 1
+      }
+     ]
+    },
+    {
+     "every_h": 10000,
+     "task": "Rodamiento de mando final",
+     "parts": [
+      {
+       "part_id": "PRT-07",
+       "qty": 1
+      }
+     ]
+    }
+   ],
+   "vibration": {
+    "pump_vane_order": 7,
+    "gear_mesh_order": 19,
+    "bearing_bpfo_order": 3.52,
+    "bearing_bpfi_order": 5.48,
+    "natural_frequencies": [
+     {
+      "mode": 1,
+      "component": "Hoja topadora",
+      "hz": 14
+     },
+     {
+      "mode": 2,
+      "component": "Bastidor de orugas",
+      "hz": 46
+     },
+     {
+      "mode": 3,
+      "component": "Cabina (ROPS)",
+      "hz": 76
+     },
+     {
+      "mode": 4,
+      "component": "Bastidor principal",
+      "hz": 115
+     }
+    ]
+   },
+   "typical_failures": [
+    {
+     "failure_mode": "final_drive",
+     "name": "Rodamiento de mando final",
+     "symptoms": [
+      {
+       "var": "vibration_mm_s",
+       "change": "up"
+      },
+      {
+       "var": "speed_kmh",
+       "change": "down"
+      }
+     ],
+     "spectrum": "BPFO (3,52x) y sus armonicos",
+     "fault_codes": [],
+     "action": "Analizar aceite del mando final; reemplazar rodamiento."
+    },
+    {
+     "failure_mode": "head_gasket",
+     "name": "Junta de culata danada",
+     "symptoms": [
+      {
+       "var": "coolant_temp_c",
+       "change": "up"
+      },
+      {
+       "var": "engine_rpm",
+       "change": "unstable"
+      },
+      {
+       "var": "fuel_rate_lph",
+       "change": "unstable"
+      }
+     ],
+     "spectrum": "1x y 2x irregulares por combustion desigual",
+     "fault_codes": [
+      111,
+      110
+     ],
+     "action": "Revisar nivel y presion del sistema de refrigeracion; prueba de compresion; reemplazar junta."
+    }
+   ]
+  }
+ }
+}

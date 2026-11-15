@@ -25,3 +25,9 @@ Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y re
 | USD/mes | ~10 | ~50 | ~475 |
 
 Equipo: Benjamin · Alex · Fabricio
+
+## Cómo trabajamos (hackathon)
+- Push directo a `main`. Sin aprobaciones ni PR obligatorios: nadie espera a nadie.
+- CODEOWNERS es solo informativo: dice a quién preguntar, no bloquea.
+- Commits `feat(aws): ...`, `fix(oci): ...`, `chore(gcp): ...`. Antes de pushear: `git pull --rebase`.
+- Las credenciales del Learner Lab las renueva Benjamin con `scripts/lab-creds.sh --gh`; el deploy de AWS corre solo al tocar `aws/` en `main`.

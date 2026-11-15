@@ -13,6 +13,8 @@ fi
 pool=$(aws ssm get-parameter --region "$AWS_REGION" --name /fleetpulse/auth/user_pool_id \
   --query Parameter.Value --output text)
 
+# Los roles los asigna solo un administrador: el app client no puede escribir custom:role/custom:tech_id,
+# pero admin-create-user y admin-update-user-attributes (IAM) no pasan por ese filtro.
 # usuario:rol[:tech_id]
 users=(
   "operador:operator"

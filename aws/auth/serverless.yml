@@ -67,7 +67,10 @@ resources:
           AccessToken: hours
           RefreshToken: days
         ReadAttributes: [email, "custom:role", "custom:tech_id"]
-        WriteAttributes: [email, "custom:role", "custom:tech_id"]
+        # custom:role y custom:tech_id NO son escribibles por el cliente: si lo fueran, cualquier usuario
+        # podria auto-asignarse admin con update-user-attributes. Solo un administrador los cambia con
+        # admin-create-user / admin-update-user-attributes (scripts/cognito-seed.sh), que ignoran este filtro.
+        WriteAttributes: [email]
 
     UserPoolDomain:
       Type: AWS::Cognito::UserPoolDomain

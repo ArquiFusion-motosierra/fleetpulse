@@ -33,6 +33,8 @@ Cognito (`aws/auth`, stack `fp-auth`) emite los JWT; el HTTP API `fp-api` los va
 `cognito` (hoy solo `GET /whoami`; `/telemetry` y `/context` siguen con `x-api-key`). Roles en `custom:role`:
 `operator`, `technician` (con `custom:tech_id`), `supervisor`, `management`, `admin`.
 
+Los roles los asigna solo un administrador con el AWS CLI; los usuarios no pueden cambiar su propio rol.
+
 Orden: `auth` se despliega antes que `core` (ya esta en `serverless-compose.yml`). Luego los usuarios de prueba:
 ```bash
 FP_TEST_PASSWORD='…' scripts/cognito-seed.sh     # operador@, tecnico@, supervisor@, direccion@, admin@example.com

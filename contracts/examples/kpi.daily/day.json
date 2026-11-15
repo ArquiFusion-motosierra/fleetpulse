@@ -1,0 +1,35 @@
+{
+  "event_id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  "event_type": "kpi.daily",
+  "schema_version": 1,
+  "source": "aws.daily-planning",
+  "aggregate_type": "fleet",
+  "aggregate_id": "KPI-2026-11-14",
+  "occurred_at": "2026-11-15T10:04:00Z",
+  "payload": {
+    "day": "2026-11-14",
+    "machines": [
+      {
+        "machine_id": "CF-042",
+        "operating_h": 11.5,
+        "idle_ratio": 0.45,
+        "utilization": 0.48,
+        "fuel_lph": 27.9,
+        "fuel_vs_peers_pct": 21.0,
+        "cost_per_h": 61.2,
+        "cluster_id": 2,
+        "quadrant": "inefficient"
+      },
+      {
+        "machine_id": "MN-003",
+        "operating_h": 20.0,
+        "idle_ratio": 0.08,
+        "utilization": 0.83,
+        "fuel_lph": 18.4,
+        "cost_per_h": 39.0,
+        "cluster_id": 4,
+        "quadrant": "workhorse"
+      }
+    ]
+  }
+}

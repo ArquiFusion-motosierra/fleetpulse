@@ -1,0 +1,10 @@
+{
+  "context_id": "CTX-20261115T141200Z-a1b2c3",
+  "type": "fuel.refill",
+  "ts": "2026-11-15T14:12:00Z",
+  "zone_id": "NORTE",
+  "machine_id": "VQ-011",
+  "station_id": "EST-NORTE",
+  "fuel_lot": "L-2311",
+  "liters": 640
+}

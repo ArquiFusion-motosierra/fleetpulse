@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fleetpulse.arquifusion/contracts/kpi.daily.schema.json",
+  "title": "kpi.daily event",
+  "description": "KPIs de flota por dia y maquina. daily-planning los obtiene de Cloud Run /kpis/daily y los escribe en el outbox; oci-writer los aplica en FLEET_KPIS_DAILY (upsert por day + machine_id).",
+  "type": "object",
+  "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "payload"],
+  "properties": {
+    "event_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "event_type": {"const": "kpi.daily"},
+    "schema_version": {"const": 1},
+    "source": {"enum": ["aws.daily-planning", "simulator.backfill"]},
+    "aggregate_type": {"const": "fleet"},
+    "aggregate_id": {"type": "string", "pattern": "^KPI-[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "trace_id": {"type": "string", "maxLength": 64},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["day", "machines"],
+      "properties": {
+        "day": {"type": "string", "format": "date", "description": "Dia en hora de Lima."},
+        "machines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["machine_id", "operating_h", "idle_ratio", "utilization", "fuel_lph", "cost_per_h", "quadrant"],
+            "properties": {
+              "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+              "operating_h": {"type": "number", "minimum": 0, "maximum": 24},
+              "idle_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+              "utilization": {"type": "number", "minimum": 0, "maximum": 1, "description": "operating_h / 24."},
+              "fuel_lph": {"type": "number", "minimum": 0},
+              "fuel_vs_peers_pct": {"type": "number", "description": "% sobre la mediana de su cluster."},
+              "cost_per_h": {"type": "number", "minimum": 0},
+              "cluster_id": {"type": "integer", "minimum": 0},
+              "quadrant": {"enum": ["star", "workhorse", "underused", "inefficient"], "description": "Uso alto/bajo x eficiencia alta/baja."}
+            }
+          }
+        }
+      }
+    }
+  }
+}

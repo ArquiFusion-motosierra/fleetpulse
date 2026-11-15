@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fleetpulse.arquifusion/contracts/telemetry-batch.schema.json",
+  "title": "Telemetry batch",
+  "description": "Cuerpo de POST /telemetry (simulator -> ingest). Hasta 10 lecturas por maquina y hasta 100 maquinas por lote. Campos AEMP 2.0 / ISO 15143-3 mas sensores. Los acumulados son monotonos por maquina.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["batch_id", "sent_at", "source", "readings"],
+  "properties": {
+    "batch_id": {
+      "type": "string",
+      "pattern": "^B-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$",
+      "description": "Id del lote: B-<sent_at compacto>-<8 hex>. Dedupe en BigQuery y correlacion en logs."
+    },
+    "sent_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "source": {"type": "string", "enum": ["simulator.live", "simulator.backfill"]},
+    "time_warp": {"type": "integer", "minimum": 1, "maximum": 60, "description": "Minutos simulados por minuto real (en vivo 5)."},
+    "readings": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": {"$ref": "#/$defs/reading"}
+    }
+  },
+  "$defs": {
+    "reading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "machine_id", "serial", "model", "ts", "lat", "lon", "zone_id",
+        "cumulative_operating_hours", "cumulative_idle_hours", "cumulative_fuel_used_l",
+        "fuel_remaining_ratio", "engine_status", "cumulative_load_count", "cumulative_payload_t",
+        "distance_km", "fault_codes",
+        "coolant_temp_c", "hydraulic_oil_temp_c", "hydraulic_pressure_bar", "vibration_mm_s",
+        "engine_rpm", "fuel_rate_lph", "speed_kmh", "load_t", "ambient_temp_c"
+      ],
+      "properties": {
+        "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+        "serial": {"type": "string", "maxLength": 32},
+        "model": {"type": "string", "enum": ["EX", "CF", "VQ", "MN", "TO"]},
+        "ts": {"type": "string", "format": "date-time", "pattern": "Z$", "description": "Momento simulado de la lectura, UTC."},
+        "lat": {"type": "number", "minimum": -90, "maximum": 90},
+        "lon": {"type": "number", "minimum": -180, "maximum": 180},
+        "zone_id": {"type": "string", "enum": ["NORTE", "CENTRO", "SUR"]},
+        "cumulative_operating_hours": {"type": "number", "minimum": 0},
+        "cumulative_idle_hours": {"type": "number", "minimum": 0},
+        "cumulative_fuel_used_l": {"type": "number", "minimum": 0},
+        "fuel_remaining_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "engine_status": {"type": "string", "enum": ["off", "idle", "operating"]},
+        "cumulative_load_count": {"type": "integer", "minimum": 0},
+        "cumulative_payload_t": {"type": "number", "minimum": 0},
+        "distance_km": {"type": "number", "minimum": 0, "description": "Odometro acumulado."},
+        "fault_codes": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["spn", "fmi", "severity"],
+            "properties": {
+              "spn": {"type": "integer", "minimum": 0, "description": "SAE J1939 SPN (110, 100, 175, 183, 190) o >= 520192 para codigos propios de hidraulica."},
+              "fmi": {"type": "integer", "minimum": 0, "maximum": 31},
+              "severity": {"type": "string", "enum": ["low", "medium", "high"]}
+            }
+          }
+        },
+        "coolant_temp_c": {"type": "number", "minimum": -40, "maximum": 150},
+        "hydraulic_oil_temp_c": {"type": "number", "minimum": -40, "maximum": 150},
+        "hydraulic_pressure_bar": {"type": "number", "minimum": 0, "maximum": 500},
+        "vibration_mm_s": {"type": "number", "minimum": 0, "maximum": 100, "description": "RMS."},
+        "engine_rpm": {"type": "number", "minimum": 0, "maximum": 3500},
+        "fuel_rate_lph": {"type": "number", "minimum": 0, "maximum": 200},
+        "speed_kmh": {"type": "number", "minimum": 0, "maximum": 80},
+        "load_t": {"type": "number", "minimum": 0, "maximum": 300},
+        "ambient_temp_c": {"type": "number", "minimum": -30, "maximum": 50}
+      }
+    }
+  }
+}

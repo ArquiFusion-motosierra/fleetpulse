@@ -1,0 +1,40 @@
+{
+  "batch_id": "B-20261115T143500Z-5e6f7a8b",
+  "sent_at": "2026-11-15T14:35:00Z",
+  "source": "simulator.live",
+  "readings": [
+    {
+      "machine_id": "EX-017",
+      "serial": "AFCEX01721",
+      "model": "EX",
+      "ts": "2026-11-15T14:35:00Z",
+      "lat": -13.9003,
+      "lon": -71.5611,
+      "zone_id": "NORTE",
+      "cumulative_operating_hours": 2765.0,
+      "cumulative_idle_hours": 410.2,
+      "cumulative_fuel_used_l": 105076.0,
+      "fuel_remaining_ratio": 0.62,
+      "engine_status": "operating",
+      "cumulative_load_count": 51340,
+      "cumulative_payload_t": 2150460.0,
+      "distance_km": 1830.4,
+      "fault_codes": [
+        {
+          "spn": 520193,
+          "fmi": 1,
+          "severity": "medium"
+        }
+      ],
+      "coolant_temp_c": 88.4,
+      "hydraulic_oil_temp_c": 64.1,
+      "hydraulic_pressure_bar": 287.4,
+      "vibration_mm_s": 7.2,
+      "engine_rpm": 1850,
+      "fuel_rate_lph": 38.6,
+      "speed_kmh": 0.0,
+      "load_t": 3.8,
+      "ambient_temp_c": 9.5
+    }
+  ]
+}

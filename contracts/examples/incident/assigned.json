@@ -1,0 +1,27 @@
+{
+  "event_id": "b1c2d3e4-f5a6-4b7c-9d8e-0f1a2b3c4d5e",
+  "event_type": "incident.assigned",
+  "schema_version": 1,
+  "source": "aws.incident-flow",
+  "aggregate_type": "incident",
+  "aggregate_id": "INC-EX-017-20261115T1430",
+  "occurred_at": "2026-11-15T14:39:40Z",
+  "incident_id": "INC-EX-017-20261115T1430",
+  "machine_id": "EX-017",
+  "payload": {
+    "tech_id": "TEC-01",
+    "assigned_at": "2026-11-15T14:39:40Z",
+    "approval": "approved",
+    "distance_km": 0.4,
+    "explanation": {
+      "source": "gemini",
+      "summary": "Caida sostenida de presion con aumento de temperatura del aceite y vibracion: desgaste interno de la bomba hidraulica.",
+      "probable_component": "Bomba hidraulica principal",
+      "suggested_parts": [
+        "PRT-04",
+        "PRT-03"
+      ],
+      "common_cause": null
+    }
+  }
+}

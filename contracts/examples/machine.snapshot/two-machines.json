@@ -1,0 +1,30 @@
+{
+  "snapshot_id": "SNP-20261115T144000Z",
+  "generated_at": "2026-11-15T14:40:00Z",
+  "machines": [
+    {
+      "machine_id": "EX-017",
+      "status": "operating",
+      "severity": "schedule",
+      "score": 2.31,
+      "lat": -13.9003,
+      "lon": -71.5611,
+      "zone_id": "NORTE",
+      "hours_total": 2765.0,
+      "fuel_remaining_ratio": 0.6,
+      "open_incident_id": "INC-EX-017-20261115T1430",
+      "updated_at": "2026-11-15T14:39:30Z"
+    },
+    {
+      "machine_id": "VQ-011",
+      "status": "operating",
+      "severity": "ok",
+      "lat": -13.9105,
+      "lon": -71.552,
+      "zone_id": "NORTE",
+      "hours_total": 1322.5,
+      "open_incident_id": null,
+      "updated_at": "2026-11-15T14:39:00Z"
+    }
+  ]
+}

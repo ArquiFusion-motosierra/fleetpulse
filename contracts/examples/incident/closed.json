@@ -1,0 +1,29 @@
+{
+  "event_id": "c9d8e7f6-a5b4-4c3d-8e2f-1a0b9c8d7e6f",
+  "event_type": "incident.closed",
+  "schema_version": 1,
+  "source": "aws.incidents-api",
+  "aggregate_type": "incident",
+  "aggregate_id": "INC-EX-017-20261115T1430",
+  "occurred_at": "2026-11-15T16:05:00Z",
+  "incident_id": "INC-EX-017-20261115T1430",
+  "machine_id": "EX-017",
+  "payload": {
+    "closed_at": "2026-11-15T16:05:00Z",
+    "downtime_h": 1.45,
+    "parts_used": [
+      {
+        "part_id": "PRT-04",
+        "zone_id": "NORTE",
+        "qty": 1
+      },
+      {
+        "part_id": "PRT-03",
+        "zone_id": "NORTE",
+        "qty": 2
+      }
+    ],
+    "cause_summary": "Bomba hidraulica reemplazada; sellos cambiados.",
+    "closed_by": "TEC-01"
+  }
+}

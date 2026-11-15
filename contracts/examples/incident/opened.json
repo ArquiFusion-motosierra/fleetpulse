@@ -1,0 +1,39 @@
+{
+  "event_id": "3f2b8c1e-5d4a-4b7e-9a1c-2e6f8d0b4c11",
+  "event_type": "incident.opened",
+  "schema_version": 1,
+  "source": "aws.incident-flow",
+  "aggregate_type": "incident",
+  "aggregate_id": "INC-EX-017-20261115T1430",
+  "occurred_at": "2026-11-15T14:38:05Z",
+  "incident_id": "INC-EX-017-20261115T1430",
+  "machine_id": "EX-017",
+  "payload": {
+    "zone_id": "NORTE",
+    "severity": "schedule",
+    "score": 2.31,
+    "failure_mode": "hydraulic_pump",
+    "deviated_vars": [
+      {
+        "var": "hydraulic_pressure_bar",
+        "value": 287.4,
+        "z": -2.6
+      },
+      {
+        "var": "hydraulic_oil_temp_c",
+        "value": 71.9,
+        "z": 2.1
+      },
+      {
+        "var": "vibration_mm_s",
+        "value": 9.8,
+        "z": 1.9
+      }
+    ],
+    "group_id": null,
+    "recurrence_flag": false,
+    "opened_at": "2026-11-15T14:38:05Z",
+    "lat": -13.9003,
+    "lon": -71.5611
+  }
+}

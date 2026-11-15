@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fleetpulse.arquifusion/contracts/envelope.schema.json",
+  "title": "Domain event envelope",
+  "description": "Sobre comun de todo evento de dominio que sale de fp-outbox hacia SNS fp-domain-events (y de ahi a OCI y BigQuery). El payload de cada event_type se valida con su propio contrato.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "payload"],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "description": "UUID v4. Clave de idempotencia en fp-inbox y en OCI PROCESSED_EVENTS."
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "incident.opened",
+        "incident.escalated",
+        "incident.assigned",
+        "incident.closed",
+        "part.reserve.requested",
+        "part.reserved",
+        "part.shortage",
+        "kpi.daily",
+        "maintenance.order.suggested",
+        "fuel.anomaly"
+      ]
+    },
+    "schema_version": {"type": "integer", "const": 1},
+    "source": {
+      "type": "string",
+      "enum": ["aws.incident-flow", "aws.incidents-api", "aws.daily-planning", "aws.oci-writer", "simulator.backfill"],
+      "description": "Componente que escribio el evento en el outbox."
+    },
+    "aggregate_type": {"type": "string", "enum": ["incident", "part_reservation", "machine", "fleet"]},
+    "aggregate_id": {"type": "string", "minLength": 2, "maxLength": 64},
+    "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$", "description": "ISO 8601 en UTC."},
+    "incident_id": {
+      "type": "string",
+      "pattern": "^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$",
+      "description": "Obligatorio en incident.* y part.*. Mismo valor en las 3 nubes."
+    },
+    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+    "trace_id": {"type": "string", "maxLength": 64, "description": "Opcional: X-Ray o id de ejecucion de Step Functions."},
+    "payload": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"event_type": {"pattern": "^(incident|part)\\."}}},
+      "then": {"required": ["incident_id", "machine_id"]}
+    }
+  ]
+}

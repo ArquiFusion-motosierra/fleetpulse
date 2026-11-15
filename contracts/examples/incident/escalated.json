@@ -1,0 +1,16 @@
+{
+  "event_id": "7a1d2e3f-4b5c-4d6e-8f70-81a2b3c4d5e6",
+  "event_type": "incident.escalated",
+  "schema_version": 1,
+  "source": "aws.incident-flow",
+  "aggregate_type": "incident",
+  "aggregate_id": "INC-EX-017-20261115T1430",
+  "occurred_at": "2026-11-15T14:45:10Z",
+  "incident_id": "INC-EX-017-20261115T1430",
+  "machine_id": "EX-017",
+  "payload": {
+    "from_severity": "schedule",
+    "to_severity": "immediate",
+    "score": 3.62
+  }
+}

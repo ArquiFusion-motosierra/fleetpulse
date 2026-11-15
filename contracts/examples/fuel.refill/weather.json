@@ -1,0 +1,8 @@
+{
+  "context_id": "CTX-20261115T140000Z-d4e5f6",
+  "type": "weather",
+  "ts": "2026-11-15T14:00:00Z",
+  "zone_id": "NORTE",
+  "condition": "dust",
+  "intensity": 0.6
+}

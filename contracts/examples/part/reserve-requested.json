@@ -1,0 +1,25 @@
+{
+  "event_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+  "event_type": "part.reserve.requested",
+  "schema_version": 1,
+  "source": "aws.incident-flow",
+  "aggregate_type": "part_reservation",
+  "aggregate_id": "RSV-INC-EX-017-20261115T1430",
+  "occurred_at": "2026-11-15T14:39:45Z",
+  "incident_id": "INC-EX-017-20261115T1430",
+  "machine_id": "EX-017",
+  "payload": {
+    "zone_id": "NORTE",
+    "failure_mode": "hydraulic_pump",
+    "lines": [
+      {
+        "part_id": "PRT-04",
+        "qty": 1
+      },
+      {
+        "part_id": "PRT-03",
+        "qty": 2
+      }
+    ]
+  }
+}

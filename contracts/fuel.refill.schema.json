@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fleetpulse.arquifusion/contracts/fuel.refill.schema.json",
+  "title": "Zone context: fuel.refill and weather",
+  "description": "Eventos de contexto que emite el simulador junto con la telemetria (cuerpo de POST /context: un objeto o una lista de estos). ingest los guarda en fp-state como CTX#<zone_id> / <ts>; CorrelateZone los lee de la ultima hora y se los pasa a Gemini para razonar la causa comun (ej. lote L-2311).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["context_id", "type", "ts", "zone_id"],
+  "properties": {
+    "context_id": {"type": "string", "pattern": "^CTX-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{6}$"},
+    "type": {"enum": ["fuel.refill", "weather"]},
+    "ts": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "zone_id": {"enum": ["NORTE", "CENTRO", "SUR"]},
+    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+    "station_id": {"enum": ["EST-NORTE", "EST-CENTRO", "EST-SUR"]},
+    "fuel_lot": {"type": "string", "pattern": "^L-[0-9]{4}$"},
+    "liters": {"type": "number", "minimum": 1, "maximum": 2000},
+    "condition": {"enum": ["clear", "dust", "rain", "fog"]},
+    "intensity": {"type": "number", "minimum": 0, "maximum": 1}
+  },
+  "allOf": [
+    {"if": {"properties": {"type": {"const": "fuel.refill"}}}, "then": {"required": ["machine_id", "station_id", "fuel_lot", "liters"]}},
+    {"if": {"properties": {"type": {"const": "weather"}}}, "then": {"required": ["condition", "intensity"]}}
+  ]
+}

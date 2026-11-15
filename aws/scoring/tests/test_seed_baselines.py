@@ -69,5 +69,6 @@ def test_dry_run_does_not_touch_aws(seed, capsys, monkeypatch):
     monkeypatch.setattr(boto3, "resource", lambda *a, **k: pytest.fail("dry-run no debe crear clientes"))
     assert seed.main(["--dry-run", "--end", "2026-11-15T14:00:00Z", "--hours", "1", "--step-min", "30"]) == 0
     first, second = (json.loads(line) for line in capsys.readouterr().out.splitlines())
-    assert first["machines"] == 100 and first["window"] == ["2026-11-15T13:00:00+00:00", "2026-11-15T14:00:00+00:00"]
+    assert first["machines"] == 124  # los 3 parques de contracts/tenants.yaml
+    assert first["window"] == ["2026-11-15T13:00:00+00:00", "2026-11-15T14:00:00+00:00"]
     assert second == {"dry_run": True, "would_write": 0}  # 2 lotes no llegan a MIN_READINGS

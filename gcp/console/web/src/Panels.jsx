@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { LinkedReports } from "./Reports.jsx";
 import { api, SEVERITY, statusOf, ENGINE_LABEL, MODEL_LABEL, MODE_LABEL, EVENT_LABEL, PARAM_LABEL, FINDING_LABEL, fmtTime, ago } from "./api.js";
+import { explanationOf } from "./explanation.js";
 
 export function Sev({ s }) {
   const v = SEVERITY[s] || SEVERITY.ok;
@@ -29,7 +30,7 @@ export function IncidentRow({ inc, active, onClick }) {
 // Informe tecnico de anormalidad (explanation.report de incident.assigned; contracts/incident.schema.json)
 export function reportOf(inc) {
   const assigned = [...(inc.timeline || [])].reverse().find((t) => t.type === "incident.assigned");
-  return assigned?.payload?.explanation?.report || null;
+  return assigned?.payload?.explanation?.report || explanationOf(inc)?.report || null;
 }
 
 const fmtNum = (v) => (typeof v === "number" ? v.toLocaleString("es-PE", { maximumFractionDigits: 1 }) : v);
@@ -201,10 +202,11 @@ export function IncidentPanel({ id, onClose, onChanged, onMachine, onReport, can
           </div>
           {inc.recurrence_flag && <p className="banner warn">Reincidencia: misma falla en esta máquina en los últimos 7 días.</p>}
           {inc.group_id && inc.group_id !== "-" && <p className="banner">Agrupado por zona: <span className="mono">{inc.group_id}</span></p>}
-          {inc.explanation && (
+          {explanationOf(inc)?.summary && (
             <div className="explain">
-              <div className="eyebrow">Causa probable · {inc.explanation_src === "gemini" ? "Gemini" : "plantilla"}</div>
-              <p>{inc.explanation}</p>
+              <div className="eyebrow">Causa probable · {explanationOf(inc).source === "gemini" ? "Gemini" : "plantilla"}
+                {explanationOf(inc).probable_component ? ` · ${explanationOf(inc).probable_component}` : ""}</div>
+              <p>{explanationOf(inc).summary}</p>
             </div>
           )}
           {inc.reservations?.length > 0 && (

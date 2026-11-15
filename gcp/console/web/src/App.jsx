@@ -9,7 +9,7 @@ import { BottomNav, Sidebar, Topbar } from "./Shell.jsx";
 import { api, SEVERITY, statusOf, MODE_LABEL, TENANT_COLOR, TENANT_NAME, TENANT_OPERATION, fmtTime, setTenant } from "./api.js";
 import { completeLogin, loadConfig, logout, session } from "./auth.js";
 import { countBySeverity, needsAttention } from "./derive.js";
-import { ParkTag } from "./ui.jsx";
+import { Empty, ParkTag } from "./ui.jsx";
 
 const REFRESH_MS = 15000;
 
@@ -116,28 +116,30 @@ function Console({ user }) {
   const incidentTable = (rows, title) => (
     <section className="page">
       <h2>{title}</h2>
-      {rows.length === 0 && <p className="muted">Sin incidentes.</p>}
+      {rows.length === 0 && <Empty>Sin incidentes {parks.global && !park ? "en ningún parque" : `en el ${(TENANT_NAME[current] || "parque").toLowerCase()}`}. Cuando la telemetría de una máquina sale de su línea base, aparece aquí.</Empty>}
       {rows.length > 0 && (
-        <table className="grid clickable">
-          <thead>
-            <tr><th>Incidente</th>{parks.global && <th>Parque</th>}<th>Máquina</th><th>Falla</th><th>Severidad</th><th>Estado</th><th>Técnico</th><th>Abierto</th><th>Detenida</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((i) => (
-              <tr key={i.incident_id} onClick={() => showIncident(i.incident_id)} className={drawer?.id === i.incident_id ? "active" : ""}>
-                <td className="mono small">{i.incident_id}{i.recurrence_flag && <span className="tag warn">reincidencia</span>}</td>
-                {parks.global && <td><ParkTag tenant={i.tenant_id} /></td>}
-                <td><b>{i.machine_id}</b></td>
-                <td>{MODE_LABEL[i.failure_mode] || i.failure_mode}</td>
-                <td><Sev s={i.severity} /></td>
-                <td>{statusOf(i)}</td>
-                <td>{i.tech_id || "—"}</td>
-                <td>{fmtTime(i.opened_at)}</td>
-                <td>{i.downtime_h != null ? `${i.downtime_h} h` : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="scroll-x">
+          <table className="grid clickable">
+            <thead>
+              <tr><th>Incidente</th>{parks.global && <th>Parque</th>}<th>Máquina</th><th>Falla</th><th>Severidad</th><th>Estado</th><th>Técnico</th><th>Abierto</th><th>Detenida</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((i) => (
+                <tr key={i.incident_id} onClick={() => showIncident(i.incident_id)} className={drawer?.id === i.incident_id ? "active" : ""}>
+                  <td className="mono small">{i.incident_id}{i.recurrence_flag && <span className="tag warn">reincidencia</span>}</td>
+                  {parks.global && <td><ParkTag tenant={i.tenant_id} /></td>}
+                  <td><b>{i.machine_id}</b></td>
+                  <td>{MODE_LABEL[i.failure_mode] || i.failure_mode}</td>
+                  <td><Sev s={i.severity} /></td>
+                  <td>{statusOf(i)}</td>
+                  <td>{i.tech_id || "—"}</td>
+                  <td>{fmtTime(i.opened_at)}</td>
+                  <td>{i.downtime_h != null ? `${i.downtime_h} h` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -173,7 +175,7 @@ function Console({ user }) {
             </>
           )}
           {tab === "incidents" && incidentTable(incidents, "Incidentes")}
-          {tab === "myincidents" && incidentTable(mine, `Mis incidentes (${user.tech_id})`)}
+          {tab === "myincidents" && incidentTable(mine, user.tech_id ? `Mis incidentes (${user.tech_id})` : "Mis incidentes")}
           {tab === "stock" && <StockView key={park} />}
           {tab === "supply" && <SupplyView key={park} user={{ ...user, tenant_id: parks.tenant_id }} onIncident={showIncident} />}
           {tab === "planning" && <PlanningView key={park} onMachine={showMachine} />}

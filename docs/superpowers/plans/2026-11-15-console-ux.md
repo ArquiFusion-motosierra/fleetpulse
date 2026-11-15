@@ -178,7 +178,7 @@ Contenido por rol (copiar los bocetos de la spec, sección "Inicio por rol"):
 - Modify: `gcp/console/web/src/styles.css`
 - Modify: `gcp/console/web/src/Panels.jsx` y `Reports.jsx` solo si hace falta un botón "Volver" en los paneles (mismo `onClose`)
 
-- [ ] **Step 1:** < 768 px: `.drawer`/paneles a pantalla completa con "Volver" (= `onClose`); tablas `.grid` con scroll horizontal propio dentro de su tarjeta; formulario de reporte a ancho completo; sin scroll horizontal de página a 360 px (Review Focus 4).
-- [ ] **Step 2:** Cómo correr en local: `cd gcp/console && MOCK=1 STATIC_DIR=web/dist uvicorn app.main:app --port 8080` tras `npm run build` (o `npm run dev` con el proxy de `vite.config.js`). Recorrer los 7 usuarios mock a 1440 y 390 px y guardar capturas.
-- [ ] **Step 3:** `gcp/console/tests` (22) con el venv de la consola, `npm test`, `npm run build`: todo verde.
-- [ ] **Step 4:** Push de `feat/console-ux`, PR con capturas y pedido de revisión a Alex (dueño de la consola). Tras el merge: `gcp/console/connect_aws.py` y comprobar en vivo `admin.agro` 12, `supervisor` 100, `jefe.mantenimiento` 124 máquinas y que la tabla del jefe cuadra.
+- [x] **Step 1:** < 768 px: `.drawer`/paneles a pantalla completa con "Volver" (= `onClose`); tablas `.grid` con scroll horizontal propio dentro de su tarjeta; formulario de reporte a ancho completo; sin scroll horizontal de página a 360 px (Review Focus 4).
+- [x] **Step 2:** Cómo correr en local: `cd gcp/console && MOCK=1 STATIC_DIR=web/dist uvicorn app.main:app --port 8080` tras `npm run build` (o `npm run dev` con el proxy de `vite.config.js`). Recorrer los 7 usuarios mock a 1440 y 390 px y guardar capturas.
+- [x] **Step 3:** `gcp/console/tests` (22) con el venv de la consola, `npm test`, `npm run build`: todo verde.
+- [x] **Step 4:** Push de `feat/console-ux`, PR con capturas y pedido de revisión a Alex (dueño de la consola). *(Hecho: push y PR. Pendiente, fuera de este PR: el deploy y la verificación en vivo.)* Tras el merge: `gcp/console/connect_aws.py` y comprobar en vivo `admin.agro` 12, `supervisor` 100, `jefe.mantenimiento` 124 máquinas y que la tabla del jefe cuadra.

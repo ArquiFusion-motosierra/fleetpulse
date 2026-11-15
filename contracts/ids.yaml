@@ -144,6 +144,7 @@ parts:
   - {part_id: PRT-10, sku: OIL-HYD-20L, name: "Aceite hidraulico 20 L", unit_cost_usd: 110}
   - {part_id: PRT-11, sku: FLT-AIR-01, name: "Filtro de aire", unit_cost_usd: 55}
   - {part_id: PRT-12, sku: BRK-PAD-01, name: "Pastillas de freno", unit_cost_usd: 140}
+  - {part_id: PRT-13, sku: GSK-HEAD-01, name: "Kit de junta de culata", unit_cost_usd: 380}
 
 bom:
   - {model_id: EX, part_id: PRT-04, qty: 1, replace_every_h: 8000, failure_mode: hydraulic_pump}
@@ -154,12 +155,14 @@ bom:
   - {model_id: EX, part_id: PRT-05, qty: 1, replace_every_h: 6000, failure_mode: fuel_contamination}
   - {model_id: EX, part_id: PRT-11, qty: 1, replace_every_h: 500, failure_mode: engine_overheat}
   - {model_id: EX, part_id: PRT-09, qty: 1, replace_every_h: 4000, failure_mode: sensor_fault}
+  - {model_id: EX, part_id: PRT-13, qty: 1, replace_every_h: 12000, failure_mode: head_gasket}
   - {model_id: CF, part_id: PRT-02, qty: 1, replace_every_h: 500, failure_mode: hydraulic_contamination}
   - {model_id: CF, part_id: PRT-03, qty: 2, replace_every_h: 3000, failure_mode: hydraulic_pump}
   - {model_id: CF, part_id: PRT-01, qty: 1, replace_every_h: 500, failure_mode: fuel_contamination}
   - {model_id: CF, part_id: PRT-11, qty: 1, replace_every_h: 500, failure_mode: engine_overheat}
   - {model_id: CF, part_id: PRT-12, qty: 4, replace_every_h: 1500, failure_mode: brake_wear}
   - {model_id: CF, part_id: PRT-08, qty: 1, replace_every_h: 2000, failure_mode: electrical_fault}
+  - {model_id: CF, part_id: PRT-13, qty: 1, replace_every_h: 12000, failure_mode: head_gasket}
   - {model_id: VQ, part_id: PRT-01, qty: 1, replace_every_h: 500, failure_mode: fuel_contamination}
   - {model_id: VQ, part_id: PRT-05, qty: 1, replace_every_h: 6000, failure_mode: fuel_contamination}
   - {model_id: VQ, part_id: PRT-06, qty: 1, replace_every_h: 8000, failure_mode: engine_overheat}
@@ -167,15 +170,18 @@ bom:
   - {model_id: VQ, part_id: PRT-12, qty: 6, replace_every_h: 1500, failure_mode: brake_wear}
   - {model_id: VQ, part_id: PRT-07, qty: 1, replace_every_h: 10000, failure_mode: final_drive}
   - {model_id: VQ, part_id: PRT-08, qty: 1, replace_every_h: 2000, failure_mode: electrical_fault}
+  - {model_id: VQ, part_id: PRT-13, qty: 1, replace_every_h: 12000, failure_mode: head_gasket}
   - {model_id: MN, part_id: PRT-01, qty: 1, replace_every_h: 500, failure_mode: fuel_contamination}
   - {model_id: MN, part_id: PRT-11, qty: 1, replace_every_h: 500, failure_mode: engine_overheat}
   - {model_id: MN, part_id: PRT-02, qty: 1, replace_every_h: 500, failure_mode: hydraulic_contamination}
   - {model_id: MN, part_id: PRT-08, qty: 1, replace_every_h: 2000, failure_mode: electrical_fault}
+  - {model_id: MN, part_id: PRT-13, qty: 1, replace_every_h: 12000, failure_mode: head_gasket}
   - {model_id: TO, part_id: PRT-01, qty: 1, replace_every_h: 500, failure_mode: fuel_contamination}
   - {model_id: TO, part_id: PRT-05, qty: 1, replace_every_h: 6000, failure_mode: fuel_contamination}
   - {model_id: TO, part_id: PRT-07, qty: 1, replace_every_h: 10000, failure_mode: final_drive}
   - {model_id: TO, part_id: PRT-02, qty: 1, replace_every_h: 500, failure_mode: hydraulic_contamination}
   - {model_id: TO, part_id: PRT-06, qty: 1, replace_every_h: 8000, failure_mode: engine_overheat}
+  - {model_id: TO, part_id: PRT-13, qty: 1, replace_every_h: 12000, failure_mode: head_gasket}
 
 # Stock inicial: mismo on_hand en las 3 zonas, reserved = 0.
 part_stock:
@@ -191,6 +197,7 @@ part_stock:
   - {part_id: PRT-10, on_hand_per_zone: 8, reorder_point: 3}
   - {part_id: PRT-11, on_hand_per_zone: 12, reorder_point: 4}
   - {part_id: PRT-12, on_hand_per_zone: 10, reorder_point: 4}
+  - {part_id: PRT-13, on_hand_per_zone: 1, reorder_point: 1}
 
-failure_modes: [hydraulic_pump, hydraulic_contamination, hydraulic_overheat, fuel_contamination, engine_overheat, final_drive, brake_wear, electrical_fault, sensor_fault]
-specialty_by_failure_mode: {hydraulic_pump: hydraulics, hydraulic_contamination: hydraulics, hydraulic_overheat: hydraulics, fuel_contamination: engine, engine_overheat: engine, final_drive: transmission, brake_wear: transmission, electrical_fault: electrical, sensor_fault: electrical}
+failure_modes: [head_gasket, hydraulic_pump, hydraulic_contamination, hydraulic_overheat, fuel_contamination, engine_overheat, final_drive, brake_wear, electrical_fault, sensor_fault]
+specialty_by_failure_mode: {head_gasket: engine, hydraulic_pump: hydraulics, hydraulic_contamination: hydraulics, hydraulic_overheat: hydraulics, fuel_contamination: engine, engine_overheat: engine, final_drive: transmission, brake_wear: transmission, electrical_fault: electrical, sensor_fault: electrical}

@@ -1,0 +1,70 @@
+{
+  "event_id": "a7b8c9d0-e1f2-4a3b-8c4d-5e6f7a8b9c0d",
+  "event_type": "incident.assigned",
+  "schema_version": 1,
+  "source": "aws.incident-flow",
+  "aggregate_type": "incident",
+  "aggregate_id": "INC-VQ-022-20261115T1500",
+  "occurred_at": "2026-11-15T15:06:20Z",
+  "incident_id": "INC-VQ-022-20261115T1500",
+  "machine_id": "VQ-022",
+  "payload": {
+    "tech_id": "TEC-03",
+    "assigned_at": "2026-11-15T15:06:20Z",
+    "approval": "auto",
+    "distance_km": 0.4,
+    "explanation": {
+      "source": "gemini",
+      "summary": "Junta de culata danada: el refrigerante subio a 104 C y las rpm inestables llevaron el 2x a la frecuencia del segundo modo del chasis.",
+      "probable_component": "Junta de culata",
+      "suggested_parts": [
+        "PRT-13"
+      ],
+      "common_cause": null,
+      "report": {
+        "summary": "Refrigerante sobre el limite de advertencia, perdida de refrigerante (SPN 111) y resonancia del chasis por rpm elevadas.",
+        "findings": [
+          {
+            "parameter": "coolant_temp_c",
+            "value": 104.2,
+            "unit": "C",
+            "oem_limit": "normal 65-97 C; advertencia 103 C; critico 108 C",
+            "status": "warning"
+          },
+          {
+            "parameter": "engine_rpm",
+            "value": 1868,
+            "unit": "rpm",
+            "oem_limit": "nominal 1650 rpm; maximo 2000 rpm",
+            "status": "warning",
+            "note": "Inestable, +13 % sobre la nominal"
+          },
+          {
+            "parameter": "vibration_spectrum",
+            "value": 62.3,
+            "unit": "Hz",
+            "oem_limit": "2x a menos de 3 % del modo 3 (62 Hz)",
+            "status": "critical",
+            "note": "Resonancia del chasis y tolva"
+          }
+        ],
+        "probable_cause": "Perdida de compresion por junta de culata: el regulador sube las rpm y el 2x entra en resonancia con el segundo modo del chasis.",
+        "failure_mode": "head_gasket",
+        "resonance": {
+          "harmonic": "2x",
+          "frequency_hz": 62.3,
+          "natural_frequency_hz": 62,
+          "component": "Chasis y tolva (segundo modo)"
+        },
+        "recommended_action": "Detener y enfriar; revisar nivel y presion del sistema de refrigeracion; prueba de compresion; reemplazar la junta.",
+        "parts": [
+          {
+            "part_id": "PRT-13",
+            "qty": 1
+          }
+        ],
+        "oem_reference": "Ficha VQ v1 (ilustrativa): limites de refrigerante y modo 3 del chasis"
+      }
+    }
+  }
+}

@@ -1,6 +1,8 @@
-"""IDs de dominio (incidentes, grupos) y acceso a `ids.yaml` (maquinas, tecnicos, zonas, BOM)."""
+"""IDs de dominio (incidentes, grupos) y acceso a `ids.yaml` (maquinas, tecnicos, zonas, BOM) y a la ficha del
+fabricante `oem_specs.yaml` (T26). Solo lectura de archivos del paquete o de contracts/, con cache en memoria."""
 from __future__ import annotations
 
+import copy
 import json
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -49,3 +51,29 @@ def bom_for(model: str, failure_mode: str) -> list[dict]:
 
 def specialty_for(failure_mode: str) -> str:
     return load()["specialty_by_failure_mode"][failure_mode]
+
+
+@lru_cache(maxsize=1)
+def oem_catalog() -> dict:
+    """`oem_specs.yaml` completo (T26), o {} si todavia no existe.
+
+    En la layer, build.sh la deja como `data/oem_specs.json` (la layer no trae PyYAML); en desarrollo se lee el YAML
+    de contracts/.
+    """
+    bundled = HERE / "data" / "oem_specs.json"
+    if bundled.is_file():
+        return json.loads(bundled.read_text()) or {}
+    try:
+        path = schema.contracts_dir() / "oem_specs.yaml"
+    except FileNotFoundError:
+        return {}
+    if not path.is_file():
+        return {}
+    import yaml  # solo en desarrollo
+    return yaml.safe_load(path.read_text()) or {}
+
+
+def oem_specs(model: str) -> dict:
+    """Ficha del fabricante del modelo (`models.<model>` de oem_specs.yaml: limits, service_schedule,
+    typical_failures, ...), copia independiente; {} si no hay ficha o el modelo no aparece."""
+    return copy.deepcopy((oem_catalog().get("models") or {}).get(model) or {})

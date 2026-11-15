@@ -8,10 +8,10 @@ Solo nombres y formas. **Nunca valores.** Los valores los sube `scripts/push-sec
 |---|---|---|---|
 | `fleetpulse/gcp/sa-exporter` | Llave JSON de la SA `fp-exporter` tal cual | Fabricio (Terraform) | `gcp-exporter`, `gcp-events` |
 | `fleetpulse/gcp/sa-invoker` | `{"key": <llave JSON de fp-invoker>, "audience": "https://insights-<hash>-ue.a.run.app"}` | Fabricio (Terraform) | `incident-flow` ExplainCause, `daily-planning` |
-| `fleetpulse/api/ingest-key` | `{"api_key": "..."}` | Benjamin | `simulator` (`POST /telemetry`, `POST /context`) |
-| `fleetpulse/api/console-key` | `{"api_key": "..."}` | Alex | API de lectura de `registry` y `POST /incidents/{id}/close`; la consola la guarda en GCP Secret Manager `aws-console-api-key` |
+| `fleetpulse/api/ingest-key` | `{"api_key": "..."}` | CloudFormation de `fp-core` (único dueño, `GenerateSecretString`) | `simulator` (`POST /telemetry`, `POST /context`) |
+| `fleetpulse/api/console-key` | `{"api_key": "..."}` | CloudFormation de `fp-core` (único dueño, `GenerateSecretString`) | API de lectura de `registry` y `POST /incidents/{id}/close`; la consola la guarda en GCP Secret Manager `aws-console-api-key` |
 
-Caché de 5 minutos en cada Lambda.
+Caché de 5 minutos en cada Lambda. `scripts/push-secrets.sh` solo maneja las llaves de GCP; las dos API keys las crea `fp-core`. `gcp/console/connect_aws.py` copia la `console-key` a GCP.
 
 ## AWS: nombres fijos
 

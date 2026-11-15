@@ -2,7 +2,7 @@
 
 Servicios (cada uno con su `serverless.yml`), en el orden de `serverless-compose.yml`:
 `shared` (layer) -> `core` (ingest: tablas, bucket, topics, API) -> `outbox-publisher`, `registry`,
-`gcp-exporter`, `incidents` -> `scoring`, `planning` (regla diaria apagada) -> `simulator` (apagado).
+`gcp-exporter`, `incidents` -> `scoring`, `reports`, `planning` (regla diaria apagada) -> `simulator` (apagado).
 `oci-writer` no existe (plan B).
 
 ## Desplegar
@@ -56,10 +56,22 @@ Los servicios de otros pueden necesitar su propio `requirements-dev.txt`.
 
 ## Usuarios y roles
 Cognito (`aws/auth`, stack `fp-auth`) emite los JWT; el HTTP API `fp-api` los valida con el authorizer
-`cognito` (hoy solo `GET /whoami`; `/telemetry` y `/context` siguen con `x-api-key`). Roles en `custom:role`:
+`cognito` (`GET /whoami` y las rutas de `fp-reports`; `/telemetry` y `/context` siguen con `x-api-key`). Roles en `custom:role`:
 `operator`, `technician` (con `custom:tech_id`), `supervisor`, `management`, `admin`.
 
 Los roles los asigna solo un administrador con el AWS CLI; los usuarios no pueden cambiar su propio rol.
+
+Reportes del operario (`aws/reports`, stack `fp-reports`, T32), todas con el ID token:
+`POST /reports` (operator, supervisor, admin), `GET /reports`, `GET /reports/{report_id}`,
+`POST /reports/{report_id}/close` (technician, supervisor, admin) y `GET /abnormality-types`. Las rutas se cuelgan
+del authorizer por id (salida `HttpApiAuthorizerCognitoId` de `fp-core`), asi que `core` va antes que `reports`.
+
+Administracion (Lambda `admin` del mismo stack, T35), solo rol `admin` (otro rol 403, sin token 401):
+`GET /admin/technicians`, `GET|PUT /admin/technicians/{tech_id}` (`zone_id`, `available`, `specialty` sobre
+`fp-state TECH#`; 409 si se cambia `available` con un incidente en curso) y `GET|POST /admin/abnormality-types`,
+`DELETE /admin/abnormality-types/{code}` sobre `fp-registry CATALOG#abnormality_type`. El catalogo se siembra solo
+en la primera lectura con el enum `abnormality_type_seed` de `contracts/report.schema.json` (no hay script); el
+formulario del operario (`GET /abnormality-types`) lee el mismo catalogo. Maquinas y repuestos: solo lectura.
 
 La consola debe enviar el **ID token** (el access token no trae `custom:role`). `auth` debe desplegarse antes que `core`: con los valores por defecto del authorizer (modo offline) `/whoami` responde 401. Orden: `auth` se despliega antes que `core` (ya esta en `serverless-compose.yml`). Luego los usuarios de prueba:
 ```bash

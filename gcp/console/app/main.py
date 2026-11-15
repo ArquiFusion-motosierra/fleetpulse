@@ -100,6 +100,20 @@ def reorders():
     return m.list_reorders() if m else upstream(app.state.aws.get, "/reorders")
 
 
+OEM_PATH = os.path.join(os.path.dirname(__file__), "oem.json")
+
+
+@app.get("/api/oem/{model_id}")
+def oem(model_id: str):
+    """Ficha del fabricante del modelo (contracts/oem_specs.yaml, ilustrativa), empaquetada con la consola."""
+    with open(OEM_PATH, encoding="utf-8") as f:
+        specs = json.load(f)
+    model = specs["models"].get(model_id)
+    if not model:
+        raise HTTPException(404, "MODEL_NOT_FOUND")
+    return {"model_id": model_id, "illustrative": specs["illustrative"], **model}
+
+
 @app.get("/api/orders")
 def orders():
     m = app.state.mock

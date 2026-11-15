@@ -130,3 +130,13 @@ def test_log_event_is_one_json_line(caplog):
     with caplog.at_level("INFO", logger="fplib"):
         log.event("hola", machine_id="EX-017", n=1)
     assert json.loads(caplog.records[0].getMessage()) == {"level": "INFO", "msg": "hola", "machine_id": "EX-017", "n": 1}
+
+
+@pytest.mark.parametrize("bad", ["garbage", "2026-11-15T14:38:05"])
+def test_envelope_rejects_malformed_occurred_at(bad):
+    payload = json.loads((REPO / "contracts/examples/envelope/incident-opened.json").read_text())["payload"]
+    env = envelope.build("incident.opened", "aws.incident-flow", "incident", INC, payload,
+                         incident_id=INC, machine_id="EX-017")
+    env["occurred_at"] = bad
+    with pytest.raises(schema.ContractError):
+        schema.validate("envelope", env)

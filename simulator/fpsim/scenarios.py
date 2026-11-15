@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 S2_MACHINES = ("EX-003", "VQ-011", "VQ-014", "TO-002")
 S2_LOT = "L-2311"
+S7_MACHINE = "VQ-022"  # volquete de la zona norte: la junta de culata lo lleva a resonancia del chasis
 
 # SPN SAE J1939 y codigos propios del fabricante (>= 520192) para hidraulica
 SPN_COOLANT_TEMP = 110
@@ -85,6 +86,10 @@ def live_effect(machine_id: str, active: dict[str, datetime], now: datetime) -> 
             noise={"rpm": 3.0},
             faults=[{"spn": SPN_FUEL_RATE, "fmi": 0, "severity": "medium"}],
         ))
+    if "S7" in active and machine_id == S7_MACHINE:
+        k = batches_since(active["S7"], now)
+        # S7 junta de culata: llega al punto de falla en ~20 lotes; las rpm suben ~15 % y el 2x cruza los 62 Hz
+        eff.merge(signature("head_gasket", min(k / 20.0, 1.0)))
     if "S5" in active and machine_id == "EX-009":
         k = batches_since(active["S5"], now)
         # S5 reincidencia: misma firma hidraulica que hace 10 dias, lenta
@@ -98,7 +103,7 @@ def signature(failure_mode: str, r: float) -> Effect:
     if failure_mode == "head_gasket":
         # Junta de culata (oem_specs.yaml): refrigerante en alza, perdida de refrigerante (SPN 111), combustion
         # desigual (rpm y consumo inestables). Las rpm suben al perder compresion: el regulador compensa.
-        return Effect(add={"coolant": 16.0 * r}, mult={"rpm": 1 + 0.13 * r}, noise={"rpm": 1 + 2.5 * r, "fuel": 1 + 2.0 * r},
+        return Effect(add={"coolant": 16.0 * r}, mult={"rpm": 1 + 0.15 * r}, noise={"rpm": 1 + 1.5 * r, "fuel": 1 + 2.0 * r},
                       faults=[{"spn": SPN_COOLANT_LEVEL, "fmi": 1, "severity": "high" if r > 0.7 else "medium"}]
                       if r > 0.3 else [])
     if failure_mode == "hydraulic_pump":

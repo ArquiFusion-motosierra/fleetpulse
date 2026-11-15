@@ -13,10 +13,19 @@ Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y re
 ## Desplegar
 1. `scripts/lab-creds.sh`
 2. `terraform -chdir=gcp/terraform apply`
-3. `scripts/push-secrets.sh`
-4. `bash aws/shared/build.sh && (cd aws && npm ci && npx serverless deploy)`
-5. `scripts/seed-registry.py` (catálogo de `contracts/ids.yaml`)
-6. `scripts/smoke.sh`
+3. `bash aws/shared/build.sh && (cd aws && npm ci && npx serverless deploy)`: el stack fp-core genera las API keys `fleetpulse/api/ingest-key` y `fleetpulse/api/console-key` (único dueño)
+4. `scripts/push-secrets.sh` (solo las llaves de GCP `fleetpulse/gcp/sa-*` de `.env.example`)
+5. Copiar la console key a GCP Secret Manager `aws-console-api-key` (la lee el BFF de la consola; el permiso de `fp-console` está en `gcp/console/deploy.sh`):
+   ```bash
+   aws secretsmanager get-secret-value --secret-id fleetpulse/api/console-key --query SecretString --output text \
+     | python3 -c 'import json,sys; print(json.load(sys.stdin)["api_key"], end="")' \
+     | gcloud secrets create aws-console-api-key --project fleetpulse-g19-2026 --replication-policy automatic --data-file=-
+   ```
+   Si el secreto ya existe (o fp-core se recreó), el mismo pipe termina en `gcloud secrets versions add aws-console-api-key --project fleetpulse-g19-2026 --data-file=-`.
+6. `scripts/seed-registry.py` (catálogo de `contracts/ids.yaml`)
+7. `scripts/seed-baselines.py` (líneas base del score con 24 h simuladas; con `scripts/drift.py off all`)
+8. `scripts/smoke.sh`
+9. `scripts/simulator.sh on` (`off` al terminar, `status` para ver). Cada deploy deja el simulador en `enabled: false` y puede apagarlo: durante la grabación no se pushea a `aws/`, `simulator/` ni `contracts/`.
 
 ## Costo mensual estimado
 | Máquinas | 100 | 1.000 | 10.000 |

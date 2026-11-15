@@ -1,7 +1,9 @@
 # Lambda simulator (T06). Se despliega desde aws/serverless-compose.yml:
 #   simulator:
 #     path: ../simulator
-# Apagado por defecto (costo): se enciende con --param="enabled=true" o en la consola de EventBridge.
+# Apagado por defecto (costo). Se enciende y apaga con `scripts/simulator.sh on|off|status` (habilita la regla de
+# EventBridge del stack); cada deploy la vuelve a dejar apagada. Antes de encenderlo: `scripts/seed-baselines.py`
+# con los escenarios apagados (lineas base de 24 h).
 service: fp-simulator
 frameworkVersion: "3"
 

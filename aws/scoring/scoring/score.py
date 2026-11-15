@@ -3,7 +3,19 @@
 Funciones puras, sin I/O. Idempotencia: mismos insumos, mismo resultado, asi que reprocesar un lote
 reescribe el mismo item `S#`.
 
-score = suma(peso_var * max(|z_self|, |z_peer|)) + TREND_STEP * variables en alza sostenida (3 lotes).
+Solo se puntuan lecturas `operating` (ralenti y apagado tienen otra fisica). Con z_v = el de mayor |z| entre
+propio y pares:
+
+    score = suma_v(peso_v * max(0, |z_v| - DEADBAND)) + TREND_STEP * #{v : |z_v| >= DEADBAND y sube 3 lotes seguidos}
+
+La banda muerta descuenta el ruido sano: sumar seis |z| sin banda deja un lote sano en ~2.2 (mediana), sobre
+`schedule`. Umbrales sin cambio: observe 1.2, schedule 2.0, immediate 3.5.
+Calibracion (replay del simulador real con la linea base de `scripts/seed-baselines.py`, 100 maquinas;
+`FP_CALIBRATION=1 pytest -s aws/scoring/tests/test_calibration.py`). Objetivo del diseno: <= 1 falsa alarma/dia.
+- DEADBAND 2.0: 0 en 2 h, pero 3 lotes/dia >= 2.0 en 24 h sin deriva, empujados por la tendencia.
+- DEADBAND 2.25 (el elegido): 0 en 24 h; S1 cruza `schedule` en 5-11 min con EX-017 operando (hasta 20 min si
+  cae un bloque en ralenti), siempre como hydraulic_pump; S2 detectado en las 4 maquinas como fuel_contamination.
+Si cambia la fisica del simulador, resembrar y volver a correr la calibracion antes de tocar esta banda.
 """
 from __future__ import annotations
 
@@ -12,13 +24,16 @@ VARS = ("coolant_temp_c", "hydraulic_oil_temp_c", "hydraulic_pressure_bar", "vib
 WEIGHTS = {"hydraulic_pressure_bar": 1.0, "vibration_mm_s": 1.0, "coolant_temp_c": 0.9,
            "hydraulic_oil_temp_c": 0.9, "fuel_rate_lph": 0.8, "engine_rpm": 0.5}
 THRESHOLDS = {"observe": 1.2, "schedule": 2.0, "immediate": 3.5}
+SCORED_STATUS = "operating"
+DEADBAND = 2.25  # 2.0 daba 3 falsas alarmas/dia; ver la calibracion arriba
 SIGMA_FLOOR = 1e-6
+SIGMA_REL_FLOOR = 0.01  # sigma minima = 1 % de |mu|: una linea base degenerada (sigma ~0) no satura el z
 DEVIATED_Z = 1.0
 TREND_STEP = 0.5
 
 
 def batch_means(readings: list[dict]) -> dict[str, float]:
-    on = [r for r in readings if r.get("engine_status") != "off"]
+    on = [r for r in readings if r.get("engine_status") == SCORED_STATUS]
     out: dict[str, float] = {}
     for v in VARS:
         vals = [float(r[v]) for r in on if r.get(v) is not None]
@@ -30,7 +45,8 @@ def batch_means(readings: list[dict]) -> dict[str, float]:
 def _z(value: float, base: dict | None) -> float | None:
     if not base:
         return None
-    return (value - float(base["mu"])) / max(float(base["sigma"]), SIGMA_FLOOR)
+    mu, sigma = float(base["mu"]), float(base["sigma"])
+    return (value - mu) / max(sigma, SIGMA_REL_FLOOR * abs(mu), SIGMA_FLOOR)
 
 
 def zscores(means: dict, self_baseline: dict | None, peer_baseline: dict | None) -> dict[str, dict]:
@@ -46,12 +62,14 @@ def zscores(means: dict, self_baseline: dict | None, peer_baseline: dict | None)
     return out
 
 
-def trend_bonus(means: dict, previous_means: list[dict]) -> int:
-    """`previous_means` en orden cronologico (el mas antiguo primero); necesita 2 lotes previos."""
+def trend_bonus(means: dict, previous_means: list[dict], only: set[str] | None = None) -> int:
+    """`previous_means` en orden cronologico (el mas antiguo primero); necesita 2 lotes previos.
+    `only` limita las variables que cuentan (None = todas)."""
     if len(previous_means) < 2:
         return 0
     a, b = previous_means[-2], previous_means[-1]
-    return sum(1 for v in VARS if v in means and v in a and v in b and a[v] < b[v] < means[v])
+    return sum(1 for v in VARS if (only is None or v in only) and v in means and v in a and v in b
+               and a[v] < b[v] < means[v])
 
 
 def severity(value: float) -> str:
@@ -69,9 +87,14 @@ def _dominant(zz: dict) -> float:
 def compute(means: dict, self_baseline: dict | None, peer_baseline: dict | None, previous_means: list[dict]) -> dict:
     z = zscores(means, self_baseline, peer_baseline)
     dominant = {v: _dominant(zz) for v, zz in z.items()}
-    base = sum(WEIGHTS[v] * abs(d) for v, d in dominant.items())
-    total = base + TREND_STEP * trend_bonus(means, previous_means)
+    base = sum(WEIGHTS[v] * max(0.0, abs(d) - DEADBAND) for v, d in dominant.items())
+    out_of_band = {v for v, d in dominant.items() if abs(d) >= DEADBAND}
+    total = base + TREND_STEP * trend_bonus(means, previous_means, out_of_band)
     deviated = sorted(
         ({"var": v, "value": means[v], "z": d} for v, d in dominant.items() if abs(d) >= DEVIATED_Z),
         key=lambda x: abs(x["z"]), reverse=True)
+    if not deviated and dominant and total >= THRESHOLDS["schedule"]:
+        # incident.opened exige al menos una variable desviada: va la de mayor |z|
+        v, d = max(dominant.items(), key=lambda kv: abs(kv[1]))
+        deviated = [{"var": v, "value": means[v], "z": d}]
     return {"score": total, "severity": severity(total), "z": z, "deviated_vars": deviated}

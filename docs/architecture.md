@@ -35,12 +35,25 @@ AWS es el hub: recibe la telemetría, detecta anomalías, orquesta incidentes y 
 10. La consola (Cloud Run `console`: React + MapLibre compilado a estáticos y servido por FastAPI) lee el estado en vivo a través de su backend `/api/*`, que llama a la API de lectura de AWS (`GET /machines`, `/incidents`, `/stock`, API key en Secret Manager) y a BigQuery para historial y KPIs; refresca cada 15 s.
 11. El correo de aprobación llama a `POST /approvals/{token}` (`SendTaskSuccess`); el botón Cerrar de la consola llama, vía el backend, a `POST /incidents/{id}/close`. AWS es el único que cambia el estado de un incidente.
 
+### Capa 1: score en línea (Lambda `score`)
+
+Solo lecturas `operating` (ralentí y apagado tienen otra física; un lote sin ellas no se puntúa). Para cada variable, `z` es el de mayor |z| entre la línea base propia y la de pares:
+
+```text
+score = Σ_v w_v · max(0, |z_v| − 2,25) + 0,5 · #{v : |z_v| ≥ 2,25 y sube 3 lotes seguidos}
+```
+
+- Pesos: presión hidráulica y vibración 1,0; temperaturas 0,9; combustible 0,8; rpm 0,5. Umbrales sin cambio: observar ≥ 1,2; programar ≥ 2,0; inmediato ≥ 3,5.
+- Banda muerta de 2,25σ (`score.DEADBAND`): la fórmula original sumaba seis |z| y un lote sano quedaba en ~2,2 (sobre programar); con la banda, el ruido sano aporta 0.
+- Línea base propia (μ, σ por variable) sembrada con `scripts/seed-baselines.py`: 24 h de historia del simulador (determinista), un lote por minuto. Respaldo si falta: arranque en frío con ≥ 200 lecturas `operating` y σ ≥ 5 % de |μ|.
+- Calibración (`FP_CALIBRATION=1`, replay del simulador real, 100 máquinas; objetivo ≤ 1 falsa alarma/día). Banda 2,0: 0 en 2 h pero 3 lotes/día en 24 h, empujados por la tendencia. Banda 2,25 (la elegida): 0 en 24 h; S1 cruza programar en 5-11 min con EX-017 operando, siempre como `hydraulic_pump`; S2 detectado en las 4 máquinas como `fuel_contamination` en 10-13 min. Si cambia la física del simulador: resembrar y recalibrar.
+
 ### incident-flow (Standard)
 
 ```mermaid
 flowchart TD
     A[ClassifySeverity<br/>observar ≥1,2 · programar ≥2,0 · inmediato ≥3,5] --> B{CheckExistingIncident<br/>GSI1 INC#}
-    B -- ya existe --> B2[Escalar severidad] --> Z((fin))
+    B -- ya existe --> B2[Escalar severidad<br/>si sube: aviso SNS a supervisor y dirección] --> Z((fin))
     B -- nuevo --> C[CorrelateZone<br/>geohash-6 · última hora · group_id]
     C --> D[CreateIncident<br/>TransactWriteItems: incidente + incident.opened]
     D --> E[ExplainCause → Cloud Run /explain<br/>timeout 10 s · plantilla si falla]
@@ -79,7 +92,7 @@ Ambas: reintento con backoff exponencial (3 intentos, base 2 s) en cada Lambda, 
 | Consola (Cloud Run, backend) → AWS | HTTPS a API Gateway | API key (`fleetpulse/api/console-key`), copia en GCP Secret Manager `aws-console-api-key`; nunca llega al navegador | `fleetpulse/api/console-key` | La consola muestra el último estado leído y avisa que está desactualizado |
 | Correo → AWS | HTTPS a API Gateway | Task token de un solo uso en la URL | — | Token expira con el paso (30 min) |
 
-Los secretos se leen en el arranque en frío con caché de 5 minutos. Nunca van en variables de entorno, en el repo ni en los logs. `scripts/push-secrets.sh` los carga desde las salidas de Terraform.
+Los secretos se leen en el arranque en frío con caché de 5 minutos. Nunca van en variables de entorno, en el repo ni en los logs. Las API keys `fleetpulse/api/*` las genera el stack fp-core (un solo dueño); `scripts/push-secrets.sh` carga las llaves de GCP desde las salidas de Terraform. Un rechazo de API key se loguea con su motivo (`missing_header`, `secret_unavailable:<tipo>`, `mismatch`), nunca con la llave.
 
 ## Modelo de datos: un dueño por dato
 

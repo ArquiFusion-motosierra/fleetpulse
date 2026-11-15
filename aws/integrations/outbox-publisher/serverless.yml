@@ -1,0 +1,43 @@
+# Servicio fp-outbox-publisher: stream de fp-outbox -> SNS fp-domain-events.
+# Depende del stack fp-core (tabla fp-outbox y topics fp-domain-events / fp-alerts).
+service: fp-outbox-publisher
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+
+package:
+  patterns:
+    - "!**"
+    - "pub/**"
+    - "!**/__pycache__/**"
+
+functions:
+  publisher:
+    handler: pub/handler.handler
+    memorySize: 256
+    timeout: 30
+    layers:
+      - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+    environment:
+      DOMAIN_TOPIC_ARN: arn:aws:sns:${aws:region}:${aws:accountId}:fp-domain-events
+    events:
+      - stream:
+          type: dynamodb
+          arn: ${cf:fp-core-${sls:stage}.OutboxTableStreamArn, 'arn:aws:dynamodb:us-east-1:000000000000:table/fp-outbox/stream/2026-01-01T00:00:00.000'}
+          batchSize: 10
+          startingPosition: TRIM_HORIZON
+          functionResponseType: ReportBatchItemFailures
+          maximumRetryAttempts: 10
+          bisectBatchOnFunctionError: true
+          destinations:
+            onFailure: arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts
+          filterPatterns:
+            - eventName: [INSERT]

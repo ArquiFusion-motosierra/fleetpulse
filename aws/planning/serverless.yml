@@ -1,0 +1,88 @@
+# Stack fp-planning (T18, incremento 1): maquina de estados Standard daily-planning y su Lambda `plan`, que escribe
+# ordenes preventivas (maintenance.order.suggested en fp-outbox -> registry -> ORDER#) y pedidos sugeridos
+# (REORDER# en fp-registry). Se despliega desde aws/serverless-compose.yml:
+#   planning:
+#     path: planning
+#     dependsOn: [shared, core]
+# Tablas y el topic fp-alerts los crea fp-core (aws/ingest). La regla diaria (05:00 Lima) queda DISABLED: el
+# deploy no empieza a escribir solo; se enciende con scripts/planning.sh on y se corre a mano con
+# scripts/planning.sh run. Diseno: docs/superpowers/plans/2026-11-15-t18-daily-planning.md
+service: fp-planning
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 60
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+  layers:
+    - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+  environment:
+    STATE_TABLE: fp-state
+    REGISTRY_TABLE: fp-registry
+    OUTBOX_TABLE: fp-outbox
+    INBOX_TABLE: fp-inbox
+    HORIZON_DAYS: "14"
+
+params:
+  default:
+    schedule: DISABLED  # ENABLED solo cuando el equipo lo decida (compose 1.3.0 no acepta --param)
+
+package:
+  patterns:
+    - "!**"
+    - "planning/**"
+    - "!**/__pycache__/**"
+
+functions:
+  plan:
+    handler: planning/handler.handler
+    description: daily-planning - ordenes preventivas por uso real y pedidos sugeridos de repuestos
+
+resources:
+  Resources:
+    DailyPlanningLogs:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/states/daily-planning
+        RetentionInDays: 14
+
+    DailyPlanning:
+      Type: AWS::StepFunctions::StateMachine
+      Properties:
+        StateMachineName: daily-planning
+        StateMachineType: STANDARD
+        RoleArn: arn:aws:iam::${aws:accountId}:role/LabRole
+        Definition: ${file(statemachine/daily-planning.asl.json)}
+        DefinitionSubstitutions:
+          PlanArn: !GetAtt PlanLambdaFunction.Arn
+          AlertsTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts
+        LoggingConfiguration:
+          Level: ALL
+          IncludeExecutionData: true
+          Destinations:
+            - CloudWatchLogsLogGroup:
+                LogGroupArn: !GetAtt DailyPlanningLogs.Arn
+
+    DailyPlanningSchedule:
+      Type: AWS::Events::Rule
+      Properties:
+        Description: daily-planning a las 05:00 de Lima (10:00 UTC)
+        ScheduleExpression: cron(0 10 * * ? *)
+        State: ${param:schedule}
+        Targets:
+          - Id: daily-planning
+            Arn: !Ref DailyPlanning
+            RoleArn: arn:aws:iam::${aws:accountId}:role/LabRole
+            Input: "{}"
+
+  Outputs:
+    DailyPlanningArn:
+      Value: !Ref DailyPlanning
+      Export: {Name: "${self:service}-DailyPlanningArn"}

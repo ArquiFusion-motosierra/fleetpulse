@@ -1,0 +1,30 @@
+{
+  "Comment": "daily-planning (T18, incremento 1): calcula el preventivo por uso real y los pedidos de repuestos contra el stock, y los escribe (ordenes por fp-outbox hacia registry, pedidos en fp-registry). Los pasos de GCP del diseno (/forecast/parts, /kpis/daily, /baselines) se agregan como estados nuevos.",
+  "StartAt": "PlanPreventive",
+  "States": {
+    "PlanPreventive": {
+      "Type": "Task",
+      "Resource": "${PlanArn}",
+      "Parameters": {"input.$": "$", "execution.$": "$$.Execution.Name"},
+      "Retry": [{"ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2}],
+      "Catch": [{"ErrorEquals": ["States.ALL"], "Next": "PublishAlert"}],
+      "End": true
+    },
+    "PublishAlert": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertsTopicArn}",
+        "Subject.$": "States.Format('[FleetPulse] daily-planning fallo {}', $$.Execution.Name)",
+        "Message.$": "States.Format('daily-planning {} fallo: {} - {}', $$.Execution.Name, $.Error, $.Cause)"
+      },
+      "Retry": [{"ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2}],
+      "Next": "Failed"
+    },
+    "Failed": {
+      "Type": "Fail",
+      "Error": "DailyPlanningFailed",
+      "Cause": "Ver el mensaje en fp-alerts y el historial de la ejecucion"
+    }
+  }
+}

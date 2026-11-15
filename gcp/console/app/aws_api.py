@@ -69,5 +69,26 @@ class AwsApi:
     def get(self, path: str, query: str = "") -> dict:
         return self._call("GET", f"{REGISTRY_URL}{path}{'?' + query if query else ''}")
 
+    def as_user(self, method: str, path: str, authorization: str, body: dict | None = None,
+                query: str = "") -> tuple[int, dict]:
+        """Rutas con Cognito (/reports*, /abnormality-types, /admin/*) en la API compartida: reenvia el ID token del
+        navegador tal cual (API Gateway lo valida) y devuelve el codigo y el cuerpo de AWS, sin API key."""
+        url = f"{INCIDENTS_URL}{path}{'?' + query if query else ''}"
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, method=method,
+                                     headers={"authorization": authorization, "content-type": "application/json"})
+        try:
+            with self._open(req, timeout=TIMEOUT_S) as r:
+                text = r.read().decode()
+                return r.status, (json.loads(text) if text else {})
+        except urllib.error.HTTPError as exc:
+            text = exc.read().decode(errors="replace")
+            try:
+                return exc.code, json.loads(text)
+            except ValueError:
+                return exc.code, {"error": text[:200] or "upstream error"}
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise UpstreamError(504, type(exc).__name__) from exc
+
     def close_incident(self, incident_id: str, body: dict) -> dict:
         return self._call("POST", f"{INCIDENTS_URL}/incidents/{incident_id}/close", body)

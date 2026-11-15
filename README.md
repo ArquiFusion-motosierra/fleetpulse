@@ -14,7 +14,7 @@ Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y re
 1. `scripts/lab-creds.sh`
 2. `terraform -chdir=gcp/terraform apply`
 3. `scripts/push-secrets.sh`
-4. `cd aws && serverless deploy`
+4. `bash aws/shared/build.sh && (cd aws && npx serverless@3 deploy)`
 5. `scripts/seed-registry.py` (catálogo de `contracts/ids.yaml`)
 6. `scripts/smoke.sh`
 

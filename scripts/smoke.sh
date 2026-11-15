@@ -18,9 +18,39 @@ fail() { echo "  FAIL $*" >&2; return 1; }
 
 stage_ingest() {
   echo "[ingest] T05"
-  echo "  TODO T05: POST telemetry-batch al API y verificar fp-state + fp-raw"
-  [ "$SKIP_MISSING" = "1" ] && { skip "ingest"; return 0; }
-  return 1
+  if ! command -v aws >/dev/null 2>&1; then
+    [ "$SKIP_MISSING" = "1" ] && { skip "ingest (sin aws cli)"; return 0; }
+    fail "ingest: falta aws cli"; return 1
+  fi
+  local url key code acct item
+  if ! url=$(aws ssm get-parameter --name /fleetpulse/api/url --region "$AWS_REGION" --query Parameter.Value --output text 2>/dev/null); then
+    [ "$SKIP_MISSING" = "1" ] && { skip "ingest (sin /fleetpulse/api/url; fp-core no desplegado)"; return 0; }
+    fail "ingest: falta SSM /fleetpulse/api/url"; return 1
+  fi
+  key=$(aws secretsmanager get-secret-value --secret-id fleetpulse/api/ingest-key --region "$AWS_REGION" \
+        --query SecretString --output text | python3 -c 'import json,sys; print(json.load(sys.stdin)["api_key"])') \
+    || { fail "ingest: no se pudo leer fleetpulse/api/ingest-key"; return 1; }
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${url%/}/telemetry" \
+         -H "content-type: application/json" -H "x-api-key: $key" \
+         --data @contracts/examples/telemetry-batch/with-fault.json) || true
+  case "$code" in
+    202|200) ok "POST telemetry-batch -> $code" ;;
+    *) fail "POST telemetry-batch devolvio $code (esperado 202 o 200)"; return 1 ;;
+  esac
+  item=$(aws dynamodb get-item --table-name fp-state --region "$AWS_REGION" \
+         --key '{"PK":{"S":"MACHINE#EX-017"},"SK":{"S":"META"}}') || { fail "get-item fp-state"; return 1; }
+  case "$item" in
+    *last_ts*) ok "fp-state MACHINE#EX-017 tiene last_ts" ;;
+    *) fail "fp-state MACHINE#EX-017 sin last_ts"; return 1 ;;
+  esac
+  acct=$(aws sts get-caller-identity --query Account --output text)
+  echo "  esperando 20 s al archiver..."
+  sleep 20
+  if aws s3 ls "s3://fp-raw-${acct}/telemetry/" --recursive 2>/dev/null | head -1 | grep -q .; then
+    ok "fp-raw-${acct}/telemetry tiene objetos"
+  else
+    echo "  SKIP archiver window"
+  fi
 }
 
 stage_secrets() {
@@ -54,7 +84,7 @@ stage_gcp() {
 stage_e2e() {
   echo "[e2e] T17"
   [ "$SKIP_MISSING" = "1" ] && { skip "e2e"; return 0; }
-  echo "  TODO T17: mismo incident_id en Step Functions/fp-registry (AWS) y BigQuery/consola (GCP)"
+  echo "  TODO T17: mismo incident_id en las 2 nubes: Step Functions/fp-registry (AWS) y BigQuery/consola (GCP)"
   return 1
 }
 

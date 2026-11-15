@@ -81,11 +81,23 @@ jobs:
         if: steps.has.outputs.yes == 'true'
         with:
           node-version: 20
-      - if: steps.has.outputs.yes == 'true'
-        working-directory: aws
+      - uses: actions/setup-python@v5
+        if: steps.has.outputs.yes == 'true'
+        with:
+          python-version: "3.12"
+      - name: Construir la layer fp-shared
+        if: steps.has.outputs.yes == 'true'
         run: |
-          if [ -f package.json ]; then npm ci; fi
-          npx serverless@3 package --stage ci
+          python -m pip install pyyaml
+          bash aws/shared/build.sh
+      - name: Empaquetar cada servicio (compose no soporta package)
+        if: steps.has.outputs.yes == 'true'
+        run: |
+          for d in aws/shared aws/ingest aws/integrations/outbox-publisher aws/scoring aws/incidents aws/registry aws/integrations/gcp-exporter simulator; do
+            echo "::group::package $d"
+            (cd "$d" && npx -y serverless@3 package --stage ci)
+            echo "::endgroup::"
+          done
 
   terraform-validate:
     runs-on: ubuntu-latest

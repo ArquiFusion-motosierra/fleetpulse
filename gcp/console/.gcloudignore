@@ -1,0 +1,7 @@
+.gcloudignore
+.git
+web/node_modules/
+web/dist/
+tests/
+**/__pycache__/
+.pytest_cache/

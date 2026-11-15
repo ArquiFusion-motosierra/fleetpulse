@@ -2,7 +2,8 @@
 
 Servicios (cada uno con su `serverless.yml`), en el orden de `serverless-compose.yml`:
 `shared` (layer) -> `core` (ingest: tablas, bucket, topics, API) -> `outbox-publisher`, `registry`,
-`gcp-exporter`, `incidents` -> `scoring` -> `simulator` (apagado). `oci-writer` no existe (plan B).
+`gcp-exporter`, `incidents` -> `scoring`, `planning` (regla diaria apagada) -> `simulator` (apagado).
+`oci-writer` no existe (plan B).
 
 ## Desplegar
 ```bash
@@ -35,6 +36,16 @@ El deploy siempre deja la regla en `enabled: false` (compose 1.3.0 no acepta `--
 actualiza la regla la vuelve a deshabilitar. Por eso, durante la grabacion no se pushea nada a `aws/`, `simulator/`
 ni `contracts/` (cada push despliega; `gh workflow disable deploy-aws` congela el deploy), y tras cualquier deploy
 se corre `scripts/simulator.sh status`.
+
+## daily-planning (incremento, T18)
+```bash
+scripts/planning.sh run --dry-run   # calcula ordenes preventivas y pedidos sin escribir
+scripts/planning.sh run             # ejecucion de Step Functions; espera SUCCEEDED y muestra el resumen
+scripts/planning.sh on|off|status   # regla diaria de las 05:00 Lima (el deploy la deja DISABLED)
+```
+Repetir `run` el mismo dia no duplica (reclamos `planning:<dia>:...` en fp-inbox). Las ordenes llegan a
+`ORDER#` por outbox -> registry y los pedidos se escriben en `REORDER#`: `GET /orders` y `GET /reorders` de la
+API de registry. Diseno: `docs/superpowers/plans/2026-11-15-t18-daily-planning.md`.
 
 ## Tests
 Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el job python de CI):

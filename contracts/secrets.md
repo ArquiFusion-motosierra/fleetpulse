@@ -44,9 +44,9 @@ Modelo fijado en `docs/superpowers/plans/2026-11-14-aws-core-pipeline.md` ("Data
 | Stock | `STOCK#<part_id>#<zone_id>` / `META`: `on_hand, reserved, available (= on_hand - reserved), reorder_point, sku, name` | seed y Lambda `registry` |
 | Reserva | `RSV#<incident_id>` / `<part_id>#<zone_id>`: `reservation_id (<event_id>#<línea>), qty, status (reserved/consumed/released)` | Lambda `registry` |
 | Movimiento | `MOVE#<part_id>#<zone_id>` / `<closed_at>#<incident_id>` | Lambda `registry` |
-| Pedido sugerido | `REORDER#<part_id>#<zone_id>` / `<created_at>` (GSI1 `REORDERS` / `<created_at>#…`) | Lambda `registry` |
+| Pedido sugerido | `REORDER#<part_id>#<zone_id>` / `<created_at>` (GSI1 `REORDERS` / `<created_at>#<part_id>#<zone_id>`) | Lambda `registry` (`source: shortage`) y `daily-planning` (`source: planning`, reclamo `planning:<día>:REORDER#<part>#<zone>` en `fp-inbox`) |
 | KPI diario | `KPI#<day>` / `<machine_id>` | Lambda `registry` |
-| Orden de mantenimiento | `ORDER#<machine_id>` / `<due_at>` (GSI1 `ORDERS` / `<due_at>#<machine_id>`) | Lambda `registry` (desde `maintenance.order.suggested`) |
+| Orden de mantenimiento | `ORDER#<machine_id>` / `<due_at>` (GSI1 `ORDERS` / `<due_at>#<machine_id>`) | Lambda `registry` (desde `maintenance.order.suggested`, que emite `daily-planning` con reclamo `planning:<día>:ORDER#<machine_id>`) |
 
 Lambda `registry` (cola `registry-q`, filtrada a `part.reserve.requested`, `incident.closed` y `kpi.daily`):
 - Reserva cada línea con `SET reserved += q, available -= q` y condición `available >= :q` (DynamoDB no admite aritmética en condiciones), probando primero la zona del incidente y luego la más cercana. Si no hay stock, escribe un `REORDER` y emite `part.shortage`.

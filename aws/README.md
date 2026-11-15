@@ -14,6 +14,16 @@ scripts/smoke.sh ingest
 Confirma el correo de AWS tras cada suscripcion. `compose` no soporta `package`: para validar
 un servicio, `cd aws/<servicio> && npx serverless@3 package --stage ci`.
 
+## Lineas base del score (una vez tras el deploy)
+```bash
+scripts/drift.py off all                        # sin deriva mientras se siembra
+.venv/bin/python scripts/seed-baselines.py --dry-run   # resumen, sin escribir
+.venv/bin/python scripts/seed-baselines.py      # MACHINE#<id>/META.baseline con 24 h simuladas (~2 min)
+```
+Correrlo despues de `scripts/seed-registry.py` (necesita los META) y otra vez tras cualquier cambio de fisica del
+simulador. Pisa las lineas base anteriores, tambien las de arranque en frio. Si el simulador ya corrio con el
+score viejo, cerrar desde la consola los incidentes falsos que haya abierto.
+
 ## Simulador
 ```bash
 cd aws && npx serverless deploy --param="enabled=true"    # enciende

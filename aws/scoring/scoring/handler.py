@@ -4,7 +4,8 @@ Un grupo que falla no impide puntuar los demas; al final se relanza el primer er
 mapping reintente/bisecte.
 Idempotencia: reprocesar un lote reescribe el mismo item `S#<ts>` (y `A#<ts>#<maquina>`), y el nombre de la
 ejecucion es el `incident_id` (maquina + ventana de 15 min), asi que un segundo inicio en la misma ventana
-lanza `ExecutionAlreadyExists`, que se ignora. Sin linea base propia no se puntua (arranque en frio).
+lanza `ExecutionAlreadyExists`, que se ignora. Solo cuentan las lecturas `operating`: un lote sin ellas no se
+puntua. Sin linea base propia tampoco (arranque en frio; la siembra `scripts/seed-baselines.py`).
 """
 from __future__ import annotations
 
@@ -92,9 +93,12 @@ def _score_group(table, sfn, machine_id: str, batch_id: str, readings: list[dict
     if not meta:
         log.event("sin_meta", **ctx)
         return False, None
-    own, peer = baselines.for_machine(table, machine_id, meta["model"])
     means = score.batch_means(readings)
-    if own is None or not means:
+    if not means:  # solo ralenti/apagado: se puntua el siguiente lote operando
+        log.event("sin_lecturas_operando", **ctx)
+        return False, None
+    own, peer = baselines.for_machine(table, machine_id, meta["model"])
+    if own is None:
         log.event("sin_linea_base", **ctx)
         return False, None
     last_ts = max(r["ts"] for r in readings)

@@ -1,0 +1,6 @@
+{
+  "machine_id": "EX-017",
+  "abnormality_type": "high_engine_temp",
+  "description": "Sale vapor del capot y el indicador de temperatura esta en rojo",
+  "severity_perceived": "high"
+}

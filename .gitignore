@@ -17,6 +17,8 @@ Wallet_*/
 node_modules/
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
 .venv/
 .DS_Store
 # Datos generados por el simulador

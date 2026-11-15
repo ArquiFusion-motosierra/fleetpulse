@@ -228,6 +228,10 @@ resources:
     HttpApiId:
       Value: !Ref HttpApi
       Export: {Name: "${self:service}-HttpApiId"}
+    # Con provider.httpApi.id los demas stacks no pueden nombrar el authorizer `cognito`: lo referencian por id (fp-reports).
+    HttpApiAuthorizerCognitoId:
+      Value: !Ref HttpApiAuthorizerCognito
+      Export: {Name: "${self:service}-HttpApiAuthorizerCognitoId"}
     StateTableStreamArn:
       Value: !GetAtt StateTable.StreamArn
       Export: {Name: "${self:service}-StateTableStreamArn"}

@@ -31,6 +31,10 @@ services:
     path: scoring
     dependsOn: [core, incidents]
 
+  reports:
+    path: reports
+    dependsOn: [shared, core, auth, incidents]
+
   simulator:
     path: ../simulator
     dependsOn: [core]

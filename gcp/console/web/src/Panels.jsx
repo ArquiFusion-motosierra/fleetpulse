@@ -153,7 +153,7 @@ export function MachinePanel({ id, onClose, onOpenIncident }) {
   );
 }
 
-export function IncidentPanel({ id, onClose, onChanged, onMachine, onReport, canClose = true }) {
+export function IncidentPanel({ id, onClose, onChanged, onMachine, onReport, canClose = true, user = null }) {
   const [inc, setInc] = useState(null);
   const [err, setErr] = useState("");
   const [closing, setClosing] = useState(false);
@@ -234,10 +234,12 @@ export function IncidentPanel({ id, onClose, onChanged, onMachine, onReport, can
               </li>
             ))}
           </ol>
-          {inc.status !== "closed" && !canClose ? null : inc.status !== "closed" ? (
+          {inc.status !== "closed" && !(canClose && (user?.role !== "technician" || inc.tech_id === user.tech_id)) ? null : inc.status !== "closed" ? (
             <div className="close-box">
               <h3>Cerrar incidente</h3>
-              <label>Cerrado por<input value={form.closed_by} onChange={(e) => setForm({ ...form, closed_by: e.target.value })} placeholder="TEC-01" /></label>
+              {user
+                ? <p className="muted small">Se cierra como <b>{user.email}</b>{user.tech_id ? ` (${user.tech_id})` : ""}: AWS lo toma del login.</p>
+                : <label>Cerrado por<input value={form.closed_by} onChange={(e) => setForm({ ...form, closed_by: e.target.value })} placeholder="TEC-01" /></label>}
               <label>Intervención<textarea rows={2} value={form.cause_summary} onChange={(e) => setForm({ ...form, cause_summary: e.target.value })} placeholder="Qué se hizo" /></label>
               <button className="primary" disabled={closing} onClick={close}>{closing ? "Cerrando…" : "Cerrar en AWS"}</button>
               <p className="muted small">AWS calcula el tiempo detenido, libera al técnico, descuenta los repuestos y emite incident.closed.</p>

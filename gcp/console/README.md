@@ -5,7 +5,7 @@ Cloud Run `console`: React + Vite + MapLibre (satélite de Esri, sin llave) comp
 | Pantalla | Qué muestra |
 |---|---|
 | Mapa | 100 máquinas con color por severidad (verde, amarillo, naranja, rojo), zonas, incidentes activos; refresco cada 15 s |
-| Incidente | Causa (Gemini o plantilla), repuestos reservados, línea de tiempo, grupo por zona, reincidencia y botón **Cerrar en AWS** |
+| Incidente | Causa (Gemini o plantilla), repuestos reservados, línea de tiempo, grupo por zona, reincidencia y botón **Cerrar en AWS** (con login va a `POST /me/incidents/{id}/close` con el ID token: cierran supervisor, admin y el técnico asignado, y `closed_by` sale del token) |
 | Ficha de máquina | Modelo, estado, horas, historial con tiempo detenido, repuestos usados y reincidencias |
 | Stock | Disponible / en mano / reservado por repuesto y zona, marcando lo que está bajo el punto de reorden |
 

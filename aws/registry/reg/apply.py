@@ -1,171 +1,76 @@
-"""Aplica eventos de dominio en fp-registry (reemplaza FLEET_EVENTS.apply de OCI en el plan B).
+"""Lambda registry: lo que le toca en fp-registry segun el modelo fijado en
+docs/superpowers/plans/2026-11-14-aws-core-pipeline.md (seccion "Data model locked here").
 
-Cada evento entra en una TransactWriteItems junto con fp-inbox (message_id = event_id, attribute_not_exists):
-si ya se aplico, la transaccion se cancela y se responde "duplicate" sin tocar nada.
-La reserva de cada linea de repuestos es su propia transaccion: stock (available >= qty) + item
-RSV#<event_id>#<linea> con attribute_not_exists, asi que un reintento nunca reserva dos veces.
+- part.reserve.requested -> reserva atomica por linea en STOCK#<part>#<zone>/META (available >= qty; DynamoDB no
+  admite aritmetica en condiciones, por eso se guarda available = on_hand - reserved), zona mas cercana, y si no hay:
+  REORDER + part.shortage. Escribe part.reserved / part.shortage en fp-outbox junto con su EV# (misma transaccion).
+- incident.closed -> consume lo reservado (RSV#<incident_id>) y descuenta lo usado; libera lo que no se uso.
+- kpi.daily -> KPI#<day>/<machine_id>.
+El META del incidente, sus EV# y los tecnicos los escribe incident-flow / la API de cierre (Benjamin), no esta Lambda.
+Idempotencia: fp-inbox con message_id = "registry:<event_id>" en la misma transaccion que los cambios.
 """
 from __future__ import annotations
 
-import json
 import time
+import uuid
 
 from botocore.exceptions import ClientError
+from fplib import clock, outbox
 
 from reg import store
-from reg.store import INBOX, REGISTRY, dumps, key, ser, vals
+from reg.store import INBOX, OUTBOX, REGISTRY, dumps, key, ser, vals
 
+HANDLED = ("part.reserve.requested", "incident.closed", "kpi.daily")
 ZONE_COORDS = {"NORTE": (-13.9000, -71.5600), "CENTRO": (-13.9200, -71.5450), "SUR": (-13.9400, -71.5550)}
+
+
+def inbox_id(event_id: str) -> str:
+    return f"registry:{event_id}"
+
+
+def _inbox_put(event: dict) -> dict:
+    return {"Put": {"TableName": INBOX, "ConditionExpression": "attribute_not_exists(message_id)",
+                    "Item": ser({"message_id": inbox_id(event["event_id"]), "consumer": "registry",
+                                 "processed_at": clock.iso(clock.now()), "ttl": int(time.time()) + store.TTL_7D})}}
+
+
+def _ev_put(e: dict) -> dict:
+    return {"Put": {"TableName": REGISTRY, "Item": ser({
+        "PK": f"INCIDENT#{e['incident_id']}", "SK": f"EV#{e['occurred_at']}#{e['event_id']}",
+        "type": e["event_type"], "source": e["source"], "payload": dumps(e["payload"])})}}
+
+
+def _stock_update(part: str, zone: str, expr: str, cond: str | None = None, **values) -> dict:
+    u = {"TableName": REGISTRY, "Key": key(f"STOCK#{part}#{zone}", "META"), "UpdateExpression": expr,
+         "ExpressionAttributeValues": vals(**values)}
+    if cond:
+        u["ConditionExpression"] = cond
+    return {"Update": u}
 
 
 class Duplicate(Exception):
     pass
 
 
-def _inbox_put(event: dict) -> dict:
-    return {"Put": {"TableName": INBOX,
-                    "Item": ser({"message_id": event["event_id"], "consumer": "registry",
-                                 "event_type": event["event_type"], "ttl": int(time.time()) + store.TTL_7D}),
-                    "ConditionExpression": "attribute_not_exists(message_id)"}}
-
-
-def _timeline_put(event: dict) -> dict:
-    return {"Put": {"TableName": REGISTRY, "Item": ser({
-        "PK": f"INCIDENT#{event['incident_id']}", "SK": f"EVT#{event['occurred_at']}#{event['event_id']}",
-        "type": event["event_type"], "source": event.get("source"), "payload": dumps(event["payload"])})}}
-
-
-def _update(pk: str, sk: str, expr: str, names: dict | None = None, **values) -> dict:
-    u = {"TableName": REGISTRY, "Key": key(pk, sk), "UpdateExpression": expr}
-    if values:
-        u["ExpressionAttributeValues"] = vals(**values)
-    if names:
-        u["ExpressionAttributeNames"] = names
-    return {"Update": u}
-
-
 def _transact(ddb, items: list[dict]) -> None:
-    """Primer item siempre es fp-inbox: si su condicion falla, el evento ya se aplico."""
+    """items[0] es siempre el claim de fp-inbox: si su condicion falla, el evento ya se aplico."""
     try:
         ddb.transact_write_items(TransactItems=items)
     except ClientError as exc:
-        if exc.response["Error"]["Code"] == "TransactionCanceledException":
-            reasons = exc.response.get("CancellationReasons") or []
-            if reasons and reasons[0].get("Code") == "ConditionalCheckFailed":
-                raise Duplicate() from exc
+        reasons = exc.response.get("CancellationReasons") or []
+        if exc.response["Error"]["Code"] == "TransactionCanceledException" and reasons \
+                and reasons[0].get("Code") == "ConditionalCheckFailed":
+            raise Duplicate() from exc
         raise
 
 
-def _already(ddb, event_id: str) -> bool:
-    return "Item" in ddb.get_item(TableName=INBOX, Key={"message_id": {"S": event_id}})
+def already_applied(ddb, event_id: str) -> bool:
+    return "Item" in ddb.get_item(TableName=INBOX, Key={"message_id": {"S": inbox_id(event_id)}})
 
 
-def _incident(ddb, inc: str) -> dict:
-    return store.get(ddb, f"INCIDENT#{inc}", "META") or {}
+# ---------- reserva ----------
 
-
-# ---------- incidentes ----------
-
-def on_opened(ddb, e: dict) -> list[dict]:
-    p, inc, mid = e["payload"], e["incident_id"], e["machine_id"]
-    return [
-        _update(f"INCIDENT#{inc}", "META",
-                "SET machine_id = :mid, zone_id = :zone, group_id = :grp, severity = :sev, score = :score, "
-                "failure_mode = :mode, opened_at = :opened, recurrence_flag = :rec, lat = :lat, lon = :lon, "
-                "#st = if_not_exists(#st, :open), GSI1PK = :g1, GSI1SK = :opened, GSI2PK = :g2, GSI2SK = :g2sk",
-                names={"#st": "status"},
-                mid=mid, zone=p["zone_id"], grp=p.get("group_id") or "-", sev=p["severity"], score=p["score"],
-                mode=p["failure_mode"], opened=p["opened_at"], rec=bool(p["recurrence_flag"]),
-                lat=p["lat"], lon=p["lon"], open="open", g1="INCIDENTS", g2=f"MACHINE#{mid}",
-                g2sk=f"INC#{p['opened_at']}"),
-        _update(f"MACHINE#{mid}", "META", "SET severity = :sev, score = :score, open_incident_id = :inc",
-                sev=p["severity"], score=p["score"], inc=inc),
-    ]
-
-
-# Si un evento posterior llega antes que incident.opened (SQS estandar no ordena)
-ENSURE = ("machine_id = if_not_exists(machine_id, :mid), opened_at = if_not_exists(opened_at, :ts), "
-          "GSI1PK = if_not_exists(GSI1PK, :g1), GSI1SK = if_not_exists(GSI1SK, :ts), "
-          "GSI2PK = if_not_exists(GSI2PK, :g2), GSI2SK = if_not_exists(GSI2SK, :g2sk)")
-
-
-def _ensure_vals(mid: str, ts: str) -> dict:
-    return {"mid": mid, "ts": ts, "g1": "INCIDENTS", "g2": f"MACHINE#{mid}", "g2sk": f"INC#{ts}"}
-
-
-def on_escalated(ddb, e: dict) -> list[dict]:
-    p, inc, mid = e["payload"], e["incident_id"], e["machine_id"]
-    machine = store.get(ddb, f"MACHINE#{mid}", "META") or {}
-    items = [_update(f"INCIDENT#{inc}", "META", "SET severity = :sev, score = :score, " + ENSURE,
-                     sev=p["to_severity"], score=p["score"], **_ensure_vals(mid, e["occurred_at"]))]
-    if machine.get("open_incident_id") == inc:
-        items.append(_update(f"MACHINE#{mid}", "META", "SET severity = :sev, score = :score",
-                             sev=p["to_severity"], score=p["score"]))
-    return items
-
-
-def on_assigned(ddb, e: dict) -> list[dict]:
-    p, inc, mid = e["payload"], e["incident_id"], e["machine_id"]
-    closed = _incident(ddb, inc).get("status") == "closed"
-    expl = p["explanation"]
-    items = [_update(
-        f"INCIDENT#{inc}", "META",
-        "SET tech_id = :tech, assigned_at = :at, approval = :appr, explanation = :ex, explanation_src = :src, "
-        "#st = :st, " + ENSURE, names={"#st": "status"},
-        tech=p["tech_id"], at=p["assigned_at"], appr=p["approval"], ex=expl["summary"][:1000],
-        src=expl["source"], st="closed" if closed else "assigned", **_ensure_vals(mid, e["occurred_at"]))]
-    if not closed:
-        items.append(_update(f"TECH#{p['tech_id']}", "META", "SET available = :n, current_incident = :inc",
-                             n=False, inc=inc))
-    return items
-
-
-def on_closed(ddb, e: dict) -> list[dict]:
-    p, inc, mid = e["payload"], e["incident_id"], e["machine_id"]
-    current = _incident(ddb, inc)
-    machine = store.get(ddb, f"MACHINE#{mid}", "META") or {}
-    rsv = store.query_all(ddb, TableName=REGISTRY, KeyConditionExpression="PK = :pk AND begins_with(SK, :r)",
-                          ExpressionAttributeValues=vals(pk=f"INCIDENT#{inc}", r="RSV#"))
-    reserved = [r for r in rsv if r.get("status") == "reserved"]
-    items = [_update(
-        f"INCIDENT#{inc}", "META",
-        "SET #st = :closed, closed_at = :at, downtime_h = :dt, cause_summary = :cause, parts_used = :parts, "
-        + ENSURE, names={"#st": "status"},
-        closed="closed", at=p["closed_at"], dt=p["downtime_h"], cause=(p.get("cause_summary") or "-")[:1000],
-        parts=p["parts_used"], **_ensure_vals(mid, e["occurred_at"]))]
-    if current.get("tech_id"):
-        items.append(_update(f"TECH#{current['tech_id']}", "META", "SET available = :y REMOVE current_incident",
-                             y=True))
-    if machine.get("open_incident_id") in (inc, None):
-        items.append(_update(f"MACHINE#{mid}", "META", "SET severity = :ok, score = :z REMOVE open_incident_id",
-                             ok="ok", z=0))
-    # Una transaccion no puede tocar dos veces el mismo item: se agrupa por (repuesto, zona)
-    used: dict[tuple[str, str], int] = {}
-    for line in p["parts_used"]:
-        k = (line["part_id"], line["zone_id"])
-        used[k] = used.get(k, 0) + int(line["qty"])
-    held: dict[tuple[str, str], int] = {}
-    for r in reserved:
-        k = (r["part_id"], r["zone_id"])
-        held[k] = held.get(k, 0) + int(r["qty"])
-        status = "consumed" if k in used else "released"  # lo reservado que no se uso vuelve al stock libre
-        items.append(_update(r["PK"], r["SK"], "SET #st = :s", names={"#st": "status"}, s=status))
-    for k in sorted(set(used) | set(held)):
-        part, zone = k
-        q, h = used.get(k, 0), held.get(k, 0)
-        items.append(_update("STOCK", f"{part}#{zone}",
-                             "SET on_hand = on_hand - :q, reserved = reserved - :h, available = available + :d",
-                             q=q, h=h, d=h - q))
-        if q:
-            items.append({"Put": {"TableName": REGISTRY, "Item": ser({
-                "PK": f"MOVE#{part}#{zone}", "SK": f"{p['closed_at']}#{inc}", "qty": q, "kind": "consumption",
-                "incident_id": inc})}})
-    return items
-
-
-# ---------- repuestos ----------
-
-def _zones_by_distance(origin: str) -> list[str]:
+def zones_by_distance(origin: str) -> list[str]:
     o = ZONE_COORDS.get(origin, ZONE_COORDS["CENTRO"])
     return sorted(ZONE_COORDS, key=lambda z: (z != origin, (ZONE_COORDS[z][0] - o[0]) ** 2
                                               + (ZONE_COORDS[z][1] - o[1]) ** 2))
@@ -173,30 +78,28 @@ def _zones_by_distance(origin: str) -> list[str]:
 
 def reserve(ddb, e: dict) -> dict:
     p, inc = e["payload"], e["incident_id"]
+    existing = store.query_all(ddb, TableName=REGISTRY, KeyConditionExpression="PK = :pk",
+                               ExpressionAttributeValues=vals(pk=f"RSV#{inc}"))
     reserved, missing = [], []
     for idx, line in enumerate(p["lines"]):
         part, qty = line["part_id"], int(line["qty"])
-        rsv_sk = f"RSV#{e['event_id']}#{idx}"
-        prior = store.get(ddb, f"INCIDENT#{inc}", rsv_sk)
+        rid = f"{e['event_id']}#{idx}"
+        prior = next((r for r in existing if r.get("reservation_id") == rid), None)
         if prior:  # reintento: esta linea ya se reservo
-            reserved.append({"reservation_id": f"{e['event_id']}#{idx}", "part_id": part,
-                             "zone_id": prior["zone_id"], "qty": qty})
+            reserved.append({"reservation_id": rid, "part_id": part, "zone_id": prior["zone_id"], "qty": qty})
             continue
         done = False
-        for zone in _zones_by_distance(p["zone_id"]):
+        for zone in zones_by_distance(p["zone_id"]):
             try:
                 ddb.transact_write_items(TransactItems=[
-                    {"Update": {"TableName": REGISTRY, "Key": key("STOCK", f"{part}#{zone}"),
-                                "UpdateExpression": "SET reserved = reserved + :q, available = available - :q",
-                                # DynamoDB no admite aritmetica en condiciones: available = on_hand - reserved
-                                "ConditionExpression": "attribute_exists(PK) AND available >= :q",
-                                "ExpressionAttributeValues": vals(q=qty)}},
+                    _stock_update(part, zone, "SET reserved = reserved + :q, available = available - :q",
+                                  "attribute_exists(PK) AND available >= :q", q=qty),
                     {"Put": {"TableName": REGISTRY, "ConditionExpression": "attribute_not_exists(PK)",
-                             "Item": ser({"PK": f"INCIDENT#{inc}", "SK": rsv_sk, "part_id": part, "zone_id": zone,
-                                          "qty": qty, "status": "reserved", "created_at": e["occurred_at"]})}},
+                             "Item": ser({"PK": f"RSV#{inc}", "SK": f"{part}#{zone}", "reservation_id": rid,
+                                          "incident_id": inc, "part_id": part, "zone_id": zone, "qty": qty,
+                                          "status": "reserved", "created_at": e["occurred_at"]})}},
                 ])
-                reserved.append({"reservation_id": f"{e['event_id']}#{idx}", "part_id": part, "zone_id": zone,
-                                 "qty": qty})
+                reserved.append({"reservation_id": rid, "part_id": part, "zone_id": zone, "qty": qty})
                 done = True
                 break
             except ClientError as exc:
@@ -204,56 +107,86 @@ def reserve(ddb, e: dict) -> dict:
                     raise
         if not done:
             missing.append({"part_id": part, "qty": qty})
-            stock = store.get(ddb, "STOCK", f"{part}#{p['zone_id']}") or {}
+            stock = store.get(ddb, f"STOCK#{part}#{p['zone_id']}", "META") or {}
             ddb.put_item(TableName=REGISTRY, Item=ser({
-                "PK": "REORDER", "SK": f"{e['occurred_at']}#{part}#{p['zone_id']}", "part_id": part,
+                "PK": f"REORDER#{part}#{p['zone_id']}", "SK": e["occurred_at"], "part_id": part,
                 "zone_id": p["zone_id"], "qty": qty + int(stock.get("reorder_point", 0)), "source": "shortage",
-                "incident_id": inc, "created_at": e["occurred_at"]}))
+                "incident_id": inc, "created_at": e["occurred_at"],
+                "GSI1PK": "REORDERS", "GSI1SK": f"{e['occurred_at']}#{part}#{p['zone_id']}"}))
     return {"reserved": reserved, "missing": missing, "reorder_suggested": bool(missing)}
 
 
-def kpis(ddb, e: dict) -> None:
-    day = e["payload"]["day"]
-    for row in e["payload"]["machines"]:
-        ddb.put_item(TableName=REGISTRY, Item=ser({"PK": f"KPI#{day}", "SK": row["machine_id"], **row}))
+def follow_up_events(e: dict, reservation: dict) -> list[dict]:
+    """part.reserved / part.shortage (contracts/part.schema.json)."""
+    base = {"schema_version": 1, "source": "aws.registry", "aggregate_type": "part_reservation",
+            "aggregate_id": e["aggregate_id"], "occurred_at": clock.iso(clock.now()),
+            "incident_id": e["incident_id"], "machine_id": e["machine_id"]}
+    out = []
+    if reservation["reserved"]:
+        out.append({"event_id": str(uuid.uuid4()), "event_type": "part.reserved", **base,
+                    "payload": {"reservations": reservation["reserved"]}})
+    if reservation["missing"]:
+        out.append({"event_id": str(uuid.uuid4()), "event_type": "part.shortage", **base,
+                    "payload": {"missing": reservation["missing"],
+                                "reorder_suggested": reservation["reorder_suggested"]}})
+    return out
+
+
+# ---------- cierre ----------
+
+def consume_items(ddb, e: dict) -> list[dict]:
+    """Una transaccion no puede tocar dos veces el mismo item: se agrupa por (repuesto, zona)."""
+    p, inc = e["payload"], e["incident_id"]
+    rsv = store.query_all(ddb, TableName=REGISTRY, KeyConditionExpression="PK = :pk",
+                          ExpressionAttributeValues=vals(pk=f"RSV#{inc}"))
+    reserved = [r for r in rsv if r.get("status") == "reserved"]
+    used: dict[tuple[str, str], int] = {}
+    for line in p.get("parts_used") or []:
+        k = (line["part_id"], line["zone_id"])
+        used[k] = used.get(k, 0) + int(line["qty"])
+    held: dict[tuple[str, str], int] = {}
+    items = []
+    for r in reserved:
+        k = (r["part_id"], r["zone_id"])
+        held[k] = held.get(k, 0) + int(r["qty"])
+        status = "consumed" if k in used else "released"  # lo reservado que no se uso vuelve al stock libre
+        items.append({"Update": {"TableName": REGISTRY, "Key": key(r["PK"], r["SK"]),
+                                 "UpdateExpression": "SET #st = :s", "ExpressionAttributeNames": {"#st": "status"},
+                                 "ExpressionAttributeValues": vals(s=status)}})
+    for part, zone in sorted(set(used) | set(held)):
+        q, h = used.get((part, zone), 0), held.get((part, zone), 0)
+        items.append(_stock_update(part, zone,
+                                   "SET on_hand = on_hand - :q, reserved = reserved - :h, available = available + :d",
+                                   q=q, h=h, d=h - q))
+        if q:
+            items.append({"Put": {"TableName": REGISTRY, "Item": ser({
+                "PK": f"MOVE#{part}#{zone}", "SK": f"{p['closed_at']}#{inc}", "qty": q, "kind": "consumption",
+                "incident_id": inc})}})
+    return items
 
 
 # ---------- entrada ----------
 
-HANDLERS = {"incident.opened": on_opened, "incident.escalated": on_escalated,
-            "incident.assigned": on_assigned, "incident.closed": on_closed}
-
-
 def apply(ddb, event: dict) -> dict:
     etype = event["event_type"]
-    if _already(ddb, event["event_id"]):
-        return {"status": "duplicate", "reservation": None}
-    reservation = None
-    items = [_inbox_put(event)]
-    if etype.startswith(("incident.", "part.")):
-        items.append(_timeline_put(event))
-    if etype in HANDLERS:
-        items += HANDLERS[etype](ddb, event)
-    elif etype == "part.reserve.requested":
-        reservation = reserve(ddb, event)  # idempotente por linea; el inbox se marca al final
+    if etype not in HANDLED:
+        return {"status": "ignored", "follow_up": []}
+    if already_applied(ddb, event["event_id"]):
+        return {"status": "duplicate", "follow_up": []}
+    items, follow = [_inbox_put(event)], []
+    if etype == "part.reserve.requested":
+        reservation = reserve(ddb, event)  # idempotente por linea (reservation_id = <event_id>#<linea>)
+        follow = follow_up_events(event, reservation)
+        for f in follow:
+            items += [outbox.transact_items(f, table=OUTBOX), _ev_put(f)]
+    elif etype == "incident.closed":
+        items += consume_items(ddb, event)
     elif etype == "kpi.daily":
-        kpis(ddb, event)  # PutItem por clave: idempotente
-    elif etype not in ("part.reserved", "part.shortage"):
-        status = "ignored"  # maintenance.order.suggested, fuel.anomaly: incremento T18
-        try:
-            _transact(ddb, items)
-        except Duplicate:
-            return {"status": "duplicate", "reservation": None}
-        return {"status": status, "reservation": None}
+        day = event["payload"]["day"]
+        for row in event["payload"]["machines"]:  # PutItem por clave: idempotente
+            ddb.put_item(TableName=REGISTRY, Item=ser({"PK": f"KPI#{day}", "SK": row["machine_id"], **row}))
     try:
         _transact(ddb, items)
     except Duplicate:
-        return {"status": "duplicate", "reservation": reservation}
-    return {"status": "applied", "reservation": reservation}
-
-
-def parse_body(raw: str) -> dict:
-    body = json.loads(raw)
-    if isinstance(body, dict) and body.get("Type") == "Notification" and "Message" in body:
-        body = json.loads(body["Message"])
-    return body
+        return {"status": "duplicate", "follow_up": []}
+    return {"status": "applied", "follow_up": [f["event_type"] for f in follow]}

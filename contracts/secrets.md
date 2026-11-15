@@ -33,33 +33,33 @@ Caché de 5 minutos en cada Lambda.
 | `GET /approvals/{token}` y `POST /approvals/{token}` | task token de un solo uso | correo de aprobación | — |
 | `POST /incidents/{incident_id}/close` | `x-api-key` (console-key) | consola (botón Cerrar, vía BFF) | body `{"closed_by": "TEC-01", "parts_used": [...], "cause_summary": "..."}` → emite `incident.closed` |
 
-## AWS: `fp-registry` (Alex, `aws/registry/`)
+## AWS: `fp-registry`
 
-On-demand, PITR y stream. Lo llena la Lambda `registry` desde `registry-q` (todos los eventos de dominio) y el seed `scripts/seed-registry.py`.
+Modelo fijado en `docs/superpowers/plans/2026-11-14-aws-core-pipeline.md` ("Data model locked here"). La tabla la crea `fp-core`.
 
-| Entidad | PK | SK | Atributos | GSI1 (PK / SK) |
-|---|---|---|---|---|
-| Máquina | `MACHINE#<id>` | `META` | model, serial, zone_id, commissioned_at, severity (ok/observe/schedule/immediate), open_incident_id | `MACHINES` / `<zone_id>#<id>` |
-| Incidente | `INCIDENT#<id>` | `META` | machine_id, zone_id, group_id, severity, status (open/assigned/closed), score, failure_mode, opened_at, assigned_at, closed_at, downtime_h, tech_id, approval, explanation, explanation_src, cause_summary, recurrence_flag | `INCIDENTS` / `<opened_at>` |
-| Evento del incidente | `INCIDENT#<id>` | `EVT#<occurred_at>#<event_id>` | type, source, payload (JSON) | — |
-| Reserva | `INCIDENT#<id>` | `RSV#<event_id>#<línea>` | part_id, zone_id, qty, status (reserved/consumed/released) | — |
-| Historial por máquina | — | — | (consulta `GSI2`) | GSI2: `MACHINE#<id>` / `INC#<opened_at>` en el ítem del incidente |
-| Stock | `STOCK` | `<part_id>#<zone_id>` | on_hand, reserved, available (= on_hand - reserved), reorder_point; reserva = `SET reserved += q, available -= q` con condición `available >= :qty` (DynamoDB no admite aritmética en condiciones) | — |
-| Repuesto / técnico / zona | `PART#<id>` / `TECH#<id>` / `ZONE#<id>` | `META` | catálogo de `ids.yaml`; técnico con available | — |
-| BOM | `BOM#<model_id>` | `<failure_mode>#<part_id>` | qty, replace_every_h | — |
-| Movimiento | `MOVE#<part_id>#<zone_id>` | `<ts>#<incident_id>` | qty, kind (consumption/restock) | — |
-| Pedido sugerido | `REORDER` | `<created_at>#<part_id>#<zone_id>` | qty, source (shortage/forecast), incident_id, forecast_14d | — |
-| KPI diario | `KPI#<day>` | `<machine_id>` | campos de `kpi.daily` | — |
+| Ítem | PK / SK | Lo escribe |
+|---|---|---|
+| Incidente | `INCIDENT#<id>` / `META` (GSI1 `MACHINE#<id>` / `INC#<opened_at>`, GSI2 `STATUS#<open\|closed>` / `<opened_at>`) | `incident-flow` (abre, asigna) y `POST /incidents/{id}/close` |
+| Evento del incidente | `INCIDENT#<id>` / `EV#<occurred_at>#<event_id>` | quien escribe el evento, en la misma transacción que el outbox |
+| Stock | `STOCK#<part_id>#<zone_id>` / `META`: `on_hand, reserved, available (= on_hand - reserved), reorder_point, sku, name` | seed y Lambda `registry` |
+| Reserva | `RSV#<incident_id>` / `<part_id>#<zone_id>`: `reservation_id (<event_id>#<línea>), qty, status (reserved/consumed/released)` | Lambda `registry` |
+| Movimiento | `MOVE#<part_id>#<zone_id>` / `<closed_at>#<incident_id>` | Lambda `registry` |
+| Pedido sugerido | `REORDER#<part_id>#<zone_id>` / `<created_at>` (GSI1 `REORDERS` / `<created_at>#…`) | Lambda `registry` |
+| KPI diario | `KPI#<day>` / `<machine_id>` | Lambda `registry` |
 
-Idempotencia: cada evento se aplica en una `TransactWriteItems` que incluye `fp-inbox` (`message_id = event_id`, condición `attribute_not_exists`). La reserva de cada línea es su propia transacción con la reserva `RSV#<event_id>#<línea>` como condición, así que un reintento no reserva dos veces. Con el resultado, `registry` escribe `part.reserved` y/o `part.shortage` (`source: aws.registry`) en `fp-outbox`.
+Lambda `registry` (cola `registry-q`, filtrada a `part.reserve.requested`, `incident.closed` y `kpi.daily`):
+- Reserva cada línea con `SET reserved += q, available -= q` y condición `available >= :q` (DynamoDB no admite aritmética en condiciones), probando primero la zona del incidente y luego la más cercana. Si no hay stock, escribe un `REORDER` y emite `part.shortage`.
+- Escribe `part.reserved` / `part.shortage` (`source: aws.registry`) en `fp-outbox` junto con su `EV#`, en la misma transacción.
+- Con `incident.closed` consume lo reservado, descuenta lo usado (`parts_used`) y libera lo que sobró.
+- Idempotencia: `fp-inbox` con `message_id = registry:<event_id>`, en la misma transacción.
 
 ## AWS: API de lectura para la consola (`registry`, HTTP API propia, header `x-api-key` = console-key)
 
 | Ruta | Respuesta |
 |---|---|
-| `GET /machines` | `{"machines": [{"machine_id", "model", "zone_id", "lat", "lon", "status", "severity", "score", "hours_total", "fuel_remaining_ratio", "open_incident_id", "updated_at"}]}` (posición y estado de `fp-state`, severidad de `fp-registry`) |
+| `GET /machines` | `{"machines": [{"machine_id", "model", "zone_id", "lat", "lon", "status" (motor, si ingest guarda `engine_status`), "severity" (= `status` de `fp-state`), "score", "hours_total", "fuel_remaining_ratio", "open_incident_id", "updated_at"}]}` |
 | `GET /machines/{id}` | máquina + `incidents` (historial con `recurrence_flag`, repuestos usados) |
-| `GET /incidents?status=open\|assigned\|closed&limit=50` | `{"incidents": [...]}` más recientes primero |
+| `GET /incidents?status=open\|assigned\|closed&limit=50` (assigned = open con técnico) | `{"incidents": [...]}` más recientes primero |
 | `GET /incidents/{id}` | incidente + `timeline` + `reservations` |
 | `GET /stock` | `{"stock": [{"part_id", "sku", "name", "zone_id", "on_hand", "reserved", "available", "reorder_point", "below_reorder"}]}` |
 | `GET /reorders` | `{"reorders": [...]}` (T19) |

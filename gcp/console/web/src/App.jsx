@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MapView from "./MapView.jsx";
 import { IncidentPanel, IncidentRow, MachinePanel, StockView, Sev } from "./Panels.jsx";
-import { api, SEVERITY, STATUS_LABEL, MODE_LABEL, fmtTime } from "./api.js";
+import { api, SEVERITY, statusOf, MODE_LABEL, fmtTime } from "./api.js";
 
 const REFRESH_MS = 15000;
 
@@ -106,7 +106,7 @@ export default function App() {
                     <td><b>{i.machine_id}</b></td>
                     <td>{MODE_LABEL[i.failure_mode] || i.failure_mode}</td>
                     <td><Sev s={i.severity} /></td>
-                    <td>{STATUS_LABEL[i.status]}</td>
+                    <td>{statusOf(i)}</td>
                     <td>{i.tech_id || "—"}</td>
                     <td>{fmtTime(i.opened_at)}</td>
                     <td>{i.downtime_h != null ? `${i.downtime_h} h` : "—"}</td>

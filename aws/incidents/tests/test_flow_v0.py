@@ -122,6 +122,11 @@ def _ranked(ev, ddb):
     return {**ev, "ranking": rank_technicians.handler(ev, state=ddb.state)}
 
 
+def _assigned(ev, ddb):
+    ev = _ranked(ev, ddb)
+    return {**ev, "assignment": _assign(ev, ddb)}
+
+
 def test_classify_schedule_needs_approval(ex017):
     assert classify.handler(ex017) == {"severity": "schedule", "needs_approval": True}
     assert classify.handler({**ex017, "score": 3.62}) == {"severity": "immediate", "needs_approval": False}
@@ -173,8 +178,10 @@ def test_create_incident_derives_deviated_vars_from_z_when_empty(ex017, ddb, cap
     assert out["incident_id"] == INC and out["deviated_vars"] == derived
     (env,) = _events(ddb.outbox, "incident.opened")
     assert env["payload"]["deviated_vars"] == derived
-    msgs = render_messages.handler({**ev, "incident": out, "ranking": {"top": []}})
+    assignment = {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto", "tech_busy": False}
+    msgs = render_messages.handler({**ev, "incident": out, "ranking": {"top": []}, "assignment": assignment})
     assert "hydraulic_pressure_bar" in msgs["technician"] and "sin variables desviadas" not in msgs["supervisor"]
+    assert "TEC-01" in msgs["supervisor"]  # fuera del ranking: se nombra por id
     (line,) = [json.loads(r.getMessage()) for r in caplog.records if "deviated_vars_derived" in r.getMessage()]
     assert line["incident_id"] == INC and line["machine_id"] == "EX-017" and line["var"] == "hydraulic_pressure_bar"
 
@@ -294,7 +301,7 @@ def test_assign_rerun_is_noop(ex017, ddb):
 
 def test_messages_are_distinct_per_role(ex017, ddb):
     _seed_tech(ddb.state, "TEC-01", "hydraulics", LAT + 0.4 * KM_LAT, LON)
-    msgs = render_messages.handler(_ranked(ex017, ddb))
+    msgs = render_messages.handler(_assigned(ex017, ddb))
     roles = ("technician", "supervisor", "management", "operator")
     assert set(msgs) == {*roles, "subject"}
     texts = [msgs[r] for r in roles]
@@ -302,7 +309,8 @@ def test_messages_are_distinct_per_role(ex017, ddb):
     assert msgs["subject"] == f"[FleetPulse] schedule EX-017 {INC}" and len(msgs["subject"]) <= 100
     assert "hydraulic_pressure_bar" in msgs["technician"] and "-2.6" in msgs["technician"]
     assert "PRT-04" in msgs["technician"] and "-13.9003" in msgs["technician"]
-    assert "TEC-01" in msgs["supervisor"] and "schedule" in msgs["supervisor"]
+    assert "TEC-01" in msgs["supervisor"] and "schedule" in msgs["supervisor"] and "auto" in msgs["supervisor"]
+    assert "TEC-01" in msgs["technician"] and "ocupado" not in msgs["supervisor"]
     assert "\n" not in msgs["management"] and "\n" not in msgs["operator"]
 
 
@@ -322,10 +330,10 @@ def test_assign_all_busy_keeps_tech_link_and_flags_incident(ex017, ddb):
                current_incident="INC-EX-005-20261115T1400")
     ev = _ranked(ex017, ddb)
     assert ev["ranking"]["top"][0]["tech_id"] == "TEC-01" and ev["ranking"]["top"][0]["score"] == 0
-    msgs = render_messages.handler(ev)
-    assert "ocupado" in msgs["supervisor"] and "ocupado" in msgs["technician"]
     out = _assign(ev, ddb)
     assert out == {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto", "tech_busy": True}
+    msgs = render_messages.handler({**ev, "assignment": out})
+    assert "ocupado" in msgs["supervisor"] and "ocupado" in msgs["technician"]
     tech = _tech(ddb.state, "TEC-01")
     assert tech["available"] is False and tech["current_incident"] == other  # no se pisa el enlace previo
     meta = _meta(ddb.registry, INC)
@@ -350,14 +358,17 @@ def test_second_incident_claims_next_available_tech(ex017, ddb):
     assert _meta(ddb.registry, inc_b)["tech_id"] == "TEC-02"
     (env,) = [e for e in _events(ddb.outbox, "incident.assigned") if e["incident_id"] == inc_b]
     assert env["payload"]["tech_id"] == "TEC-02" and env["payload"]["distance_km"] == pytest.approx(1.5, abs=0.01)
+    msgs = render_messages.handler({**second, "assignment": out})  # nombra al asignado, no al primero del ranking
+    assert "TEC-02" in msgs["supervisor"] and "TEC-01" not in msgs["supervisor"] and "TEC-02" in msgs["technician"]
+    assert "1.5 km" in msgs["supervisor"] and "ocupado" not in msgs["supervisor"]
 
 
 def test_render_uses_approve_url_when_present(ex017, ddb):
     url = "https://api.example/approvals/tok?tech=TEC-01"
-    msgs = render_messages.handler({**_ranked(ex017, ddb), "approve_url": url})
+    msgs = render_messages.handler({**_assigned(ex017, ddb), "approve_url": url})
     assert url in msgs["supervisor"]
-    assert url not in render_messages.handler(_ranked({**ex017, "incident_id": "INC-EX-017-20261115T1445"},
-                                                      ddb))["supervisor"]
+    assert url not in render_messages.handler(_assigned({**ex017, "incident_id": "INC-EX-017-20261115T1445"},
+                                                        ddb))["supervisor"]
 
 
 def test_assign_with_ids_yaml_fallback_creates_no_tech_item(ex017, ddb):

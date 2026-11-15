@@ -33,6 +33,11 @@ def _part_names() -> dict[str, str]:
     return {p["part_id"]: p["name"] for p in ids.load()["parts"]}
 
 
+def _tech(entry: dict) -> str:
+    who = entry["tech_id"] if entry.get("name") in (None, entry["tech_id"]) else f"{entry['tech_id']} {entry['name']}"
+    return who if entry.get("distance_km") is None else f"{who} ({entry['distance_km']:.1f} km)"
+
+
 def _var(d: dict) -> str:
     return f"{d['var']} {'alta' if d['z'] > 0 else 'baja'} (z {d['z']:+.1f})"
 
@@ -52,32 +57,34 @@ def explanation(deviated_vars: list[dict], failure_mode: str, machine_id: str) -
 
 def messages(incident: dict, explanation: dict, ranking_top: dict | None, approve_url: str | None) -> dict:
     """`incident`: incident_id, machine_id, severity, score, failure_mode, zone_id, lat, lon, deviated_vars,
-    group_id, recurrence_flag, tech_busy (el tecnico propuesto esta ocupado con otro incidente). Devuelve los cuatro
+    group_id, recurrence_flag, approval y tech_busy (el tecnico asignado esta ocupado con otro incidente).
+    `ranking_top`: entrada del ranking del tecnico asignado (`distance_km` puede ser None). Devuelve los cuatro
     textos y el asunto comun."""
     mid, sev, mode = incident["machine_id"], incident["severity"], incident["failure_mode"]
     names = _part_names()
     parts = ", ".join(f"{p} {names.get(p, '')}".strip() for p in explanation.get("suggested_parts") or []) or "ninguno"
     variables = "\n".join(f"- {d['var']} = {d['value']:g} (z {d['z']:+.1f})" for d in incident["deviated_vars"])
     where = f"zona {incident['zone_id']}, lat {incident['lat']}, lon {incident['lon']}"
-    tech = (f"{ranking_top['tech_id']} {ranking_top['name']} ({ranking_top['distance_km']:.1f} km)"
-            if ranking_top else "sin tecnico disponible")
+    tech = _tech(ranking_top) if ranking_top else "sin tecnico disponible"
     group = incident.get("group_id")
-    busy = ("Aviso: el tecnico propuesto esta ocupado con otro incidente y no hay otro libre; "
+    busy = ("Aviso: el tecnico asignado esta ocupado con otro incidente y no habia otro libre; "
             "coordinar la prioridad con el supervisor.") if incident.get("tech_busy") and ranking_top else None
     technician = (
         f"Incidente {incident['incident_id']}: {mid}, severidad {sev}, puntaje {incident['score']:.2f}.\n"
         f"Falla probable: {mode} ({explanation.get('probable_component', mode)}).\n"
         f"Variables desviadas:\n{variables}\n"
         f"Ubicacion: {where}.\n"
-        f"Repuestos sugeridos: {parts}."
+        f"Repuestos sugeridos: {parts}.\n"
+        f"Asignado a: {tech}."
         + (f"\n{busy}" if busy else "")
     )
     supervisor_lines = [
         f"{mid} ({incident['zone_id']}) requiere atencion: severidad {sev}, puntaje {incident['score']:.2f}, "
         f"falla probable {mode}.",
         f"Diagnostico: {explanation['summary']}",
-        f"Tecnico propuesto: {tech}" + (" (ocupado con otro incidente: no hay tecnicos libres, reasignar o "
-                                         "priorizar)." if busy else "."),
+        f"Tecnico asignado: {tech}"
+        + (f", aprobacion {incident['approval']}" if incident.get("approval") else "")
+        + (" (ocupado con otro incidente: no hay tecnicos libres, reasignar o priorizar)." if busy else "."),
     ]
     if incident.get("recurrence_flag"):
         supervisor_lines.append("Recurrente: misma falla cerrada en los ultimos 7 dias.")

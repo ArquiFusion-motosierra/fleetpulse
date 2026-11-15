@@ -8,7 +8,7 @@ que el incidente aun no tenga tecnico + EV# + fp-outbox + reserva de `TECH#<id>`
 current_incident) condicionada a que siga libre. Si otra ejecucion tomo al tecnico despues del ranking, se cancela
 todo y se prueba el siguiente. Un tecnico sin item en fp-state (respaldo de ids.yaml) se asigna sin reserva.
 Si nadie esta libre se asigna el primero de la lista sin tocar su `TECH#` (no se pisa su incidente actual), con
-`tech_busy=true` en el META y el log `tecnico_ocupado`; los mensajes ya lo avisan (ranking con score 0).
+`tech_busy=true` en el META y el log `tecnico_ocupado`; RenderMessages (que corre despues) lo avisa.
 Idempotencia: un reintento choca con la condicion del META y devuelve la asignacion guardada sin emitir otro evento.
 """
 from __future__ import annotations

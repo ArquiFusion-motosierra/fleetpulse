@@ -9,8 +9,8 @@ la zona cuyo centroide queda mas cerca.
 una. Entonces se deriva una sola entrada del mapa `z` de la entrada: la variable con mayor |z| dominante (la de
 mayor modulo entre self y peer, igual que en aws/scoring). La entrada no trae medias, asi que `value` lleva la misma
 z dominante como marcador y se registra `deviated_vars_derived`. La lista final va en el META y en
-`$.incident.deviated_vars`, que es la que usan RenderMessages y AssignTechnician. Sin `z` utilizable se registra y se lanza
-ValueError, para que la alerta de fp-alerts diga por que.
+`$.incident.deviated_vars`, que es la que usan AssignTechnician y RenderMessages. Sin `z` utilizable se registra
+y se lanza ValueError, para que la alerta de fp-alerts diga por que.
 """
 from __future__ import annotations
 

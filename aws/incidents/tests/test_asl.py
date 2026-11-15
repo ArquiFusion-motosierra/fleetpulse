@@ -50,7 +50,8 @@ def test_starts_at_classify_and_v0_order():
     while "Next" in s[name]:
         chain.append(name)
         name = s[name]["Next"]
-    assert chain == ["CreateIncident", "RankTechnicians", "RenderMessages", "AssignTechnician", "NotifyByRole"]
+    # los textos nombran al tecnico realmente asignado; T14 inserta NeedsApproval entre Rank y Assign
+    assert chain == ["CreateIncident", "RankTechnicians", "AssignTechnician", "RenderMessages", "NotifyByRole"]
     assert s[name]["Type"] == "Succeed"
     paths = {n: s[n]["ResultPath"] for n in ("ClassifySeverity", "CheckExistingIncident", "CreateIncident",
                                               "RankTechnicians", "RenderMessages", "AssignTechnician")}

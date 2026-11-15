@@ -1,5 +1,5 @@
 {
-  "Comment": "incident-flow v0 (T09): clasifica, crea el incidente, rankea, asigna y notifica por rol. T14 agrega CorrelateZone, ExplainCause, NeedsApproval/WaitForApproval y ReserveParts.",
+  "Comment": "incident-flow v0 (T09): clasifica, crea el incidente, rankea, asigna, arma los textos con el tecnico asignado y notifica por rol. T14 agrega CorrelateZone, ExplainCause, NeedsApproval/WaitForApproval (entre RankTechnicians y AssignTechnician) y ReserveParts.",
   "StartAt": "ClassifySeverity",
   "States": {
     "ClassifySeverity": {
@@ -110,12 +110,12 @@
           "Next": "PublishAlert"
         }
       ],
-      "Next": "RenderMessages"
+      "Next": "AssignTechnician"
     },
-    "RenderMessages": {
+    "AssignTechnician": {
       "Type": "Task",
-      "Resource": "${RenderMessagesArn}",
-      "ResultPath": "$.messages",
+      "Resource": "${AssignTechnicianArn}",
+      "ResultPath": "$.assignment",
       "Retry": [
         {
           "ErrorEquals": [
@@ -134,12 +134,12 @@
           "Next": "PublishAlert"
         }
       ],
-      "Next": "AssignTechnician"
+      "Next": "RenderMessages"
     },
-    "AssignTechnician": {
+    "RenderMessages": {
       "Type": "Task",
-      "Resource": "${AssignTechnicianArn}",
-      "ResultPath": "$.assignment",
+      "Resource": "${RenderMessagesArn}",
+      "ResultPath": "$.messages",
       "Retry": [
         {
           "ErrorEquals": [

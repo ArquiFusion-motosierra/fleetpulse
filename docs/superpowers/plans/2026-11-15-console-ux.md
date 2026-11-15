@@ -1,6 +1,6 @@
 # Consola: esqueleto nuevo e inicio por rol — plan de implementación
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** que el jurado, entrando solo a la consola, entienda en segundos su rol, su parque y qué hacer, con un Inicio por rol y el parque como protagonista.
 
@@ -54,7 +54,7 @@ de tarjetas, sin reescribir `Supply.jsx`.
   - `lowStock(stock) -> Row[]` — filas con `below_reorder === true`
   - `machinesWithAlert(machines, n = 5) -> Machine[]` — severidad ≠ `ok`, por `SEV_RANK` desc, máx. `n`
 
-- [ ] **Step 1: Write the failing tests** en `test/derive.test.js` (`import { test } from "node:test"; import assert from "node:assert/strict";`):
+- [x] **Step 1: Write the failing tests** en `test/derive.test.js` (`import { test } from "node:test"; import assert from "node:assert/strict";`):
 
 ```js
 test("parkSummary cuenta por parque y lleva a mineria lo que no tiene tenant", () => {
@@ -93,10 +93,10 @@ test("countBySeverity, lowStock y machinesWithAlert", () => {
 });
 ```
 
-- [ ] **Step 2:** `cd gcp/console/web && npm test` → FAIL (`Cannot find module '../src/derive.js'`).
-- [ ] **Step 3:** Implementar `derive.js` con las firmas de arriba (sin importar React ni `api.js`, para que corra en Node).
-- [ ] **Step 4:** `npm test` → 4 pass; `npm run build` → `✓ built`.
-- [ ] **Step 5:** Agregar el script `test` y el job `console-web` en `ci.yml`; commit `feat(console): logica de inicio por rol en funciones puras con tests (node --test) y job de CI`.
+- [x] **Step 2:** `cd gcp/console/web && npm test` → FAIL (`Cannot find module '../src/derive.js'`).
+- [x] **Step 3:** Implementar `derive.js` con las firmas de arriba (sin importar React ni `api.js`, para que corra en Node).
+- [x] **Step 4:** `npm test` → 4 pass; `npm run build` → `✓ built`.
+- [x] **Step 5:** Agregar el script `test` y el job `console-web` en `ci.yml`; commit `feat(console): logica de inicio por rol en funciones puras con tests (node --test) y job de CI`.
 
 ### Task 2: Base visual — tokens, tarjetas y color de parque
 
@@ -111,9 +111,9 @@ test("countBySeverity, lowStock y machinesWithAlert", () => {
   - `ui.jsx`: `Card({ title, action?, children, className? })`, `Kpi({ value, label, color?, onClick? })`, `Empty({ children, action? })` (texto explicativo + botón opcional `{ label, onClick }`), `Skeleton({ lines = 3 })`, `ParkTag({ tenant })` (punto + nombre corto con `TENANT_COLOR`), `Icon({ name, size = 18 })` con `name` ∈ `home, map, alert, report, stock, supply, plan, admin, more, back, logout`
   - CSS: `.card`, `.card-head`, `.kpi`, `.empty`, `.skeleton`, `.park-tag`, `.grid-cards` (auto-fit, min 280 px)
 
-- [ ] **Step 1:** Agregar `TENANT_COLOR`/`TENANT_NAME` y `ui.jsx` con las firmas de arriba; tokens en `:root` según Global Constraints.
-- [ ] **Step 2:** `npm run build` → `✓ built`; `npm test` sigue en verde.
-- [ ] **Step 3:** Commit `feat(console): tokens, tarjetas, iconos y color por parque`.
+- [x] **Step 1:** Agregar `TENANT_COLOR`/`TENANT_NAME` y `ui.jsx` con las firmas de arriba; tokens en `:root` según Global Constraints.
+- [x] **Step 2:** `npm run build` → `✓ built`; `npm test` sigue en verde.
+- [x] **Step 3:** Commit `feat(console): tokens, tarjetas, iconos y color por parque`.
 
 ### Task 3: Esqueleto — barra lateral, cabecera, barra inferior y pestaña Inicio
 
@@ -130,10 +130,10 @@ test("countBySeverity, lowStock y machinesWithAlert", () => {
   - `badges = { incidents: abiertos, myincidents: míos abiertos, reports: needsAttention(...).unreviewedReports.length }`
   - El contenedor raíz lleva `style={{ "--park": TENANT_COLOR[park || parks.tenant_id] || TENANT_COLOR.mineria }}`
 
-- [ ] **Step 1:** Implementar `Shell.jsx`. Bloque de parque: si `parks.global`, selector Todos/Minería/Agro/Industria (llama `onPark`, que hoy es `choosePark`); si no, tarjeta fija con `TENANT_NAME` y franja `--park`. Pie: rol, correo, `tech_id`, botón "Cambiar de rol / Salir" → `logout`.
-- [ ] **Step 2:** En `App.jsx` montar `Sidebar` + `Topbar` (+ `BottomNav` visible solo < 768 px por CSS), pestaña inicial `home` si el hash no es una pestaña válida; los KPIs salen de la cabecera. Mientras no exista Task 4, `home` pinta `<p>Inicio</p>`.
-- [ ] **Step 3:** Verificar con `MOCK=1` (ver "Cómo correr en local" en Task 6): los 7 usuarios mock entran, la pestaña `home` es la primera, `#planning`, `#machine:EX-017` y `#incident:<id>` con el operador abren lo esperado (Review Focus 5); `npm run build` en verde.
-- [ ] **Step 4:** Commit `feat(console): barra lateral con parque, cabecera en vivo y barra inferior en celular`.
+- [x] **Step 1:** Implementar `Shell.jsx`. Bloque de parque: si `parks.global`, selector Todos/Minería/Agro/Industria (llama `onPark`, que hoy es `choosePark`); si no, tarjeta fija con `TENANT_NAME` y franja `--park`. Pie: rol, correo, `tech_id`, botón "Cambiar de rol / Salir" → `logout`.
+- [x] **Step 2:** En `App.jsx` montar `Sidebar` + `Topbar` (+ `BottomNav` visible solo < 768 px por CSS), pestaña inicial `home` si el hash no es una pestaña válida; los KPIs salen de la cabecera. Mientras no exista Task 4, `home` pinta `<p>Inicio</p>`.
+- [x] **Step 3:** Verificar con `MOCK=1` (ver "Cómo correr en local" en Task 6): los 7 usuarios mock entran, la pestaña `home` es la primera, `#planning`, `#machine:EX-017` y `#incident:<id>` con el operador abren lo esperado (Review Focus 5); `npm run build` en verde.
+- [x] **Step 4:** Commit `feat(console): barra lateral con parque, cabecera en vivo y barra inferior en celular`.
 
 ### Task 4: Inicio por rol
 

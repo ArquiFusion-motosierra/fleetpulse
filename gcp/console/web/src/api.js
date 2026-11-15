@@ -70,6 +70,7 @@ export const TENANT_LABEL = { mineria: "Minería", agro: "Agro", industria: "Ind
 // Identidad por parque (nunca rojo: el rojo es de la severidad)
 export const TENANT_COLOR = { mineria: "#f59e0b", agro: "#22c55e", industria: "#3b82f6" };
 export const TENANT_NAME = { mineria: "Parque minero", agro: "Parque agrícola", industria: "Parque industrial" };
+export const TENANT_OPERATION = { mineria: "Operación Cerro Azul", agro: "Fundo Valle Sur", industria: "Planta Lurín" };
 export const MODE_LABEL = {
   hydraulic_pump: "Bomba hidráulica",
   hydraulic_contamination: "Contaminación hidráulica",

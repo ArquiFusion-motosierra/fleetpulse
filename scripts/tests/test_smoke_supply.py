@@ -6,8 +6,8 @@ import sys
 import pytest
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
+CONSOLE = os.path.join(ROOT, "gcp", "console")
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
-sys.path.insert(0, os.path.join(ROOT, "gcp", "console"))
 
 import smoke_supply  # noqa: E402
 
@@ -20,6 +20,10 @@ def console(monkeypatch):
     from fastapi.testclient import TestClient
     monkeypatch.setenv("MOCK", "1")
     monkeypatch.setenv("STATIC_DIR", "/nonexistent")
+    # gcp/insights tambien tiene un paquete `app` y CI corre todo en una sola sesion de pytest: se carga el de la
+    # consola y al final se devuelve el que estaba, para no romper los tests de insights que vengan despues
+    saved = _pop_app()
+    monkeypatch.syspath_prepend(CONSOLE)
     import app.main as main
     importlib.reload(main)
     c = TestClient(main.app)
@@ -27,7 +31,16 @@ def console(monkeypatch):
     def call(method, path, token, body=None):
         r = c.request(method, path, json=body, headers={"authorization": f"Bearer {token}"})
         return r.status_code, r.json()
-    return call
+    yield call
+    _pop_app()
+    sys.modules.update(saved)
+
+
+def _pop_app() -> dict:
+    found = {k: v for k, v in sys.modules.items() if k == "app" or k.startswith("app.")}
+    for k in found:
+        del sys.modules[k]
+    return found
 
 
 def test_full_story_passes_in_mock(console):

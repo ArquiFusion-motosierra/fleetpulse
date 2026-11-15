@@ -1,0 +1,95 @@
+# oci-writer (T10). Se despliega desde aws/serverless-compose.yml:
+#   oci-writer:
+#     path: integrations/oci-writer
+# Crea su cola oci-writer-q + oci-writer-dlq y la suscribe al topic SNS fp-domain-events (de la pila de outbox).
+# Requiere que fp-domain-events exista antes (dependsOn en el compose).
+service: fp-oci-writer
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 30
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+  environment:
+    ORDS_SECRET: fleetpulse/oci/ords
+    ORDS_TIMEOUT_S: "8"
+    OUTBOX_TABLE: fp-outbox
+
+custom:
+  domainTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-domain-events
+
+package:
+  patterns:
+    - "!**"
+    - ociw/**
+    - "!ociw/**/__pycache__/**"
+
+functions:
+  ociWriter:
+    handler: ociw/handler.handler
+    description: Aplica eventos de dominio en OCI por ORDS POST v1/events (idempotente por event_id)
+    reservedConcurrency: 2  # Always Free: 20 sesiones; con 2 basta y no satura la base
+    events:
+      - sqs:
+          arn: !GetAtt OciWriterQueue.Arn
+          batchSize: 10
+          maximumBatchingWindow: 5
+          functionResponseType: ReportBatchItemFailures
+
+resources:
+  Resources:
+    OciWriterDlq:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: oci-writer-dlq
+        MessageRetentionPeriod: 1209600  # 14 dias
+    OciWriterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: oci-writer-q
+        VisibilityTimeout: 60            # >= 2 x timeout de la Lambda
+        MessageRetentionPeriod: 345600   # 4 dias: si OCI se detiene, los eventos esperan
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt OciWriterDlq.Arn
+          maxReceiveCount: 5
+    OciWriterQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues: [!Ref OciWriterQueue]
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: {Service: sns.amazonaws.com}
+              Action: sqs:SendMessage
+              Resource: !GetAtt OciWriterQueue.Arn
+              Condition:
+                ArnEquals: {aws:SourceArn: "${self:custom.domainTopicArn}"}
+    OciWriterSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: ${self:custom.domainTopicArn}
+        Protocol: sqs
+        Endpoint: !GetAtt OciWriterQueue.Arn
+        RawMessageDelivery: true
+    OciWriterDlqAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: fp-oci-writer-dlq-not-empty
+        Namespace: AWS/SQS
+        MetricName: ApproximateNumberOfMessagesVisible
+        Dimensions: [{Name: QueueName, Value: oci-writer-dlq}]
+        Statistic: Maximum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 0
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+        AlarmActions: ["arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts"]

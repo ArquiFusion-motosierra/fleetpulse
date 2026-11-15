@@ -39,13 +39,13 @@ Token: `POST <base_url>oauth/token` con `grant_type=client_credentials` (Basic `
 
 | Ruta | Body | Respuesta |
 |---|---|---|
-| `POST v1/events` | Un evento de dominio (`envelope` + payload) | `200 {"status": "applied" \| "duplicate", "event_id": "...", "result_event": <part.reserved \| part.shortage \| null>}` |
+| `POST v1/events` | Un evento de dominio (`envelope` + payload) | `200 {"status": "applied" \| "duplicate" \| "ignored", "event_id": "...", "reservation": null \| {"reserved": [{"reservation_id", "part_id", "zone_id", "qty"}], "missing": [{"part_id", "qty"}], "reorder_suggested": bool}}`; `400 {"error": "..."}` si el evento no se puede aplicar |
 | `POST v1/machines/snapshot` | `machine.snapshot.schema.json` | `200 {"upserted": n}` |
 | `POST v1/reorders` | `{"day": "YYYY-MM-DD", "forecast": [{"part_id", "zone_id", "forecast_14d"}]}` | `200 {"suggestions": [{"part_id", "zone_id", "qty"}]}` |
 | `POST v1/kpis` | payload de `kpi.daily` | `200 {"upserted": n}` |
 | `GET v1/incidents/:id` | — | Incidente con su línea de tiempo (para `smoke.sh`) |
 
-`oci-writer` toma `result_event` y lo escribe en `fp-outbox` para que llegue también a BigQuery.
+Solo `part.reserve.requested` trae `reservation`. Con ella `oci-writer` arma `part.reserved` (si `reserved` no está vacío) y `part.shortage` (si `missing` no está vacío) con `source: aws.oci-writer` y los escribe en `fp-outbox`, para que lleguen también a BigQuery. Cuando vuelven a OCI por la cola, solo se agregan a la línea de tiempo.
 
 ## GCP
 

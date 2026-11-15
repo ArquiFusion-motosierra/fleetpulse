@@ -93,7 +93,7 @@ def test_aws_proxy_sends_key_and_maps_errors(monkeypatch):
 
     def opener(req, timeout):
         calls.append((req.get_method(), req.full_url, req.headers.get("X-api-key"), timeout))
-        if req.full_url.endswith("/stock"):
+        if "/stock" in req.full_url:
             raise urllib.error.HTTPError(req.full_url, 500, "boom", {}, io.BytesIO(b"{}"))
         return Resp(json.dumps({"machines": [], "incident_id": "x"}).encode())
 
@@ -102,7 +102,8 @@ def test_aws_proxy_sends_key_and_maps_errors(monkeypatch):
     assert c.get("/api/machines").json() == {"machines": [], "incident_id": "x"}
     assert c.get("/api/stock").status_code == 502
     c.post("/api/incidents/INC-EX-017-20261115T1430/close", json={"closed_by": "TEC-01"})
-    assert calls[0] == ("GET", "https://reg.example/machines", "secret-key", 6.0)
+    assert calls[0] == ("GET", "https://reg.example/machines?tenant=mineria", "secret-key", 6.0)  # sin token: mineria
+    assert calls[-2][:2] == ("GET", "https://reg.example/incidents/INC-EX-017-20261115T1430?tenant=mineria")
     assert calls[-1][:2] == ("POST", "https://inc.example/incidents/INC-EX-017-20261115T1430/close")
 
 
@@ -144,10 +145,10 @@ def H(role):
     return {"authorization": f"Bearer mock.{role}"}
 
 
-def test_auth_config_mock_lists_five_roles(mock_client):
+def test_auth_config_mock_lists_the_roles(mock_client):
     cfg = mock_client.get("/api/auth/config").json()
     assert cfg["mode"] == "mock" and {u["role"] for u in cfg["users"]} == {
-        "operator", "technician", "supervisor", "management", "admin"}
+        "operator", "technician", "supervisor", "management", "admin", "maintenance_head"}
 
 
 def test_operator_reports_and_sees_checks(mock_client):
@@ -241,3 +242,68 @@ def test_real_mode_forwards_the_cognito_token(monkeypatch):
     r = c.post("/api/reports", json={"machine_id": "EX-017"}, headers={"authorization": "Bearer eyJ.tok.en"})
     assert r.status_code == 403 and r.json() == {"error": "forbidden"}
     assert c.get("/api/reports").status_code == 401
+
+
+# ---------- multi-tenancy: el parque sale del token ----------
+
+def _as(role):
+    return {"authorization": f"Bearer mock.{role}"}
+
+
+def test_park_users_only_see_their_park(mock_client):
+    mine = mock_client.get("/api/machines", headers=_as("supervisor")).json()["machines"]
+    assert len(mine) == 100 and {m["tenant_id"] for m in mine} == {"mineria"}
+    agro = mock_client.get("/api/machines", headers=_as("admin_agro")).json()["machines"]
+    assert len(agro) == 12 and {m["tenant_id"] for m in agro} == {"agro"}
+    incs = mock_client.get("/api/incidents", headers=_as("admin_agro")).json()["incidents"]
+    assert [i["machine_id"] for i in incs] == ["CS-003"]
+    stock = mock_client.get("/api/stock", headers=_as("admin_agro")).json()["stock"]
+    assert stock and {s["zone_id"] for s in stock} == {"FUNDO-A", "FUNDO-B", "PACKING"}
+
+
+def test_park_user_cannot_pick_another_park_or_open_its_resources(mock_client):
+    assert mock_client.get("/api/machines?tenant=mineria", headers=_as("admin_agro")).status_code == 403
+    inc = mock_client.get("/api/incidents", headers=_as("supervisor")).json()["incidents"][0]["incident_id"]
+    assert mock_client.get(f"/api/incidents/{inc}", headers=_as("admin_agro")).status_code == 404
+    assert mock_client.post(f"/api/incidents/{inc}/close", json={}, headers=_as("admin_agro")).status_code == 404
+    assert mock_client.get("/api/machines/EX-017", headers=_as("admin_agro")).status_code == 404
+
+
+def test_maintenance_head_sees_every_park_and_can_filter(mock_client):
+    head = _as("maintenance_head")
+    assert len(mock_client.get("/api/machines", headers=head).json()["machines"]) == 124
+    ind = mock_client.get("/api/incidents?tenant=industria", headers=head).json()["incidents"]
+    assert [i["machine_id"] for i in ind] == ["CP-002"]
+    t = mock_client.get("/api/tenants", headers=head).json()
+    assert t["global"] is True and t["scope"] == ["mineria", "agro", "industria"] and len(t["tenants"]) == 3
+    park = mock_client.get("/api/tenants", headers=_as("admin_agro")).json()
+    assert park["global"] is False and park["scope"] == ["agro"] and park["tenant_id"] == "agro"
+    assert mock_client.get("/api/machines?tenant=luna", headers=head).status_code == 400
+
+
+def test_real_mode_resolves_the_park_with_whoami_and_caches_it(monkeypatch):
+    monkeypatch.delenv("MOCK", raising=False)
+    monkeypatch.setenv("STATIC_DIR", "/nonexistent")
+    monkeypatch.setenv("AWS_REGISTRY_URL", "https://reg.example")
+    monkeypatch.setenv("AWS_INCIDENTS_URL", "https://inc.example")
+    import app.aws_api as aws_api
+    import app.main as main
+    importlib.reload(aws_api)
+    importlib.reload(main)
+    calls = []
+
+    def opener(req, timeout):
+        calls.append((req.get_method(), req.full_url, req.headers.get("Authorization")))
+        if req.full_url.endswith("/whoami"):
+            return Resp(json.dumps({"role": "admin", "tenant_id": "agro", "tenants": ["agro"], "global": False}).encode())
+        return Resp(json.dumps({"machines": []}).encode())
+
+    main.app.state.aws = aws_api.AwsApi(opener=opener, key_loader=lambda: "secret-key")
+    c = TestClient(main.app)
+    h = {"authorization": "Bearer tok-agro"}
+    assert c.get("/api/machines", headers=h).status_code == 200
+    assert c.get("/api/stock", headers=h).status_code == 200
+    assert c.get("/api/machines?tenant=mineria", headers=h).status_code == 403
+    whoami = [x for x in calls if x[1].endswith("/whoami")]
+    assert len(whoami) == 1 and whoami[0] == ("GET", "https://inc.example/whoami", "Bearer tok-agro")  # cache 5 min
+    assert ("GET", "https://reg.example/machines?tenant=agro", None) in calls

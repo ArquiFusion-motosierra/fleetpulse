@@ -10,14 +10,23 @@ from datetime import datetime, timezone
 URGENCIES = ("observe", "schedule", "immediate")
 
 USERS = {
-    "operator": {"email": "operador@fleetpulse.test", "role": "operator", "name": "Operador (Norte)"},
-    "technician": {"email": "tecnico@fleetpulse.test", "role": "technician", "tech_id": "TEC-01", "name": "Tecnico TEC-01"},
-    "supervisor": {"email": "supervisor@fleetpulse.test", "role": "supervisor", "name": "Supervisor de mantenimiento"},
-    "management": {"email": "direccion@fleetpulse.test", "role": "management", "name": "Direccion"},
-    "admin": {"email": "admin@fleetpulse.test", "role": "admin", "name": "Administrador"},
+    "operator": {"email": "operador@fleetpulse.test", "role": "operator", "name": "Operador (Norte)",
+                 "tenant_id": "mineria"},
+    "technician": {"email": "tecnico@fleetpulse.test", "role": "technician", "tech_id": "TEC-01", "name": "Tecnico TEC-01",
+                   "tenant_id": "mineria"},
+    "supervisor": {"email": "supervisor@fleetpulse.test", "role": "supervisor", "name": "Supervisor de mantenimiento",
+                   "tenant_id": "mineria"},
+    "management": {"email": "direccion@fleetpulse.test", "role": "management", "name": "Direccion",
+                   "tenant_id": "mineria"},
+    "admin": {"email": "admin@fleetpulse.test", "role": "admin", "name": "Administrador", "tenant_id": "mineria"},
+    # Multi-tenancy: un admin de otro parque y el jefe de mantenimiento (ve todos los parques)
+    "admin_agro": {"email": "admin.agro@fleetpulse.test", "role": "admin", "name": "Administrador (agro)",
+                   "tenant_id": "agro"},
+    "maintenance_head": {"email": "jefe.mantenimiento@fleetpulse.test", "role": "maintenance_head",
+                         "name": "Jefe de mantenimiento", "tenant_id": None},
 }
-CREATE_ROLES = ("operator", "supervisor", "admin")
-CLOSE_ROLES = ("technician", "supervisor", "admin")
+CREATE_ROLES = ("operator", "supervisor", "admin", "maintenance_head")
+CLOSE_ROLES = ("technician", "supervisor", "admin", "maintenance_head")
 
 
 def _c(step, tool, expected, if_fails):
@@ -202,9 +211,11 @@ class MockReports:
     # ---------- administracion (T35, misma forma que aws/reports/api/admin.py) ----------
     def list_techs(self, user: dict) -> dict:
         require(user, ("admin",))
-        return {"technicians": list(self.techs.values()),
-                "allowed": {"zone_id": ["CENTRO", "NORTE", "SUR"],
-                            "specialty": ["electrical", "engine", "hydraulics", "transmission"]}}
+        park = user.get("tenant_id") or "mineria"
+        zones = sorted(z["zone_id"] for z in self.registry.ids["zones"] if z.get("tenant_id", "mineria") == park)
+        return {"technicians": [t for t in self.techs.values() if t.get("tenant_id", "mineria") == park],
+                "tenant_id": park, "allowed": {"zone_id": zones,
+                                               "specialty": ["electrical", "engine", "hydraulics", "transmission"]}}
 
     def get_tech(self, user: dict, tech_id: str) -> dict:
         require(user, ("admin",))

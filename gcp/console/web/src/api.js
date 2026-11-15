@@ -2,8 +2,17 @@ import { session } from "./auth.js";
 
 // Todo pasa por el BFF (/api/*): la API key de AWS nunca llega al navegador. El ID token del usuario si viaja:
 // el BFF lo reenvia a las rutas con Cognito (/reports, /admin).
+// Parque elegido por el jefe de mantenimiento ("" = todos los de su alcance). Un usuario de parque no lo usa: el BFF
+// saca su parque del token y rechaza (403) cualquier otro.
+let tenant = "";
+export const setTenant = (t) => { tenant = t || ""; };
+export const currentTenant = () => tenant;
+
 async function req(path, opts = {}) {
   const token = session()?.token;
+  if (tenant && (!opts.method || opts.method === "GET") && path !== "/tenants" && path !== "/health") {
+    path += `${path.includes("?") ? "&" : "?"}tenant=${encodeURIComponent(tenant)}`;
+  }
   const r = await fetch(`/api${path}`, {
     ...opts,
     headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
@@ -15,6 +24,7 @@ async function req(path, opts = {}) {
 
 export const api = {
   health: () => req("/health"),
+  tenants: () => req("/tenants"),
   machines: () => req("/machines").then((b) => b.machines),
   machine: (id) => req(`/machines/${id}`),
   incidents: (status) => req(`/incidents?limit=100${status ? `&status=${status}` : ""}`).then((b) => b.incidents),
@@ -47,7 +57,9 @@ export const STATUS_LABEL = { open: "Abierto", assigned: "Asignado", closed: "Ce
 // incident-flow solo usa open/closed: un incidente abierto con tecnico se muestra como asignado
 export const statusOf = (inc) => (inc.status === "open" && inc.tech_id ? "Asignado" : STATUS_LABEL[inc.status] || inc.status);
 export const ENGINE_LABEL = { operating: "Operando", idle: "Ralentí", off: "Apagada", in_maintenance: "En mantenimiento" };
-export const MODEL_LABEL = { EX: "Excavadora", CF: "Cargador frontal", VQ: "Volquete", MN: "Motoniveladora", TO: "Tractor de orugas" };
+export const MODEL_LABEL = { EX: "Excavadora", CF: "Cargador frontal", VQ: "Volquete", MN: "Motoniveladora", TO: "Tractor de orugas",
+  TA: "Tractor agrícola", CS: "Cosechadora", MC: "Montacargas", CP: "Compresor de tornillo", GE: "Grupo electrógeno" };
+export const TENANT_LABEL = { mineria: "Minería", agro: "Agro", industria: "Industria" };
 export const MODE_LABEL = {
   hydraulic_pump: "Bomba hidráulica",
   hydraulic_contamination: "Contaminación hidráulica",
@@ -64,7 +76,8 @@ export const PARAM_LABEL = {
   vibration_mm_s: "Vibración RMS", engine_rpm: "Velocidad del motor", fuel_rate_lph: "Consumo", speed_kmh: "Velocidad",
   vibration_spectrum: "Espectro de vibración",
 };
-export const ROLE_LABEL = { operator: "Operario", technician: "Técnico", supervisor: "Supervisor", management: "Dirección", admin: "Administrador" };
+export const ROLE_LABEL = { operator: "Operario", technician: "Técnico", supervisor: "Supervisor", management: "Dirección", admin: "Administrador",
+  maintenance_head: "Jefe de mantenimiento" };
 export const REPORT_STATUS = { open: "Abierto", in_review: "En revisión", closed: "Cerrado" };
 export const URGENCY = { observe: "Observar", schedule: "Programar", immediate: "Inmediato" };
 export const PERCEIVED = { low: "Baja", medium: "Media", high: "Alta" };

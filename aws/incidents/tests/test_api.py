@@ -2,6 +2,7 @@
 incidente (`api/close`). Moto DynamoDB y Secrets Manager; Step Functions con un doble que usa las excepciones
 reales de botocore."""
 import json
+import re
 from datetime import timedelta
 from decimal import Decimal
 from urllib.parse import quote
@@ -25,6 +26,7 @@ from incidents_support import (
     log_lines,
     outbox_events,
     ranked,
+    seed_incident,
     seed_tech,
 )
 
@@ -48,12 +50,62 @@ def _http(method, path, path_params, query=None, headers=None, body=None):
 
 # --- /approvals/{token} --------------------------------------------------------------------------------------------
 
-def _approve(method="GET", token=quote(TOKEN, safe=""), tech="TEC-02", inc=INC):
+def _approve(method="POST", token=quote(TOKEN, safe=""), tech="TEC-02", inc=INC):
     query = {k: v for k, v in (("tech", tech), ("inc", inc)) if v is not None} or None
-    return _http(method, f"/approvals/{token}", {"token": token}, query)
+    body = "confirm=1" if method == "POST" else None  # lo que manda el formulario de la pagina de confirmacion
+    ev = _http(method, f"/approvals/{token}", {"token": token}, query, body=body)
+    ev["headers"] = {"content-type": "application/x-www-form-urlencoded"} if body else {}
+    return ev
 
 
-def test_approval_sends_task_success(caplog):
+@pytest.fixture
+def waiting(ddb):
+    """INC de EX-017 abierto, escalado a immediate y todavia sin tecnico (la ejecucion espera la aprobacion)."""
+    seed_incident(ddb.registry, INC, NOW_ISO, severity="immediate", zone_id="NORTE", failure_mode="hydraulic_pump")
+    return ddb
+
+
+def test_approval_get_only_renders_a_confirmation_page(waiting, caplog):
+    """Los escaneres de correo abren los enlaces: el GET no reanuda la ejecucion, solo pide confirmar."""
+    sfn = FakeSfn()
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = approvals.handler(_approve(method="GET"), sfn=sfn, registry=waiting.registry)
+    assert sfn.calls == []
+    assert resp["statusCode"] == 200 and resp["headers"]["content-type"].startswith("text/html")
+    assert resp["headers"]["cache-control"] == "no-store" and resp["headers"]["referrer-policy"] == "no-referrer"
+    page = resp["body"]
+    assert INC in page and "EX-017" in page and "immediate" in page and "TEC-02" in page
+    # el formulario vuelve a la misma URL (sin action) por POST; nada externo y el token no se copia a la pagina
+    assert re.search(r'<form method="post">\s*<button type="submit"[^>]*>Aprobar</button>', page)
+    assert "action=" not in page and "http" not in page.replace("http-equiv", "")
+    assert TOKEN not in page and quote(TOKEN, safe="") not in page
+    assert TOKEN not in caplog.text and quote(TOKEN, safe="") not in caplog.text
+    (line,) = log_lines(caplog, "aprobacion_confirmacion_mostrada")
+    assert line["incident_id"] == INC and line["machine_id"] == "EX-017" and line["tech_id"] == "TEC-02"
+
+
+def test_approval_get_without_tech_says_the_ranking_decides(waiting):
+    resp = approvals.handler(_approve(method="GET", tech=None), sfn=FakeSfn(), registry=waiting.registry)
+    assert resp["statusCode"] == 200 and "el mejor técnico disponible" in resp["body"]
+
+
+@pytest.mark.parametrize("attrs", [{"tech_id": "TEC-01", "approval": "approved"}, {"status": "closed"}])
+def test_approval_get_for_an_incident_already_decided_says_so(ddb, attrs):
+    seed_incident(ddb.registry, INC, NOW_ISO, severity="schedule", **attrs)
+    sfn = FakeSfn()
+    resp = approvals.handler(_approve(method="GET"), sfn=sfn, registry=ddb.registry)
+    assert resp["statusCode"] == 200 and "Esta aprobación ya fue procesada" in resp["body"]
+    assert "<form" not in resp["body"] and sfn.calls == []
+
+
+def test_approval_get_still_asks_when_the_incident_cannot_be_read(ddb, caplog):
+    """Sin META (o sin poder leerla) igual se muestra el boton: la decision la toma Step Functions en el POST."""
+    sfn = FakeSfn()
+    resp = approvals.handler(_approve(method="GET"), sfn=sfn, registry=ddb.registry)
+    assert resp["statusCode"] == 200 and "<form" in resp["body"] and sfn.calls == []
+
+
+def test_approval_post_sends_task_success(caplog):
     sfn = FakeSfn()
     with caplog.at_level("INFO", logger="fplib"):
         resp = approvals.handler(_approve(), sfn=sfn)
@@ -61,19 +113,19 @@ def test_approval_sends_task_success(caplog):
     assert call["taskToken"] == TOKEN  # sin el url-encoding del enlace
     assert json.loads(call["output"]) == {"approval": "approved", "tech_id": "TEC-02"}
     assert resp["statusCode"] == 200 and resp["headers"]["content-type"].startswith("text/html")
-    assert f"Aprobado: TEC-02 asignado a {INC}" in resp["body"]
+    assert f"Aprobado: TEC-02 asignado a {INC}" in resp["body"] and "<form" not in resp["body"]
     assert TOKEN not in caplog.text and quote(TOKEN, safe="") not in caplog.text
     (line,) = log_lines(caplog, "aprobacion_recibida")
     assert line["incident_id"] == INC and line["machine_id"] == "EX-017" and line["tech_id"] == "TEC-02"
 
 
-def test_approval_accepts_post_and_an_already_decoded_token():
+def test_approval_post_accepts_an_already_decoded_token():
     sfn = FakeSfn()
-    resp = approvals.handler(_approve(method="POST", token=TOKEN), sfn=sfn)
+    resp = approvals.handler(_approve(token=TOKEN), sfn=sfn)
     assert resp["statusCode"] == 200 and sfn.calls[0]["taskToken"] == TOKEN
 
 
-def test_approval_without_tech_lets_the_ranking_decide():
+def test_approval_post_without_tech_lets_the_ranking_decide():
     sfn = FakeSfn()
     resp = approvals.handler(_approve(tech=None), sfn=sfn)
     assert json.loads(sfn.calls[0]["output"]) == {"approval": "approved", "tech_id": None}
@@ -81,7 +133,7 @@ def test_approval_without_tech_lets_the_ranking_decide():
 
 
 @pytest.mark.parametrize("error", ["TaskTimedOut", "TaskDoesNotExist", "InvalidToken"])
-def test_approval_is_idempotent(error, caplog):
+def test_approval_post_is_idempotent(error, caplog):
     sfn = FakeSfn(fail=error)
     with caplog.at_level("INFO", logger="fplib"):
         resp = approvals.handler(_approve(), sfn=sfn)
@@ -90,9 +142,10 @@ def test_approval_is_idempotent(error, caplog):
     assert line["error"] == error and line["incident_id"] == INC
 
 
-def test_approval_rejects_a_bad_tech_without_touching_the_execution():
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_approval_rejects_a_bad_tech_without_touching_the_execution(method):
     sfn = FakeSfn()
-    resp = approvals.handler(_approve(tech="<script>alert(1)</script>"), sfn=sfn)
+    resp = approvals.handler(_approve(method=method, tech="<script>alert(1)</script>"), sfn=sfn)
     assert resp["statusCode"] == 400 and sfn.calls == [] and "<script>" not in resp["body"]
 
 

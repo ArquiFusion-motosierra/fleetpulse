@@ -46,7 +46,9 @@ scripts/smoke.sh incidents                          # S1 y S2 (SCENARIO=s1 o s2 
 ```
 Por defecto inicia las ejecuciones con la misma entrada que arma `score` (rapido, sin esperar la deriva); `--sim`
 enciende el escenario y espera la ejecucion real. S1: schedule queda en WaitForApproval, otra ejecucion lo escala a
-immediate, el script lee el task token del historial, imprime el enlace del correo del supervisor y lo abre; luego
+immediate, el script lee el task token del historial, imprime el enlace del correo del supervisor, lo abre (el GET
+solo muestra la pagina de confirmacion: un escaner de correo que abra el enlace no aprueba) y pulsa "Aprobar"
+(POST a la misma URL); luego
 comprueba asignacion, repuestos pedidos, `POST /incidents/{id}/close`, tecnico libre e `incident.closed` en EV# y
 fp-outbox. S2: cuatro maquinas en una celda, mismo `group_id`, aprobacion de las dos schedule y cierre. La explicacion
 de Gemini y la reserva de stock de `aws/registry` solo dan WARN. Solo corre con credenciales del Learner Lab

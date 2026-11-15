@@ -16,7 +16,8 @@ Modo directo (por defecto): arma la entrada como aws/scoring (posicion de MACHIN
 centroide de la zona) y llama StartExecution con nombre = incident_id. En S2 tambien hace POST /context con la
 recarga del lote L-2311 y escribe los CELL# que dejaria `score`, con las cuatro maquinas en la misma celda (la
 premisa del escenario). Lee el task token del historial de la ejecucion (evento TaskScheduled de WaitForApproval)
-para armar el mismo enlace que recibe el supervisor, lo imprime y lo abre.
+para armar el mismo enlace que recibe el supervisor, lo imprime, lo abre (GET: pagina de confirmacion, no aprueba)
+y pulsa "Aprobar" (POST del formulario).
 Verifica: rutas de la ejecucion, META en fp-registry, EV# del incidente, `incident.closed` en fp-outbox y que el
 tecnico quede libre en fp-state. Reserva de stock (aws/registry) y explicacion de Gemini (GCP) solo avisan (WARN).
 
@@ -209,12 +210,14 @@ class Lab:
             FilterExpression=self.Attr("status").eq("open"))["Items"]
         return [i["incident_id"] for i in items]
 
-    def http(self, method: str, path_or_url: str, body=None, key: str | None = None) -> tuple[int, str]:
+    def http(self, method: str, path_or_url: str, body=None, key: str | None = None,
+             form: dict | None = None) -> tuple[int, str]:
+        """`body` va como JSON; `form` como un formulario HTML (application/x-www-form-urlencoded)."""
         url = path_or_url if path_or_url.startswith("https://") else self.api + path_or_url
-        headers = {"content-type": "application/json"}
+        headers = {"content-type": "application/x-www-form-urlencoded" if form is not None else "application/json"}
         if key:
             headers["x-api-key"] = self.keys[key]
-        data = json.dumps(body).encode() if body is not None else None
+        data = urlencode(form).encode() if form is not None else json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -228,8 +231,15 @@ class Lab:
 def approve(lab: Lab, incident_id: str, tok: dict) -> None:
     link = approval_link(lab.api, tok["token"], tok["tech_id"], incident_id)
     print(f"  enlace de aprobacion (el mismo del correo al supervisor):\n    {link}")
+    # GET solo muestra la confirmacion (los escaneres de correo abren los enlaces); el boton hace POST a la misma URL
     code, body = lab.http("GET", link)
-    check(code == 200 and "Aprobado" in body, f"GET /approvals -> {code} {'Aprobado' if 'Aprobado' in body else body[:80]}")
+    asks = '<form method="post">' in body and incident_id in body
+    check(code == 200 and asks, f"GET /approvals -> {code} {'pide confirmar' if asks else body[:80]}")
+    if lab.meta(incident_id).get("tech_id"):
+        fail(f"{incident_id} asignado solo con el GET del enlace")
+    code, body = lab.http("POST", link, form={"confirm": "1"})
+    done = "Aprobado" in body
+    check(code == 200 and done, f"POST /approvals -> {code} {'Aprobado' if done else body[:80]}")
 
 
 def close_and_check(lab: Lab, incident_id: str, parts_used: list[dict]) -> None:

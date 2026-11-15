@@ -65,7 +65,8 @@ functions:
     handler: api/approvals.handler
     timeout: 10
     events:
-      # greedy: el task token trae "/" (%2F en el enlace del correo)
+      # greedy: el task token trae "/" (%2F en el enlace del correo). GET solo muestra la confirmacion (los
+      # escaneres de correo abren los enlaces); el boton "Aprobar" hace POST y solo el POST reanuda la ejecucion.
       - httpApi: GET /approvals/{token+}
       - httpApi: POST /approvals/{token+}
   close:

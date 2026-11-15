@@ -19,7 +19,7 @@ from boto3.dynamodb.conditions import Attr, Key
 from boto3.dynamodb.types import TypeDeserializer
 from botocore.exceptions import ClientError
 
-from fplib import clock, outbox
+from fplib import clock, ids, outbox
 
 _DES = TypeDeserializer()
 _tables: dict = {}
@@ -173,3 +173,8 @@ def update_incident(table, incident_id: str, *, envelope: dict, outbox_tbl_name:
         _outbox_put(envelope, outbox_tbl_name),
         *(extra_items or []),
     ])
+
+
+def tenant_of(item: dict) -> str:
+    """Parque del incidente: `tenant_id` del META o, si es anterior al multi-tenancy, el de su maquina."""
+    return ids.tenant_of_item(item)

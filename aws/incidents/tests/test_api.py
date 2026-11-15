@@ -447,3 +447,20 @@ def test_api_key_route_ignores_the_user_route_rules(ddb, keys, open_incident):
     """La ruta de siempre (consola actual, simulador, smoke) sigue con x-api-key y closed_by del cuerpo."""
     resp = _close(ddb, keys, body={**BODY, "closed_by": "TEC-01"})
     assert resp["statusCode"] == 200 and get_meta(ddb.registry, INC)["closed_by"] == "TEC-01"
+
+
+# --- multi-tenancy: cierre solo en el parque del usuario ------------------------------------------------------------
+
+def test_user_close_from_another_park_is_not_found(ddb, open_incident):
+    resp = _close_as(ddb, _claims("admin", **{"cognito:groups": "[tenant-agro]"}))
+    assert resp["statusCode"] == 404
+    _untouched(ddb)
+
+
+def test_user_close_park_admin_of_the_same_park(ddb, open_incident):
+    assert _close_as(ddb, _claims("admin", **{"cognito:groups": "[tenant-mineria]"}))["statusCode"] == 200
+
+
+def test_user_close_maintenance_head_closes_in_any_park(ddb, open_incident):
+    resp = _close_as(ddb, _claims("maintenance_head", **{"cognito:groups": "[maintenance-head]"}))
+    assert resp["statusCode"] == 200 and get_meta(ddb.registry, INC)["closed_by"] == "maintenance_head@example.com"

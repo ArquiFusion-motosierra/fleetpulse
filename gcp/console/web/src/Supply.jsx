@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, fmtTime, TENANT_LABEL } from "./api.js";
+import { groupOptions } from "./supply-options.js";
 
 // Pestana Abastecimiento (T41, diseno 6.3): stock por parque, sugerencias con opciones comparadas, ordenes y
 // transferencias con recepcion, proveedores y KPIs. Todo via /api/supply/* (el BFF reenvia el ID token).
@@ -136,9 +137,9 @@ export default function SupplyView({ user, onIncident }) {
               <table className="grid compact">
                 <thead><tr><th>Opción</th><th>Llega en</th><th>Costo</th><th>Costo con parada</th></tr></thead>
                 <tbody>
-                  {(d.options || []).map((o, i) => (
+                  {groupOptions(d.options).map((o, i) => (
                     <tr key={i} className={i === 0 ? "chosen" : ""}>
-                      <td>{o.source_kind === "transfer" ? `Transferir desde ${o.from_zone}` : `Comprar a ${o.supplier_id}`}{i === 0 && <span className="tag ok-tag">recomendada</span>}</td>
+                      <td>{o.source_kind === "transfer" ? `Transferir desde ${o.zones.join(" o ")}` : `Comprar a ${o.supplier_id}`}{i === 0 && <span className="tag ok-tag">recomendada</span>}</td>
                       <td>{eta(o.eta_h)}</td><td>{usd(o.cost_usd)}</td><td>{usd(o.total_cost_usd)}</td>
                     </tr>
                   ))}

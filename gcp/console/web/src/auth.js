@@ -52,8 +52,9 @@ export async function completeLogin() {
   return current;
 }
 
-export function loginCognito() {
-  return manager.signinRedirect();
+// hint: correo que el Hosted UI precarga si acepta login_hint (si no, lo ignora)
+export function loginCognito(hint) {
+  return manager.signinRedirect(hint ? { extraQueryParams: { login_hint: hint } } : undefined);
 }
 
 export function loginMock(user) {

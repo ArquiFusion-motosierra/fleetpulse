@@ -177,12 +177,21 @@ table.plan tr.due td { background: rgba(249, 115, 22, 0.08); }
 
 /* Login y consola por roles (T34) */
 .login { min-height: 100%; display: grid; place-items: center; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.login-card { width: min(460px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 14px; }
+.login-card { width: min(760px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 14px; }
 .login-card p { margin: 0; color: var(--muted); }
 .users { display: grid; gap: 8px; }
 .users button { text-align: left; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; display: grid; gap: 2px; }
 .users button:hover { border-color: var(--accent); }
 .users button span { color: var(--muted); font-size: 12px; }
+.login { padding-top: var(--space-5); padding-bottom: var(--space-5); }
+.login-card p { line-height: 1.45; }
+.accounts { display: grid; gap: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-4); }
+.accounts-head { display: grid; gap: 2px; }
+.acc-group { display: grid; gap: var(--space-2); padding-left: var(--space-3); border-left: 3px solid var(--park); }
+.acc-group .eyebrow { color: var(--park); }
+.acc-group .users { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.acc-group .users button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-group .users button:hover { border-color: var(--park); }
 .page.narrow { max-width: 720px; }
 .form { display: grid; gap: 8px; max-width: 560px; }
 .form label, .form legend, .close-box label { font-size: 12px; color: var(--muted); }

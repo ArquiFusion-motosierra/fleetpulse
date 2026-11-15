@@ -1,34 +1,57 @@
 import { useEffect, useState } from "react";
-import { api, SEVERITY, MODEL_LABEL, REPORT_STATUS, URGENCY, PERCEIVED, ROLE_LABEL, fmtTime, ago } from "./api.js";
+import { DEMO_ACCOUNTS } from "./accounts.js";
+import { api, SEVERITY, MODEL_LABEL, REPORT_STATUS, URGENCY, PERCEIVED, ROLE_LABEL, TENANT_COLOR, TENANT_NAME, fmtTime, ago } from "./api.js";
 import { loadConfig, loginCognito, loginMock } from "./auth.js";
 
 // ---------- Login ----------
+const PARK_GROUPS = [["mineria", TENANT_NAME.mineria], ["agro", TENANT_NAME.agro], ["industria", TENANT_NAME.industria], ["all", "Todos los parques"]];
+const ROLE_ORDER = ["operator", "technician", "supervisor", "management", "admin", "maintenance_head"];
+
 export function Login({ onLogged }) {
   const [cfg, setCfg] = useState(null);
   const [err, setErr] = useState("");
+  const [copied, setCopied] = useState("");
   useEffect(() => { loadConfig().then(setCfg).catch((e) => setErr(e.message)); }, []);
+  // Cognito: la lista es fija (accounts.js); mock: los usuarios simulados del BFF, el jefe (sin parque) en "Todos"
+  const accounts = cfg?.mode === "mock"
+    ? cfg.users.map((u) => ({ tenant: u.tenant_id || "all", email: u.email, role: u.role, tech_id: u.tech_id, mock: u }))
+    : DEMO_ACCOUNTS;
+  async function pick(a) {
+    if (a.mock) return onLogged(loginMock(a.mock));
+    try { await navigator.clipboard.writeText(a.email); setCopied(a.email); } catch { /* sin portapapeles: igual se entra */ }
+    loginCognito(a.email);
+  }
   return (
     <div className="login">
       <div className="login-card">
-        <div className="brand"><span className="logo" /><div><b>FleetPulse</b><span>Operación Cerro Azul · ArquiFusion</span></div></div>
+        <div className="brand"><span className="logo" /><div><b>FleetPulse</b><span>Mantenimiento predictivo multi-nube (AWS + GCP) · ArquiFusion</span></div></div>
+        <p>La telemetría de cada máquina se compara con su línea base y la ficha del fabricante; cuando algo se desvía, se abre un
+          incidente, se asigna un técnico y se reservan repuestos. Cada rol y cada parque ve su propia consola.</p>
         {err && <p className="error">{err}</p>}
-        {cfg?.mode === "cognito" && (
-          <>
-            <p>Ingresa con tu cuenta de la operación.</p>
-            <button className="primary" onClick={() => loginCognito()}>Ingresar</button>
-          </>
-        )}
-        {cfg?.mode === "mock" && (
-          <>
-            <p>Modo de prueba: elige un usuario. Cada rol ve su propia consola.</p>
-            <div className="users">
-              {cfg.users.map((u) => (
-                <button key={u.token} onClick={() => onLogged(loginMock(u))}>
-                  <b>{ROLE_LABEL[u.role]}</b><span>{u.email}{u.tech_id ? ` · ${u.tech_id}` : ""}</span>
-                </button>
-              ))}
+        {cfg?.mode === "cognito" && <button className="primary" onClick={() => loginCognito()}>Ingresar</button>}
+        {cfg && (
+          <div className="accounts">
+            <div className="accounts-head">
+              <b>{cfg.mode === "mock" ? "Modo de prueba: elige un usuario" : "Cuentas de evaluación"}</b>
+              {cfg.mode === "cognito" && <span className="muted small">Clic en un correo: se copia y se abre el ingreso. Contraseña: en el README del repo.</span>}
             </div>
-          </>
+            {PARK_GROUPS.map(([t, name]) => {
+              const rows = accounts.filter((a) => a.tenant === t).sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+              if (!rows.length) return null;
+              return (
+                <div key={t} className="acc-group" style={{ "--park": TENANT_COLOR[t] || "#8b9aab" }}>
+                  <span className="eyebrow">{name}</span>
+                  <div className="users">
+                    {rows.map((a) => (
+                      <button key={a.email} onClick={() => pick(a)} title={a.mock ? "Entrar con este usuario" : "Copiar correo e ingresar"}>
+                        <b>{ROLE_LABEL[a.role]}{a.tech_id ? ` · ${a.tech_id}` : ""}</b><span>{copied === a.email ? "copiado ✓" : a.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

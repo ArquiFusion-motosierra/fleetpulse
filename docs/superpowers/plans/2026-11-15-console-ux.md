@@ -168,9 +168,9 @@ Contenido por rol (copiar los bocetos de la spec, sección "Inicio por rol"):
 **Interfaces:**
 - Produces: `accounts.js`: `DEMO_ACCOUNTS: { tenant: "mineria"|"agro"|"industria"|"all", email: string, role: string }[]` — los 17 de `scripts/cognito-seed.sh` con `@example.com`, comentario `// Debe coincidir con scripts/cognito-seed.sh`.
 
-- [ ] **Step 1:** `Login` nuevo: línea "FleetPulse — mantenimiento predictivo multi-nube (AWS + GCP)"; botón Ingresar (Hosted UI, igual que hoy); en modo Cognito, cuentas agrupadas por parque (`TENANT_NAME`, "Todos los parques" para `all`) con `ROLE_LABEL`; clic en una cuenta → `navigator.clipboard.writeText(email)` (en try/catch) y `loginCognito(email)`; texto "Contraseña: en el README del repo". En modo mock, la misma agrupación con `cfg.users` (por `tenant_id`, el jefe en "Todos") y clic → `loginMock(u)` como hoy.
-- [ ] **Step 2:** README: URL de la consola, tabla de las 17 cuentas por parque y rol, contraseña `LaMotosierra123`, qué ve cada rol en una línea, y que el jefe de mantenimiento compara los tres parques.
-- [ ] **Step 3:** Verificar en mock que cada botón entra con su rol; `npm run build` en verde. Commit `feat(console): login de evaluacion con cuentas por parque y README Como evaluar`.
+- [x] **Step 1:** `Login` nuevo: línea "FleetPulse — mantenimiento predictivo multi-nube (AWS + GCP)"; botón Ingresar (Hosted UI, igual que hoy); en modo Cognito, cuentas agrupadas por parque (`TENANT_NAME`, "Todos los parques" para `all`) con `ROLE_LABEL`; clic en una cuenta → `navigator.clipboard.writeText(email)` (en try/catch) y `loginCognito(email)`; texto "Contraseña: en el README del repo". En modo mock, la misma agrupación con `cfg.users` (por `tenant_id`, el jefe en "Todos") y clic → `loginMock(u)` como hoy.
+- [x] **Step 2:** README: URL de la consola, tabla de las 17 cuentas por parque y rol, contraseña `LaMotosierra123`, qué ve cada rol en una línea, y que el jefe de mantenimiento compara los tres parques.
+- [x] **Step 3:** Verificar en mock que cada botón entra con su rol; `npm run build` en verde. Commit `feat(console): login de evaluacion con cuentas por parque y README Como evaluar`.
 
 ### Task 6: Celular, paneles, revisión visual y PR
 

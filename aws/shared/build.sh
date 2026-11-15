@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Construye el contenido de la layer fp-shared en python/: dependencias para Lambda arm64 / Python 3.12,
 # los contratos, el catalogo de todos los parques (tenants.yaml + ids.yaml + tenants/*.yaml, unidos por
-# fplib.ids.merge_catalogs) y oem_specs.yaml si existe (T26), ambos como JSON. fplib/ ya vive en python/fplib y esta
+# fplib.ids.merge_catalogs), oem_specs.yaml (T26) y supply.yaml (T37) si existen, como JSON. fplib/ ya vive en python/fplib y esta
 # versionado.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -25,6 +25,10 @@ cp ../../contracts/*.schema.json python/fplib/contracts/
 if [ -f ../../contracts/oem_specs.yaml ]; then
   "$PY" -c 'import yaml,json,sys; json.dump(yaml.safe_load(open(sys.argv[1])), open(sys.argv[2],"w"))' \
     ../../contracts/oem_specs.yaml python/fplib/data/oem_specs.json
+fi
+if [ -f ../../contracts/supply.yaml ]; then  # T37: catalogo de abastecimiento
+  "$PY" -c 'import yaml,json,sys; json.dump(yaml.safe_load(open(sys.argv[1], encoding="utf-8")), open(sys.argv[2],"w"))' \
+    ../../contracts/supply.yaml python/fplib/data/supply.json
 fi
 find python -name __pycache__ -type d -prune -exec rm -rf {} +
 

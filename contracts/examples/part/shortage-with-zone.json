@@ -1,0 +1,21 @@
+{
+  "event_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+  "event_type": "part.shortage",
+  "schema_version": 1,
+  "source": "aws.registry",
+  "aggregate_type": "part_reservation",
+  "aggregate_id": "RSV-INC-EX-017-20261115T1430",
+  "occurred_at": "2026-11-15T14:39:47Z",
+  "incident_id": "INC-EX-017-20261115T1430",
+  "machine_id": "EX-017",
+  "payload": {
+    "missing": [
+      {
+        "part_id": "PRT-04",
+        "qty": 1
+      }
+    ],
+    "reorder_suggested": true,
+    "zone_id": "NORTE"
+  }
+}

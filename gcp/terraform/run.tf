@@ -45,6 +45,11 @@ resource "google_cloud_run_v2_service" "insights" {
         name  = "GEMINI_MODEL"
         value = "gemini-flash-lite-latest"
       }
+      # 15 s (no los 7 por defecto): gemini-flash-lite a veces tarda mas y /explain caia en fallback.
+      env {
+        name  = "GEMINI_TIMEOUT_S"
+        value = "15"
+      }
     }
   }
 

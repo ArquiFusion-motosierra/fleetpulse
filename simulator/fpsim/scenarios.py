@@ -20,6 +20,7 @@ SPN_FUEL_RATE = 183
 SPN_RPM = 190
 SPN_HYD_PRESSURE = 520193
 SPN_HYD_TEMP = 520194
+SPN_COOLANT_LEVEL = 111
 
 
 @dataclass
@@ -94,6 +95,12 @@ def live_effect(machine_id: str, active: dict[str, datetime], now: datetime) -> 
 def signature(failure_mode: str, r: float) -> Effect:
     """Firma de cada modo de falla con avance r en [0, 1] (1 = punto de falla)."""
     r = max(0.0, min(r, 1.0))
+    if failure_mode == "head_gasket":
+        # Junta de culata (oem_specs.yaml): refrigerante en alza, perdida de refrigerante (SPN 111), combustion
+        # desigual (rpm y consumo inestables). Las rpm suben al perder compresion: el regulador compensa.
+        return Effect(add={"coolant": 16.0 * r}, mult={"rpm": 1 + 0.13 * r}, noise={"rpm": 1 + 2.5 * r, "fuel": 1 + 2.0 * r},
+                      faults=[{"spn": SPN_COOLANT_LEVEL, "fmi": 1, "severity": "high" if r > 0.7 else "medium"}]
+                      if r > 0.3 else [])
     if failure_mode == "hydraulic_pump":
         return Effect(mult={"pressure": 1 - 0.14 * r, "vibration": 1 + 0.45 * r, "fuel": 1 + 0.15 * r},
                       add={"hyd_temp": 9.0 * r},

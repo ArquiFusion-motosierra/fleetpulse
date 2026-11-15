@@ -14,6 +14,23 @@ AWS es el hub: recibe la telemetría, detecta anomalías, orquesta incidentes y 
 
 > **Plan B aplicado el sáb 14/11 21:30.** El diseño original tenía OCI (Autonomous Database + ORDS + APEX) como sistema de registro y consola. Ninguno del equipo pudo crear la cuenta, así que se ejecutó el plan B previsto: el esquema relacional pasó a DynamoDB `fp-registry` y la consola a Cloud Run. Con dos nubes se sigue cumpliendo la rúbrica.
 
+## Multi-tenancy por parque
+
+FleetPulse atiende tres parques (tenants) separados: `mineria` (Operación Cerro Azul, el parque por defecto), `agro` (Fundo Valle Sur) e `industria` (Planta Lurín). Cada uno tiene sus máquinas, zonas, técnicos y stock; el administrador de un parque solo ve y gestiona el suyo, y el **jefe de mantenimiento** (`maintenance_head`) ve todos. Diseño completo: [`superpowers/plans/2026-11-15-multi-tenancy.md`](superpowers/plans/2026-11-15-multi-tenancy.md).
+
+| Capa | Recurso por parque | Dónde |
+|---|---|---|
+| Identidad | Grupos de Cognito `tenant-mineria`, `tenant-agro`, `tenant-industria` y `maintenance-head`; el ID token los trae en `cognito:groups` | `aws/auth/serverless.yml`, `scripts/cognito-seed.sh` |
+| Autorización | `fplib.authz.tenant_of/scope/require_tenant_access`: otro parque = 403 (listado) o 404 (recurso) | `aws/shared/python/fplib/authz.py` |
+| Configuración | SSM `/fleetpulse/tenants` y `/fleetpulse/tenants/<parque>` | `aws/auth/serverless.yml` |
+| Datos | `tenant_id` en cada ítem y **GSI3** `TENANT#<parque>` en `fp-registry` (incidentes y reportes); stock por zona, y las zonas son de un parque | `aws/ingest/serverless.yml` |
+| Eventos | Sobre con `tenant_id`; atributo SNS `tenant_id` en `fp-domain-events` y `fp-notify` (suscripciones con `FilterPolicy {role, tenant_id}`) | `outbox-publisher`, `incident-flow.asl.json`, `scripts/subscribe-notify.sh` |
+| Crudo | `s3://fp-raw/telemetry/dt=/hr=/tenant=<parque>/` | `aws/ingest/consumidores/archiver.py` |
+| Analítica | Columna `tenant_id` en BigQuery y datasets `fp_mineria`, `fp_agro`, `fp_industria` con vistas autorizadas filtradas por parque | `gcp/terraform/tenants.tf` |
+| Consola | El BFF saca el parque del token (`GET /whoami`) y pasa `?tenant=` a la API de lectura; badge del parque y selector para el jefe de mantenimiento | `gcp/console/` |
+
+Los IDs de negocio son únicos entre parques (prefijos de modelo `TA/CS` en agro y `MC/CP/GE` en industria, zonas y técnicos propios), así que las claves de DynamoDB no cambian: el parque de cualquier dato viejo se deduce del catálogo (`contracts/tenants.yaml`) y todo lo que no trae `tenant_id` es de `mineria`. El aislamiento lo imponen las APIs y no IAM porque el Learner Lab solo ofrece `LabRole`.
+
 ## Por qué ninguna nube es decorativa
 
 | Nube | Lo que solo ella hace | Si se apaga |
@@ -23,7 +40,7 @@ AWS es el hub: recibe la telemetría, detecta anomalías, orquesta incidentes y 
 
 ## Flujo de eventos
 
-1. `simulator` (Lambda, cada minuto, `TIME_WARP=5`) envía lotes de 10 lecturas por máquina a `POST /telemetry` con API key.
+1. `simulator` (Lambda, cada minuto, `TIME_WARP=5`) envía un lote por parque con 10 lecturas por máquina a `POST /telemetry` con API key; `ingest` fija el `tenant_id` de cada lectura por catálogo y rechaza un lote con máquinas de otro parque.
 2. `ingest` valida contra `contracts/telemetry-batch.schema.json`, escribe la lectura y actualiza estado y posición en `fp-state`.
 3. El stream de `fp-state` alimenta a `score` (anomalías) y `archiver` (NDJSON gzip en `s3://fp-raw/telemetry/dt=/hr=/`).
 4. Con score ≥ 2,0, `score` inicia `incident-flow` con nombre `<machine_id>-<ventana 15 min>`: Step Functions rechaza nombres repetidos, así que no hay incidentes duplicados.
@@ -131,8 +148,8 @@ La telemetría nunca entra a `fp-registry`: el registro guarda decisiones, no le
 
 ## Lo que no cumplimos, y se dice en el video
 
-- **Sin autenticación real de usuarios** (Cognito o IDCS). APEX usa el login de su workspace y los roles se simulan. En producción: Cognito con grupos por rol y APEX federado.
-- **Sin mínimo privilegio en AWS.** El Learner Lab solo ofrece `LabRole`. En producción: un rol por función con la política exacta.
+- **Sin mínimo privilegio en AWS.** El Learner Lab solo ofrece `LabRole`. En producción: un rol por función con la política exacta, y aislamiento por parque también en IAM (`dynamodb:LeadingKeys`, roles por grupo de Cognito con Identity Pool).
+- **Multi-tenancy en la capa de aplicación.** Las tablas, el bucket y los topics son compartidos por los parques; el aislamiento lo imponen el autorizador JWT, `fplib.authz` y el BFF. Una sola API key de ingesta para los tres parques (el parque se valida contra el catálogo).
 - **Solo dos nubes.** OCI estaba diseñada como sistema de registro relacional; al no poder activarse, el registro vive en DynamoDB. Las consultas con joins (historial, KPIs) se resuelven en BigQuery en lugar de SQL transaccional.
 - **Cada nube corre en una sola región.** El crédito y el Learner Lab no justifican multi-región; el diseño no lo impide.
 

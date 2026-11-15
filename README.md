@@ -10,6 +10,8 @@ Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y re
 | AWS | Ingesta, detección, orquestación, registro operativo, secretos | API Gateway, Lambda, DynamoDB, S3, SQS, SNS, Step Functions, Secrets Manager |
 | GCP | Analítica histórica, IA y consola operativa | Cloud Storage, BigQuery, BigQuery ML, Cloud Run, Gemini, Secret Manager |
 
+**Multi-tenant por parque**: `mineria` (por defecto), `agro` e `industria`, cada uno con sus máquinas, zonas, técnicos y stock. El admin de un parque solo ve el suyo; el jefe de mantenimiento ve todos. El parque viaja en grupos de Cognito, `tenant_id` en eventos y DynamoDB (GSI3), atributos SNS, prefijos S3 `tenant=` y datasets BigQuery `fp_<parque>`. Ver [docs/architecture.md](docs/architecture.md#multi-tenancy-por-parque).
+
 ## Desplegar
 1. `scripts/lab-creds.sh`
 2. `terraform -chdir=gcp/terraform apply`
@@ -22,7 +24,8 @@ Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y re
      | gcloud secrets create aws-console-api-key --project fleetpulse-g19-2026 --replication-policy automatic --data-file=-
    ```
    Si el secreto ya existe (o fp-core se recreó), el mismo pipe termina en `gcloud secrets versions add aws-console-api-key --project fleetpulse-g19-2026 --data-file=-`.
-6. `scripts/seed-registry.py` (catálogo de `contracts/ids.yaml`)
+6. `scripts/seed-registry.py` (catálogo de los tres parques, `contracts/tenants.yaml`) y, una vez tras el deploy del multi-tenancy, `python scripts/backfill_tenant.py --dry-run` y luego sin `--dry-run`
+6b. `FP_TEST_PASSWORD=... scripts/cognito-seed.sh` (usuarios por parque y `jefe.mantenimiento@`)
 7. `scripts/seed-baselines.py` (líneas base del score con 24 h simuladas; con `scripts/drift.py off all`)
 8. `scripts/smoke.sh`
 9. `scripts/simulator.sh on` (`off` al terminar, `status` para ver). Cada deploy deja el simulador en `enabled: false` y puede apagarlo: durante la grabación no se pushea a `aws/`, `simulator/` ni `contracts/`.

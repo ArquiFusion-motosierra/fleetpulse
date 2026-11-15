@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 
 PROJECT="${GCP_PROJECT_ID:-fleetpulse-g19-2026}"
 
-for sql in v_fuel_daily.sql v_machine_profile_30d.sql; do
+for sql in v_fuel_daily.sql v_machine_profile_30d.sql v_parts_consumption_daily.sql; do
   echo "aplicando $sql"
   bq query --project_id "$PROJECT" --use_legacy_sql=false --nouse_cache < "$sql"
 done

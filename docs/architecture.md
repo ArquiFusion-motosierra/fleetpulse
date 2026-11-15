@@ -88,7 +88,7 @@ Ambas: reintento con backoff exponencial (3 intentos, base 2 s) en cada Lambda, 
 | AWS → Cloud Storage y BigQuery | Subida reanudable + load job | Llave JSON de la SA `fp-exporter` | `fleetpulse/gcp/sa-exporter` | Marca de agua por hora; dedupe por `batch_id` |
 | AWS → Cloud Run | HTTPS | ID token firmado por la SA `fp-invoker` (`roles/run.invoker`) | `fleetpulse/gcp/sa-invoker` | Timeout 8 s → explicación por plantilla; nunca bloquea |
 | Cloud Run → Gemini | HTTPS | API key | GCP Secret Manager `gemini-api-key` | 1 reintento; 429 → plantilla |
-| Cloud Run → BigQuery | Cliente oficial | SA de ejecución `fp-insights` (dataViewer, jobUser) | — | `maximumBytesBilled` 1 GB |
+| Cloud Run → BigQuery | Cliente oficial | SA de ejecución `fp-insights` (dataEditor del dataset para reentrenar modelos, jobUser) | — | `maximumBytesBilled` 1 GB |
 | Consola (Cloud Run, backend) → AWS | HTTPS a API Gateway | API key (`fleetpulse/api/console-key`), copia en GCP Secret Manager `aws-console-api-key`; nunca llega al navegador | `fleetpulse/api/console-key` | La consola muestra el último estado leído y avisa que está desactualizado |
 | Correo → AWS | HTTPS a API Gateway | Task token de un solo uso en la URL | — | Token expira con el paso (30 min) |
 

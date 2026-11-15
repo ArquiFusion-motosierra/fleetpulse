@@ -2,6 +2,7 @@
 y la aprobacion en AssignTechnician. Moto DynamoDB; Cloud Run, SNS, SSM y Secrets Manager con dobles (sin red)."""
 import json
 import re
+from datetime import datetime, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -86,6 +87,18 @@ def test_correlate_groups_two_machines_same_cell_last_hour(ex017, ddb):
     assert inc["group_id"] == out["group_id"] and get_meta(ddb.registry, INC)["group_id"] == out["group_id"]
     (env,) = outbox_events(ddb.outbox, "incident.opened")
     assert env["payload"]["group_id"] == out["group_id"]
+
+
+def test_correlate_group_hour_is_the_first_anomaly_of_the_cell(ex017, ddb, monkeypatch):
+    """Dos maquinas del mismo episodio que abren incidente a ambos lados de las 15:00 quedan en el mismo grupo."""
+    _cell(ddb.state, "2026-11-15T14:52:00Z", "EX-019")
+    _cell(ddb.state, "2026-11-15T14:58:00Z", "EX-017")
+    monkeypatch.setattr(correlate_zone.clock, "now", lambda: datetime(2026, 11, 15, 14, 59, tzinfo=timezone.utc))
+    before = correlate_zone.handler(ex017, state=ddb.state)
+    _cell(ddb.state, "2026-11-15T15:04:00Z", "EX-017")
+    monkeypatch.setattr(correlate_zone.clock, "now", lambda: datetime(2026, 11, 15, 15, 5, tzinfo=timezone.utc))
+    after = correlate_zone.handler({**ex017, "machine_id": "EX-019"}, state=ddb.state)
+    assert before["group_id"] == after["group_id"] == f"GRP-{GH}-20261115T14"
 
 
 def test_correlate_alone_returns_null_group(ex017, ddb):

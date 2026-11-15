@@ -168,7 +168,7 @@ def test_drift_script_apply():
 
     st = drift.apply({}, "on", "S1", NOW)
     assert st == {"S1": {"since": "2026-11-15T19:30:00Z"}}
-    assert drift.apply(st, "off", "all", NOW) == {"S1": False, "S2": False, "S5": False}
+    assert drift.apply(st, "off", "all", NOW) == {"S1": False, "S2": False, "S5": False, "S7": False}
     with pytest.raises(SystemExit):
         drift.apply({}, "on", "S3", NOW)
 
@@ -230,3 +230,39 @@ def test_head_gasket_raises_rpm_into_vq_chassis_resonance():
     hit = oem.resonance("VQ", rpm)
     assert hit and hit["harmonic"] == "2x" and hit["natural_frequency_hz"] == 62
     assert eff.faults[0]["spn"] == 111
+
+
+# ---------- T27: S7 junta de culata en vivo ----------
+
+def _operating(rows):
+    return [r for r in rows if r["engine_status"] == "operating"]
+
+
+def test_s7_head_gasket_live_on_vq022_only():
+    act = parse_active({"S7": {"since": iso(NOW - timedelta(minutes=22))}})
+    base = live.build_batch(NOW, {}, machine_ids={"VQ-022", "VQ-023"})["readings"]
+    s7 = live.build_batch(NOW, act, machine_ids={"VQ-022", "VQ-023"})["readings"]
+    b22, d22 = [r for r in base if r["machine_id"] == "VQ-022"], [r for r in s7 if r["machine_id"] == "VQ-022"]
+    assert _mean(d22, "coolant_temp_c") > _mean(b22, "coolant_temp_c") + 12
+    assert _mean(d22, "engine_rpm") > 1.1 * _mean(b22, "engine_rpm")
+    assert all(r["fault_codes"][0]["spn"] == 111 for r in _operating(d22))
+    assert [r for r in base if r["machine_id"] == "VQ-023"] == [r for r in s7 if r["machine_id"] == "VQ-023"]
+
+
+def test_s7_crosses_the_chassis_mode_and_vibration_jumps():
+    from fpsim import oem
+    act = parse_active({"S7": {"since": iso(NOW - timedelta(minutes=22))}})
+    rows = []
+    for m in range(0, 90, 3):
+        rows += _operating(live.build_batch(NOW + timedelta(minutes=m), act, machine_ids={"VQ-022"})["readings"])
+    hit = [r for r in rows if oem.resonance("VQ", r["engine_rpm"])]
+    miss = [r for r in rows if not oem.resonance("VQ", r["engine_rpm"])]
+    assert 0.2 < len(hit) / len(rows) < 0.8  # intermitente: depende de la carga del momento
+    assert sum(r["vibration_mm_s"] for r in hit) / len(hit) > 1.3 * sum(r["vibration_mm_s"] for r in miss) / len(miss)
+
+
+def test_s7_coolant_crosses_the_oem_warning():
+    from fpsim import oem
+    act = parse_active({"S7": {"since": iso(NOW - timedelta(minutes=25))}})
+    d = _operating(live.build_batch(NOW, act, machine_ids={"VQ-022"})["readings"])
+    assert _mean(d, "coolant_temp_c") > oem.model("VQ")["limits"]["coolant_temp_c"]["warning"]

@@ -128,7 +128,7 @@ models:
       - failure_mode: head_gasket
         name: Junta de culata danada
         symptoms: [{var: coolant_temp_c, change: up}, {var: engine_rpm, change: unstable}, {var: fuel_rate_lph, change: unstable}]
-        spectrum: "1x y 2x irregulares; si las rpm suben ~13 %, el 2x cruza el segundo modo del chasis (62 Hz)"
+        spectrum: "1x y 2x irregulares; si las rpm suben ~15 %, el 2x cruza el segundo modo del chasis (62 Hz)"
         fault_codes: [111, 110]
         action: "Revisar nivel y presion del sistema de refrigeracion; prueba de compresion; reemplazar junta."
   MN:

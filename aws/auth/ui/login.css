@@ -1,0 +1,16 @@
+/* FleetPulse — branding de la Hosted UI clasica de Cognito (pantalla de login de fp-auth).
+   Solo clases del allowlist de Cognito, para no romper el formulario: fondo azul-noche, boton ambar
+   y logo, manteniendo el card por defecto (Cognito no permite personalizar el contenedor interno). */
+
+.background-customizable { background-color: #0b0f14; }
+
+.banner-customizable { padding: 26px 0 18px; background-color: #0b0f14; }
+.logoImage { max-width: 240px; max-height: 60px; }
+
+.submitButton-customizable { background-color: #f59e0b; color: #0b0f14; font-weight: 700; }
+.submitButton-customizable:hover { background-color: #fbbf24; }
+
+.inputField-customizable { border: 1px solid #cbd5e1; }
+.inputField-customizable:focus { border-color: #f59e0b; outline: none; }
+
+.errorMessage-customizable { background-color: #fdecea; color: #7f1d1d; border: 1px solid #f5c2c0; }

@@ -18,6 +18,10 @@ INCIDENTS_URL = os.environ.get("AWS_INCIDENTS_URL", "").rstrip("/")  # HTTP API 
 PROJECT = os.environ.get("GCP_PROJECT_ID", "fleetpulse-g19-2026")
 SECRET = os.environ.get("AWS_KEY_SECRET", "aws-console-api-key")
 TIMEOUT_S = float(os.environ.get("AWS_TIMEOUT_S", "6"))
+# Escrituras con el token del usuario: POST /reports espera a insights /recommend-checks (Gemini, 2-6 s y mas en frio).
+# Con 6 s el BFF cortaba y respondia 502 aunque AWS terminara (backlog #49). API Gateway corta a los 30 s y Cloud Run
+# tambien (--timeout 30): 25 s deja margen. Las lecturas siguen con TIMEOUT_S para fallar rapido.
+WRITE_TIMEOUT_S = float(os.environ.get("AWS_WRITE_TIMEOUT_S", "25"))
 METADATA = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
 
 
@@ -78,7 +82,7 @@ class AwsApi:
         req = urllib.request.Request(url, data=data, method=method,
                                      headers={"authorization": authorization, "content-type": "application/json"})
         try:
-            with self._open(req, timeout=TIMEOUT_S) as r:
+            with self._open(req, timeout=TIMEOUT_S if method == "GET" else WRITE_TIMEOUT_S) as r:
                 text = r.read().decode()
                 return r.status, (json.loads(text) if text else {})
         except urllib.error.HTTPError as exc:

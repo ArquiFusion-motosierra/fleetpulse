@@ -473,3 +473,30 @@ def test_supply_real_mode_forwards_token_and_tenant(monkeypatch):
     assert c.post(f"/api/supply/transfers/{trf}/approve", headers=auth).status_code == 200
     assert seen[-1][:2] == ("POST", f"https://api.example/supply/transfers/{trf}/approve")
     assert c.get("/api/supply/kpis").status_code == 401
+
+
+def test_user_writes_wait_longer_than_reads_and_timeouts_are_504(monkeypatch):
+    """backlog #49: POST /api/reports espera a Gemini; con 6 s el BFF cortaba y respondia 502."""
+    monkeypatch.delenv("MOCK", raising=False)
+    monkeypatch.setenv("STATIC_DIR", "/nonexistent")
+    monkeypatch.setenv("AWS_INCIDENTS_URL", "https://api.example")
+    import app.aws_api as aws_api
+    import app.main as main
+    importlib.reload(aws_api)
+    importlib.reload(main)
+    seen = []
+
+    def opener(req, timeout):
+        seen.append((req.get_method(), timeout))
+        if req.get_method() == "POST":
+            raise TimeoutError()
+        return Resp(json.dumps({"reports": []}).encode())
+
+    main.app.state.aws = aws_api.AwsApi(opener=opener, key_loader=lambda: "k")
+    c = TestClient(main.app)
+    auth = {"authorization": "Bearer eyJ.tok.en"}
+    assert c.get("/api/reports", headers=auth).status_code == 200
+    r = c.post("/api/reports", json={"machine_id": "EX-017"}, headers=auth)
+    assert r.status_code == 504 and r.json() == {"error": "AWS_TIMEOUT"}
+    assert seen == [("GET", aws_api.TIMEOUT_S), ("POST", aws_api.WRITE_TIMEOUT_S)]
+    assert aws_api.WRITE_TIMEOUT_S == 25 and aws_api.TIMEOUT_S == 6

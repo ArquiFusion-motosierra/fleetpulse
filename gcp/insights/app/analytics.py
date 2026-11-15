@@ -46,13 +46,14 @@ WHERE is_anomaly AND DATE(day) BETWEEN DATE_SUB(@day, INTERVAL @days - 1 DAY) AN
 ORDER BY anomaly_probability DESC
 """ % ANOMALY_THRESHOLD
 
+# horizon va como LITERAL, no @parametro: BigQuery exige una constante dentro del STRUCT de ML.FORECAST.
 FORECAST_SQL = """
 SELECT part_id, zone_id, SUM(GREATEST(forecast_value, 0)) AS demand,
        SUM(GREATEST(prediction_interval_upper_bound, 0)) AS demand_upper
-FROM ML.FORECAST(MODEL `{dataset}.m_parts_demand`, STRUCT(@horizon AS horizon, 0.8 AS confidence_level))
+FROM ML.FORECAST(MODEL `{dataset}.m_parts_demand`, STRUCT(%s AS horizon, 0.8 AS confidence_level))
 GROUP BY part_id, zone_id
 ORDER BY part_id, zone_id
-"""
+""" % HORIZON_DAYS
 
 
 def model_sql(model: str) -> str:

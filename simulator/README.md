@@ -9,3 +9,5 @@
 | `pytest -q simulator/tests` | Tests (contratos, deriva, backfill, handler) |
 
 Lambda `fpsim/handler.handler`, cada minuto: 100 máquinas × 10 lecturas a `POST /telemetry` y contexto a `POST /context`. Sin estado: los acumulados son función del tiempo. `batch_id` es fijo por minuto, así que un reintento no duplica. S3 (CF-042), S4 (MN-005) y S6 (VQ-031..035, MN-003) son rasgos fijos de la flota.
+
+S2 (combustible contaminado, lote L-2311): mientras está activo, EX-003, VQ-011, VQ-014 y TO-002 quedan fijas junto a la estación EST-NORTE (centro de la zona NORTE, con un temblor de unos 45 m) y los volquetes dejan de rotar de zona. Así las cuatro caen en la misma celda geohash6 y `CorrelateZone` las agrupa en vivo. Al apagar S2 vuelven a sus posiciones normales.

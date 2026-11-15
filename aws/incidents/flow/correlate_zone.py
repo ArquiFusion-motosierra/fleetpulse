@@ -3,7 +3,9 @@ contexto de la zona para ExplainCause.
 
 Celda: items `CELL#<geohash6>` / `A#<ts>#<machine_id>` de fp-state (los escribe aws/scoring con severidad >=
 observe) de la ultima hora. Si hay al menos otra maquina (2 o mas con esta) -> `group_id` =
-`GRP-<geohash6>-<hora UTC>` (fplib.ids.group_id), que CreateIncident guarda y publica en incident.opened.
+`GRP-<geohash6>-<hora UTC>` (fplib.ids.group_id), que CreateIncident guarda y publica en incident.opened. La hora
+es la de la anomalia mas antigua de la celda en la ventana, no la de ahora: asi las maquinas de un mismo episodio
+que abren incidente a ambos lados de hh:00 quedan en el mismo grupo (S2).
 Contexto: items `CTX#<zone_id>` / `<ts>#<context_id>` de la ultima hora (POST /context, fuel.refill.schema.json):
 lotes de combustible distintos y lecturas de clima. Zona vacia (META escasa) -> la de la maquina en ids.yaml.
 Idempotencia: solo lee fp-state.
@@ -38,9 +40,12 @@ def handler(event, context=None, state=None):
     now = clock.now()
     since = clock.iso(now - WINDOW)
     gh = event.get("geohash6") or geohash.encode(float(event["lat"]), float(event["lon"]), 6)
-    cell = fp_registry.query_all(state, KeyConditionExpression=Key("PK").eq(f"CELL#{gh}") & Key("SK").gt(f"A#{since}"))
+    cell = list(fp_registry.query_all(state, KeyConditionExpression=Key("PK").eq(f"CELL#{gh}")
+                                      & Key("SK").gt(f"A#{since}")))
     peers = sorted({i["machine_id"] for i in cell if i["machine_id"] != machine_id})
-    group_id = ids.group_id(gh, now) if peers else None
+    first_ts = min((i["SK"].split("#")[1] for i in cell), default=None)  # ISO UTC: orden de texto = de tiempo
+    first = clock.parse(first_ts[:19] + "Z") if first_ts else now
+    group_id = ids.group_id(gh, first) if peers else None
     zone_id = event.get("zone_id") or ids.machines().get(machine_id, {}).get("zone_id")
     out = {"group_id": group_id, "peers": peers, "context": _context(state, zone_id, since)}
     log.event("zona_correlacionada", group_id=group_id, peers=peers, geohash6=gh, zone_id=zone_id,

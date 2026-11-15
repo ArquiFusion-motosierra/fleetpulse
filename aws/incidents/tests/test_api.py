@@ -20,6 +20,7 @@ from incidents_support import (
     FakeSfn,
     assign,
     assigned,
+    created,
     ev_items,
     get_meta,
     get_tech,
@@ -338,3 +339,111 @@ def test_close_does_not_free_a_tech_working_another_incident(ex017, ddb, keys):
 def test_close_rejects_a_bad_body(ddb, keys, open_incident, body):
     assert _close(ddb, keys, body=body)["statusCode"] == 400
     assert get_meta(ddb.registry, INC)["status"] == "open" and outbox_events(ddb.outbox, "incident.closed") == []
+
+
+# --- POST /me/incidents/{incident_id}/close (ID token de Cognito) --------------------------------------------------
+
+TECH_CLAIMS = {"sub": "0f3a-tec", "email": "tecnico@example.com", "custom:role": "technician", "custom:tech_id": "TEC-01"}
+
+
+def _claims(role, **extra):
+    return {"sub": f"sub-{role}", "email": f"{role}@example.com", "custom:role": role, **extra}
+
+
+def _close_as(ddb, claims, incident_id=INC, body=BODY, sfn=None):
+    """Como lo entrega API Gateway tras el authorizer JWT `cognito`: claims en requestContext y sin x-api-key. Sin
+    secretos de API key en Secrets Manager: la ruta no los usa."""
+    raw = body if isinstance(body, str) or body is None else json.dumps(body)
+    ev = _http("POST", f"/me/incidents/{incident_id}/close", {"incident_id": incident_id}, body=raw)
+    ev["routeKey"] = close.USER_ROUTE
+    if claims is not None:
+        ev["requestContext"]["authorizer"] = {"jwt": {"claims": claims, "scopes": None}}
+    return close.handler(ev, state=ddb.state, registry=ddb.registry, outbox=ddb.outbox, sfn=sfn or FakeSfn())
+
+
+def _untouched(ddb):
+    assert get_meta(ddb.registry, INC)["status"] == "open" and get_tech(ddb.state, "TEC-01")["available"] is False
+    assert outbox_events(ddb.outbox, "incident.closed") == []
+
+
+def test_user_close_by_the_assigned_technician_records_who_closed_from_the_token(ddb, open_incident, caplog):
+    sfn = FakeSfn()
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close_as(ddb, TECH_CLAIMS, body={**BODY, "closed_by": "otro"}, sfn=sfn)  # closed_by del cuerpo no cuenta
+    assert resp["statusCode"] == 200 and json.loads(resp["body"])["incident_id"] == INC
+    assert sfn.stops == [{"executionArn": EXECUTION, "error": "IncidentClosed", "cause": "closed from console"}]
+    meta = get_meta(ddb.registry, INC)
+    assert meta["status"] == "closed" and meta["closed_by"] == "tecnico@example.com"
+    assert meta["parts_used"][0]["part_id"] == "PRT-04" and meta["cause_summary"] == "Bomba hidraulica cambiada"
+    tech = get_tech(ddb.state, "TEC-01")
+    assert tech["available"] is True and tech["current_incident"] is None
+    (env,) = outbox_events(ddb.outbox, "incident.closed")
+    assert env["payload"]["closed_by"] == "tecnico@example.com"
+    (line,) = log_lines(caplog, "incidente_cerrado")
+    assert line["role"] == "technician" and line["closed_by"] == "tecnico@example.com"
+
+
+@pytest.mark.parametrize("role", ["supervisor", "admin"])
+def test_user_close_by_supervisor_or_admin(ddb, open_incident, role):
+    resp = _close_as(ddb, _claims(role), body={})  # el cuerpo es opcional: sin repuestos ni causa
+    assert resp["statusCode"] == 200
+    meta = get_meta(ddb.registry, INC)
+    assert meta["closed_by"] == f"{role}@example.com" and meta["parts_used"] == [] and meta["cause_summary"] == ""
+
+
+def test_user_close_without_email_uses_sub_cut_to_the_contract(ddb, open_incident):
+    claims = {"sub": "s" * 80, "custom:role": "supervisor"}
+    assert _close_as(ddb, claims, body=None)["statusCode"] == 200
+    assert get_meta(ddb.registry, INC)["closed_by"] == "s" * 64  # incident.closed: closed_by maxLength 64
+
+
+@pytest.mark.parametrize("claims", [
+    {**TECH_CLAIMS, "custom:tech_id": "TEC-02"},  # otro tecnico
+    {k: v for k, v in TECH_CLAIMS.items() if k != "custom:tech_id"},  # tecnico sin tech_id
+    _claims("operator"), _claims("management"), {"sub": "x", "email": "sin-rol@example.com"},
+])
+def test_user_close_forbidden(ddb, open_incident, claims, caplog):
+    sfn = FakeSfn()
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close_as(ddb, claims, sfn=sfn)
+    assert resp["statusCode"] == 403 and json.loads(resp["body"])["error"] == "forbidden" and sfn.stops == []
+    _untouched(ddb)
+    (line,) = log_lines(caplog, "cierre_prohibido")
+    assert line["status"] == 403 and line["incident_id"] == INC and line["role"] == claims.get("custom:role")
+
+
+def test_user_close_technician_cannot_close_an_unassigned_incident(ex017, ddb):
+    created(ex017, ddb)  # abierto, sin tecnico todavia
+    resp = _close_as(ddb, TECH_CLAIMS)
+    assert resp["statusCode"] == 403 and get_meta(ddb.registry, INC)["status"] == "open"
+    assert _close_as(ddb, _claims("supervisor"))["statusCode"] == 200
+
+
+@pytest.mark.parametrize("claims", [None, {}])
+def test_user_close_without_claims_is_401(ddb, open_incident, claims, caplog):
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close_as(ddb, claims)
+    assert resp["statusCode"] == 401
+    _untouched(ddb)
+    (line,) = log_lines(caplog, "cierre_no_autorizado")
+    assert line["reasons"] == {"jwt": "missing_claims"}
+
+
+def test_user_close_unknown_incident_is_404_and_twice_is_409(ddb, open_incident):
+    assert _close_as(ddb, _claims("supervisor"), incident_id="INC-EX-017-20261115T1500")["statusCode"] == 404
+    assert _close_as(ddb, TECH_CLAIMS)["statusCode"] == 200
+    assert _close_as(ddb, TECH_CLAIMS)["statusCode"] == 409
+    assert len(outbox_events(ddb.outbox, "incident.closed")) == 1
+
+
+def test_user_close_rejects_a_bad_body(ddb, open_incident):
+    assert _close_as(ddb, TECH_CLAIMS, body="no es json")["statusCode"] == 400
+    bad = {"parts_used": [{"part_id": "PRT-04", "zone_id": "NORTE", "qty": 0}]}
+    assert _close_as(ddb, TECH_CLAIMS, body=bad)["statusCode"] == 400
+    _untouched(ddb)
+
+
+def test_api_key_route_ignores_the_user_route_rules(ddb, keys, open_incident):
+    """La ruta de siempre (consola actual, simulador, smoke) sigue con x-api-key y closed_by del cuerpo."""
+    resp = _close(ddb, keys, body={**BODY, "closed_by": "TEC-01"})
+    assert resp["statusCode"] == 200 and get_meta(ddb.registry, INC)["closed_by"] == "TEC-01"

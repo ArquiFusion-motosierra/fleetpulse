@@ -198,7 +198,7 @@ def test_functions_and_http_routes_on_the_shared_fp_core_api():
     routes = {name: [e["httpApi"] for e in fn.get("events", [])] for name, fn in fns.items()}
     # {token+}: los task tokens traen "/" (%2F en el enlace); la ruta greedy acepta el segmento decodificado o no
     assert routes["approvals"] == ["GET /approvals/{token+}", "POST /approvals/{token+}"]
-    assert routes["close"] == ["POST /incidents/{incident_id}/close"]
+    assert routes["close"][0] == "POST /incidents/{incident_id}/close"  # mas la de Cognito, ver abajo
     assert {n for n, r in routes.items() if r} == {"approvals", "close"}
     assert fns["explainCause"]["timeout"] == 15
     assert fns["explainCause"]["environment"] == {"INVOKER_SECRET": "fleetpulse/gcp/sa-invoker"}
@@ -312,3 +312,18 @@ def test_every_sns_publish_retries_and_only_fp_alerts_ends_in_fail():
     assert fails == ["Failed"]
     into_fail = [n for n, st in ASL["States"].items() if "Failed" in _targets(st)]
     assert into_fail == ["PublishAlert"]  # toda falla avisa en fp-alerts antes de terminar
+
+
+def test_http_routes_and_the_cognito_authorizer():
+    """La ruta de cierre con API key sigue sin authorizer; la de la consola por roles usa el JWT `cognito` de fp-core
+    por id (con una API externa Serverless no deja nombrarlo), con valor por defecto para empaquetar sin fp-core."""
+    from api import close
+
+    fns = SLS["functions"]
+    events = [e["httpApi"] for e in fns["close"]["events"]]
+    assert events[0] == "POST /incidents/{incident_id}/close"
+    (user,) = [e for e in events if isinstance(e, dict)]
+    assert f"{user['method']} {user['path']}" == close.USER_ROUTE
+    assert user["authorizer"] == "${self:custom.cognitoAuthorizer}"
+    assert SLS["custom"]["cognitoAuthorizer"] == {
+        "type": "jwt", "id": "${cf:fp-core-${sls:stage}.HttpApiAuthorizerCognitoId, 'offline-authorizer-id'}"}

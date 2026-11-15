@@ -55,6 +55,17 @@ de Gemini y la reserva de stock de `aws/registry` solo dan WARN. Solo corre con 
 (rol `voclabs`) o con `FP_ACCOUNT_ID` igual a la cuenta: crea y cierra incidentes reales. Los correos llegan solo a
 quien se suscribio con `scripts/subscribe-notify.sh`.
 
+## Cierre de incidentes
+`aws/incidents/api/close.py` atiende dos rutas con el mismo efecto, porque una ruta HTTP API lleva un solo
+authorizer:
+- `POST /incidents/{incident_id}/close` con `x-api-key` (console-key o ingest-key) y `closed_by` en el cuerpo: la
+  consola sin login, el simulador y `scripts/smoke_incidents.py`. No cambia.
+- `POST /me/incidents/{incident_id}/close` con `Authorization: Bearer <ID token>` (authorizer `cognito`): la consola
+  por roles (T34) desde su BFF. Cierran el `technician` cuyo `custom:tech_id` es el tecnico asignado al incidente,
+  `supervisor` y `admin` (otro rol u otro tecnico: 403; sin token: 401). `closed_by` sale del token (email o sub);
+  el cuerpo solo lleva `parts_used` y `cause_summary`, ambos opcionales. La ruta se cuelga del authorizer por id
+  (salida `HttpApiAuthorizerCognitoId` de `fp-core`), asi que `core` va antes que `incidents`.
+
 ## Tests
 Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el job python de CI):
 ```bash
@@ -64,7 +75,8 @@ Los servicios de otros pueden necesitar su propio `requirements-dev.txt`.
 
 ## Usuarios y roles
 Cognito (`aws/auth`, stack `fp-auth`) emite los JWT; el HTTP API `fp-api` los valida con el authorizer
-`cognito` (`GET /whoami` y las rutas de `fp-reports`; `/telemetry` y `/context` siguen con `x-api-key`). Roles en `custom:role`:
+`cognito` (`GET /whoami`, las rutas de `fp-reports` y `POST /me/incidents/{incident_id}/close`; `/telemetry` y
+`/context` siguen con `x-api-key`). Roles en `custom:role`:
 `operator`, `technician` (con `custom:tech_id`), `supervisor`, `management`, `admin`.
 
 Los roles los asigna solo un administrador con el AWS CLI; los usuarios no pueden cambiar su propio rol.

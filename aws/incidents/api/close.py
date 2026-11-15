@@ -1,9 +1,17 @@
-"""Lambda `close`: `POST /incidents/{incident_id}/close` (HTTP API payload v2). La llama la consola (T15) con
-`fleetpulse/api/console-key`; el simulador o un script pueden usar `fleetpulse/api/ingest-key`.
+"""Lambda `close`, dos rutas en la HTTP API (payload v2) con el mismo cierre:
+- `POST /incidents/{incident_id}/close` con `x-api-key`: la consola sin login (T15) con `fleetpulse/api/console-key`;
+  el simulador o un script (smoke) con `fleetpulse/api/ingest-key`. `closed_by` va en el cuerpo.
+- `POST /me/incidents/{incident_id}/close` (`USER_ROUTE`) detras del authorizer JWT `cognito`: la consola por roles
+  (T34) desde su BFF con el ID token del usuario. API Gateway ya valido el token; aqui se leen las claims
+  (fplib.authz): pueden cerrar `supervisor`, `admin` y el `technician` cuyo `custom:tech_id` es el `tech_id` del
+  incidente (otro tecnico, un incidente sin tecnico o cualquier otro rol: 403, log `cierre_prohibido`; sin claims:
+  401). `closed_by` sale del token (email, o sub si no hay email, cortado a 64) y el del cuerpo se ignora. HTTP API
+  admite un solo authorizer por ruta, por eso la ruta con login es otra y la de API key sigue igual.
 
-Cuerpo: `{"closed_by", "parts_used": [{part_id, zone_id, qty}], "cause_summary"}` (`closed_by` obligatorio,
-`parts_used` por defecto [], `cause_summary` por defecto ""). Respuestas: 401 sin una de las dos API keys (log
-`cierre_no_autorizado` con el motivo por secreto, nunca la llave), 404 incidente desconocido (log
+Cuerpo: `{"closed_by", "parts_used": [{part_id, zone_id, qty}], "cause_summary"}` (`closed_by` obligatorio en la
+ruta con API key, `parts_used` por defecto [], `cause_summary` por defecto ""; en `USER_ROUTE` el cuerpo puede
+faltar). Respuestas: 401 sin una de las dos API keys (log `cierre_no_autorizado` con el motivo por secreto, nunca
+la llave), 403 en USER_ROUTE segun el rol, 404 incidente desconocido (log
 `cierre_incidente_inexistente`), 409 ya cerrado, 400 cuerpo invalido (incluye `incident.closed` fuera de
 contrato), 500 si el tecnico cambio de incidente durante el cierre (no se escribe nada; reintentar), 200
 `{"incident_id", "downtime_h"}`.
@@ -26,12 +34,15 @@ import re
 
 from botocore.config import Config
 
-from fplib import auth, clock, envelope, log
+from fplib import auth, authz, clock, envelope, log
 from fplib.schema import ContractError
 from lib import registry as fp_registry
 from lib import technicians
 
 KEY_SECRETS = ("fleetpulse/api/console-key", "fleetpulse/api/ingest-key")
+USER_ROUTE = "POST /me/incidents/{incident_id}/close"
+USER_ROLES = ("technician", "supervisor", "admin")
+MAX_CLOSED_BY = 64  # incident.closed: closed_by maxLength
 INC_RE = re.compile(r"^INC-(?:EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
 AWS_CONFIG = Config(connect_timeout=3, read_timeout=5, retries={"max_attempts": 3})
 _sfn = None
@@ -49,14 +60,15 @@ def _resp(code: int, body: dict) -> dict:
     return {"statusCode": code, "headers": {"content-type": "application/json"}, "body": json.dumps(body)}
 
 
-def _body(event: dict) -> dict:
+def _body(event: dict, closed_by: str | None = None) -> dict:
+    """`closed_by`: el del token en USER_ROUTE (reemplaza al del cuerpo, que entonces puede faltar)."""
     raw = event.get("body") or ""
     if event.get("isBase64Encoded"):
         raw = base64.b64decode(raw).decode("utf-8")
-    body = json.loads(raw)
+    body = json.loads(raw or "{}")
     if not isinstance(body, dict):
         raise ValueError("el cuerpo no es un objeto")
-    closed_by, cause = body.get("closed_by"), body.get("cause_summary") or ""
+    closed_by, cause = closed_by or body.get("closed_by"), body.get("cause_summary") or ""
     if not isinstance(closed_by, str) or not closed_by.strip() or not isinstance(cause, str):
         raise ValueError("closed_by (texto) es obligatorio y cause_summary debe ser texto")
     return {"closed_by": closed_by.strip(), "parts_used": body.get("parts_used") or [], "cause_summary": cause}
@@ -95,23 +107,42 @@ def _unauthorized(headers: dict, secrets) -> dict[str, str] | None:
     return reasons
 
 
+def _forbidden(event: dict, incident_id: str, why: str) -> dict:
+    log.event("cierre_prohibido", status=403, incident_id=incident_id[:64], role=authz.role_of(event),
+              tech_id=authz.tech_id_of(event), reason=why)
+    return _resp(403, {"error": "forbidden", "detail": why})
+
+
 def handler(event, context=None, state=None, registry=None, outbox=None, secrets=None, sfn=None):
     incident_id = (event.get("pathParameters") or {}).get("incident_id") or ""
-    headers = event.get("headers") or {}
-    reasons = _unauthorized(headers, secrets)
-    if reasons:
-        log.error("cierre_no_autorizado", status=401, incident_id=incident_id[:64], reasons=reasons)
-        return _resp(401, {"error": "unauthorized"})
+    user = role = None
+    if event.get("routeKey") == USER_ROUTE:
+        user = authz.user_of(event)[:MAX_CLOSED_BY]
+        if not user:  # el authorizer no dejaria pasar una ruta sin token; por si la ruta se publica sin el
+            log.error("cierre_no_autorizado", status=401, incident_id=incident_id[:64],
+                      reasons={"jwt": "missing_claims"})
+            return _resp(401, {"error": "unauthorized"})
+        try:
+            role = authz.require_role(event, *USER_ROLES)
+        except authz.Forbidden as exc:
+            return _forbidden(event, incident_id, str(exc))
+    else:
+        reasons = _unauthorized(event.get("headers") or {}, secrets)
+        if reasons:
+            log.error("cierre_no_autorizado", status=401, incident_id=incident_id[:64], reasons=reasons)
+            return _resp(401, {"error": "unauthorized"})
     registry = registry or fp_registry.table_from_env("REGISTRY_TABLE")
     meta = fp_registry.get_incident(registry, incident_id) if INC_RE.match(incident_id) else None
     if meta is None:
         log.event("cierre_incidente_inexistente", status=404, incident_id=incident_id[:64])
         return _resp(404, {"error": "incident not found", "incident_id": incident_id})
     ctx = {"incident_id": incident_id, "machine_id": meta.get("machine_id")}
+    if role == "technician" and (not authz.tech_id_of(event) or authz.tech_id_of(event) != meta.get("tech_id")):
+        return _forbidden(event, incident_id, "el incidente no esta asignado a este tecnico")
     if meta.get("status") == "closed":
         return _resp(409, {"error": "incident already closed", "closed_at": meta.get("closed_at")})
     try:
-        body = _body(event)
+        body = _body(event, closed_by=user)
     except ValueError as exc:  # JSON invalido incluido
         log.event("cierre_cuerpo_invalido", error=str(exc)[:200], **ctx)
         return _resp(400, {"error": "invalid body: closed_by, parts_used, cause_summary"})
@@ -139,6 +170,6 @@ def handler(event, context=None, state=None, registry=None, outbox=None, secrets
         log.event("cierre_ya_aplicado", **ctx)
         return _resp(409, {"error": "incident already closed"})
     _stop_execution(sfn or _client(), incident_id, ctx)
-    log.event("incidente_cerrado", downtime_h=payload["downtime_h"], closed_by=body["closed_by"],
+    log.event("incidente_cerrado", downtime_h=payload["downtime_h"], closed_by=body["closed_by"], role=role,
               tech_id=meta.get("tech_id"), tech_released=release is not None, event_id=env["event_id"], **ctx)
     return _resp(200, {"incident_id": incident_id, "downtime_h": payload["downtime_h"]})

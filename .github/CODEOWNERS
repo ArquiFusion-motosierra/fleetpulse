@@ -1,11 +1,11 @@
-# Un dueño por carpeta. La ultima regla que coincide gana.
+# Un dueño por carpeta. Informativo: no bloquea merges. La ultima regla que coincide gana.
 /aws/                     @btoroled
 /aws/shared/              @btoroled @AIexander-lx @cruz-eng
-/aws/integrations/oci-*   @AIexander-lx
+/aws/registry/            @AIexander-lx
 /aws/integrations/gcp-*   @cruz-eng
-/oci/                     @AIexander-lx
 /simulator/               @AIexander-lx
 /gcp/                     @cruz-eng
+/gcp/console/             @AIexander-lx
 /README.md                @cruz-eng
 /docs/                    @cruz-eng
 /contracts/               @btoroled @AIexander-lx @cruz-eng

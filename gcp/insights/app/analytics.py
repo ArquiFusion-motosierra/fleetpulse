@@ -38,12 +38,13 @@ FROM ML.PREDICT(MODEL `{dataset}.m_peer_clusters`, (SELECT * FROM `{dataset}.v_m
 """
 
 # Sin query_statement, ML.DETECT_ANOMALIES evalua los datos de entrenamiento (/jobs/refresh reentrena a diario).
+# El umbral va como LITERAL, no como @parametro: BigQuery exige una constante dentro del STRUCT de la funcion ML.
 FUEL_ANOMALY_SQL = """
 SELECT machine_id, DATE(day) AS day, fuel_l, lower_bound, upper_bound, anomaly_probability
-FROM ML.DETECT_ANOMALIES(MODEL `{dataset}.m_fuel_trend`, STRUCT(@threshold AS anomaly_prob_threshold))
+FROM ML.DETECT_ANOMALIES(MODEL `{dataset}.m_fuel_trend`, STRUCT(%s AS anomaly_prob_threshold))
 WHERE is_anomaly AND DATE(day) BETWEEN DATE_SUB(@day, INTERVAL @days - 1 DAY) AND @day
 ORDER BY anomaly_probability DESC
-"""
+""" % ANOMALY_THRESHOLD
 
 FORECAST_SQL = """
 SELECT part_id, zone_id, SUM(GREATEST(forecast_value, 0)) AS demand,

@@ -99,7 +99,7 @@ def test_anomalies_fuel():
     body = client.get("/anomalies/fuel?day=2026-11-14&days=3").json()
     assert body["anomalies"] == [{"machine_id": "CF-042", "day": "2026-11-13", "fuel_l": 412.3,
                                   "expected": [250.0, 330.0], "anomaly_probability": 0.991}]
-    assert app.state.bq.calls[0][1] == {"day": date(2026, 11, 14), "days": 3, "threshold": 0.95}
+    assert app.state.bq.calls[0][1] == {"day": date(2026, 11, 14), "days": 3}
     assert client.get("/anomalies/fuel?days=99").status_code == 422
 
 

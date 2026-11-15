@@ -30,5 +30,6 @@
   {"name": "speed_kmh", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "load_t", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "ambient_temp_c", "type": "FLOAT", "mode": "NULLABLE"},
-  {"name": "ingested_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+  {"name": "ingested_at", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "tenant_id", "type": "STRING", "mode": "NULLABLE", "description": "Parque (tenant): mineria, agro, industria. NULL = mineria (cargas anteriores al multi-tenancy)."}
 ]

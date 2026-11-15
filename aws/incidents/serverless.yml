@@ -1,5 +1,6 @@
 # Stack fp-incidents: maquina de estados Standard incident-flow (T09 + T14), sus Lambdas y las rutas
-# /approvals/{token+} y /incidents/{incident_id}/close en la HTTP API fp-api de fp-core (provider.httpApi.id).
+# /approvals/{token+}, /incidents/{incident_id}/close (x-api-key) y /me/incidents/{incident_id}/close (ID token de
+# Cognito) en la HTTP API fp-api de fp-core (provider.httpApi.id).
 # La inicia `score` (aws/scoring) con nombre = incident_id. Tablas, topics, la API y /fleetpulse/api/url los crea
 # fp-core (aws/ingest); el secreto fleetpulse/gcp/sa-invoker lo carga Fabricio (contracts/secrets.md).
 service: fp-incidents
@@ -24,6 +25,13 @@ provider:
     STATE_TABLE: fp-state
     REGISTRY_TABLE: fp-registry
     OUTBOX_TABLE: fp-outbox
+
+custom:
+  # Con provider.httpApi.id Serverless v3 no deja nombrar el authorizer `cognito` de fp-core: se referencia por id
+  # (salida HttpApiAuthorizerCognitoId de fp-core, igual que fp-reports). El valor por defecto solo sirve offline.
+  cognitoAuthorizer:
+    type: jwt
+    id: ${cf:fp-core-${sls:stage}.HttpApiAuthorizerCognitoId, 'offline-authorizer-id'}
 
 package:
   patterns:
@@ -65,7 +73,8 @@ functions:
     handler: api/approvals.handler
     timeout: 10
     events:
-      # greedy: el task token trae "/" (%2F en el enlace del correo)
+      # greedy: el task token trae "/" (%2F en el enlace del correo). GET solo muestra la confirmacion (los
+      # escaneres de correo abren los enlaces); el boton "Aprobar" hace POST y solo el POST reanuda la ejecucion.
       - httpApi: GET /approvals/{token+}
       - httpApi: POST /approvals/{token+}
   close:
@@ -74,7 +83,13 @@ functions:
     environment:
       EXECUTION_ARN_PREFIX: arn:aws:states:${aws:region}:${aws:accountId}:execution:incident-flow
     events:
+      # una ruta HTTP API lleva un solo authorizer: la de API key sigue para la consola sin login, simulador y smoke
       - httpApi: POST /incidents/{incident_id}/close
+      # consola por roles (T34): el BFF reenvia el ID token; tecnico asignado, supervisor o admin (api/close.py)
+      - httpApi:
+          method: POST
+          path: /me/incidents/{incident_id}/close
+          authorizer: ${self:custom.cognitoAuthorizer}
 
 resources:
   Resources:

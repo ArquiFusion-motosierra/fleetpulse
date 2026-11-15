@@ -2,6 +2,7 @@
 incidente (`api/close`). Moto DynamoDB y Secrets Manager; Step Functions con un doble que usa las excepciones
 reales de botocore."""
 import json
+import re
 from datetime import timedelta
 from decimal import Decimal
 from urllib.parse import quote
@@ -19,12 +20,14 @@ from incidents_support import (
     FakeSfn,
     assign,
     assigned,
+    created,
     ev_items,
     get_meta,
     get_tech,
     log_lines,
     outbox_events,
     ranked,
+    seed_incident,
     seed_tech,
 )
 
@@ -48,12 +51,62 @@ def _http(method, path, path_params, query=None, headers=None, body=None):
 
 # --- /approvals/{token} --------------------------------------------------------------------------------------------
 
-def _approve(method="GET", token=quote(TOKEN, safe=""), tech="TEC-02", inc=INC):
+def _approve(method="POST", token=quote(TOKEN, safe=""), tech="TEC-02", inc=INC):
     query = {k: v for k, v in (("tech", tech), ("inc", inc)) if v is not None} or None
-    return _http(method, f"/approvals/{token}", {"token": token}, query)
+    body = "confirm=1" if method == "POST" else None  # lo que manda el formulario de la pagina de confirmacion
+    ev = _http(method, f"/approvals/{token}", {"token": token}, query, body=body)
+    ev["headers"] = {"content-type": "application/x-www-form-urlencoded"} if body else {}
+    return ev
 
 
-def test_approval_sends_task_success(caplog):
+@pytest.fixture
+def waiting(ddb):
+    """INC de EX-017 abierto, escalado a immediate y todavia sin tecnico (la ejecucion espera la aprobacion)."""
+    seed_incident(ddb.registry, INC, NOW_ISO, severity="immediate", zone_id="NORTE", failure_mode="hydraulic_pump")
+    return ddb
+
+
+def test_approval_get_only_renders_a_confirmation_page(waiting, caplog):
+    """Los escaneres de correo abren los enlaces: el GET no reanuda la ejecucion, solo pide confirmar."""
+    sfn = FakeSfn()
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = approvals.handler(_approve(method="GET"), sfn=sfn, registry=waiting.registry)
+    assert sfn.calls == []
+    assert resp["statusCode"] == 200 and resp["headers"]["content-type"].startswith("text/html")
+    assert resp["headers"]["cache-control"] == "no-store" and resp["headers"]["referrer-policy"] == "no-referrer"
+    page = resp["body"]
+    assert INC in page and "EX-017" in page and "immediate" in page and "TEC-02" in page
+    # el formulario vuelve a la misma URL (sin action) por POST; nada externo y el token no se copia a la pagina
+    assert re.search(r'<form method="post">\s*<button type="submit"[^>]*>Aprobar</button>', page)
+    assert "action=" not in page and "http" not in page.replace("http-equiv", "")
+    assert TOKEN not in page and quote(TOKEN, safe="") not in page
+    assert TOKEN not in caplog.text and quote(TOKEN, safe="") not in caplog.text
+    (line,) = log_lines(caplog, "aprobacion_confirmacion_mostrada")
+    assert line["incident_id"] == INC and line["machine_id"] == "EX-017" and line["tech_id"] == "TEC-02"
+
+
+def test_approval_get_without_tech_says_the_ranking_decides(waiting):
+    resp = approvals.handler(_approve(method="GET", tech=None), sfn=FakeSfn(), registry=waiting.registry)
+    assert resp["statusCode"] == 200 and "el mejor técnico disponible" in resp["body"]
+
+
+@pytest.mark.parametrize("attrs", [{"tech_id": "TEC-01", "approval": "approved"}, {"status": "closed"}])
+def test_approval_get_for_an_incident_already_decided_says_so(ddb, attrs):
+    seed_incident(ddb.registry, INC, NOW_ISO, severity="schedule", **attrs)
+    sfn = FakeSfn()
+    resp = approvals.handler(_approve(method="GET"), sfn=sfn, registry=ddb.registry)
+    assert resp["statusCode"] == 200 and "Esta aprobación ya fue procesada" in resp["body"]
+    assert "<form" not in resp["body"] and sfn.calls == []
+
+
+def test_approval_get_still_asks_when_the_incident_cannot_be_read(ddb, caplog):
+    """Sin META (o sin poder leerla) igual se muestra el boton: la decision la toma Step Functions en el POST."""
+    sfn = FakeSfn()
+    resp = approvals.handler(_approve(method="GET"), sfn=sfn, registry=ddb.registry)
+    assert resp["statusCode"] == 200 and "<form" in resp["body"] and sfn.calls == []
+
+
+def test_approval_post_sends_task_success(caplog):
     sfn = FakeSfn()
     with caplog.at_level("INFO", logger="fplib"):
         resp = approvals.handler(_approve(), sfn=sfn)
@@ -61,19 +114,19 @@ def test_approval_sends_task_success(caplog):
     assert call["taskToken"] == TOKEN  # sin el url-encoding del enlace
     assert json.loads(call["output"]) == {"approval": "approved", "tech_id": "TEC-02"}
     assert resp["statusCode"] == 200 and resp["headers"]["content-type"].startswith("text/html")
-    assert f"Aprobado: TEC-02 asignado a {INC}" in resp["body"]
+    assert f"Aprobado: TEC-02 asignado a {INC}" in resp["body"] and "<form" not in resp["body"]
     assert TOKEN not in caplog.text and quote(TOKEN, safe="") not in caplog.text
     (line,) = log_lines(caplog, "aprobacion_recibida")
     assert line["incident_id"] == INC and line["machine_id"] == "EX-017" and line["tech_id"] == "TEC-02"
 
 
-def test_approval_accepts_post_and_an_already_decoded_token():
+def test_approval_post_accepts_an_already_decoded_token():
     sfn = FakeSfn()
-    resp = approvals.handler(_approve(method="POST", token=TOKEN), sfn=sfn)
+    resp = approvals.handler(_approve(token=TOKEN), sfn=sfn)
     assert resp["statusCode"] == 200 and sfn.calls[0]["taskToken"] == TOKEN
 
 
-def test_approval_without_tech_lets_the_ranking_decide():
+def test_approval_post_without_tech_lets_the_ranking_decide():
     sfn = FakeSfn()
     resp = approvals.handler(_approve(tech=None), sfn=sfn)
     assert json.loads(sfn.calls[0]["output"]) == {"approval": "approved", "tech_id": None}
@@ -81,7 +134,7 @@ def test_approval_without_tech_lets_the_ranking_decide():
 
 
 @pytest.mark.parametrize("error", ["TaskTimedOut", "TaskDoesNotExist", "InvalidToken"])
-def test_approval_is_idempotent(error, caplog):
+def test_approval_post_is_idempotent(error, caplog):
     sfn = FakeSfn(fail=error)
     with caplog.at_level("INFO", logger="fplib"):
         resp = approvals.handler(_approve(), sfn=sfn)
@@ -90,9 +143,10 @@ def test_approval_is_idempotent(error, caplog):
     assert line["error"] == error and line["incident_id"] == INC
 
 
-def test_approval_rejects_a_bad_tech_without_touching_the_execution():
+@pytest.mark.parametrize("method", ["GET", "POST"])
+def test_approval_rejects_a_bad_tech_without_touching_the_execution(method):
     sfn = FakeSfn()
-    resp = approvals.handler(_approve(tech="<script>alert(1)</script>"), sfn=sfn)
+    resp = approvals.handler(_approve(method=method, tech="<script>alert(1)</script>"), sfn=sfn)
     assert resp["statusCode"] == 400 and sfn.calls == [] and "<script>" not in resp["body"]
 
 
@@ -285,3 +339,111 @@ def test_close_does_not_free_a_tech_working_another_incident(ex017, ddb, keys):
 def test_close_rejects_a_bad_body(ddb, keys, open_incident, body):
     assert _close(ddb, keys, body=body)["statusCode"] == 400
     assert get_meta(ddb.registry, INC)["status"] == "open" and outbox_events(ddb.outbox, "incident.closed") == []
+
+
+# --- POST /me/incidents/{incident_id}/close (ID token de Cognito) --------------------------------------------------
+
+TECH_CLAIMS = {"sub": "0f3a-tec", "email": "tecnico@example.com", "custom:role": "technician", "custom:tech_id": "TEC-01"}
+
+
+def _claims(role, **extra):
+    return {"sub": f"sub-{role}", "email": f"{role}@example.com", "custom:role": role, **extra}
+
+
+def _close_as(ddb, claims, incident_id=INC, body=BODY, sfn=None):
+    """Como lo entrega API Gateway tras el authorizer JWT `cognito`: claims en requestContext y sin x-api-key. Sin
+    secretos de API key en Secrets Manager: la ruta no los usa."""
+    raw = body if isinstance(body, str) or body is None else json.dumps(body)
+    ev = _http("POST", f"/me/incidents/{incident_id}/close", {"incident_id": incident_id}, body=raw)
+    ev["routeKey"] = close.USER_ROUTE
+    if claims is not None:
+        ev["requestContext"]["authorizer"] = {"jwt": {"claims": claims, "scopes": None}}
+    return close.handler(ev, state=ddb.state, registry=ddb.registry, outbox=ddb.outbox, sfn=sfn or FakeSfn())
+
+
+def _untouched(ddb):
+    assert get_meta(ddb.registry, INC)["status"] == "open" and get_tech(ddb.state, "TEC-01")["available"] is False
+    assert outbox_events(ddb.outbox, "incident.closed") == []
+
+
+def test_user_close_by_the_assigned_technician_records_who_closed_from_the_token(ddb, open_incident, caplog):
+    sfn = FakeSfn()
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close_as(ddb, TECH_CLAIMS, body={**BODY, "closed_by": "otro"}, sfn=sfn)  # closed_by del cuerpo no cuenta
+    assert resp["statusCode"] == 200 and json.loads(resp["body"])["incident_id"] == INC
+    assert sfn.stops == [{"executionArn": EXECUTION, "error": "IncidentClosed", "cause": "closed from console"}]
+    meta = get_meta(ddb.registry, INC)
+    assert meta["status"] == "closed" and meta["closed_by"] == "tecnico@example.com"
+    assert meta["parts_used"][0]["part_id"] == "PRT-04" and meta["cause_summary"] == "Bomba hidraulica cambiada"
+    tech = get_tech(ddb.state, "TEC-01")
+    assert tech["available"] is True and tech["current_incident"] is None
+    (env,) = outbox_events(ddb.outbox, "incident.closed")
+    assert env["payload"]["closed_by"] == "tecnico@example.com"
+    (line,) = log_lines(caplog, "incidente_cerrado")
+    assert line["role"] == "technician" and line["closed_by"] == "tecnico@example.com"
+
+
+@pytest.mark.parametrize("role", ["supervisor", "admin"])
+def test_user_close_by_supervisor_or_admin(ddb, open_incident, role):
+    resp = _close_as(ddb, _claims(role), body={})  # el cuerpo es opcional: sin repuestos ni causa
+    assert resp["statusCode"] == 200
+    meta = get_meta(ddb.registry, INC)
+    assert meta["closed_by"] == f"{role}@example.com" and meta["parts_used"] == [] and meta["cause_summary"] == ""
+
+
+def test_user_close_without_email_uses_sub_cut_to_the_contract(ddb, open_incident):
+    claims = {"sub": "s" * 80, "custom:role": "supervisor"}
+    assert _close_as(ddb, claims, body=None)["statusCode"] == 200
+    assert get_meta(ddb.registry, INC)["closed_by"] == "s" * 64  # incident.closed: closed_by maxLength 64
+
+
+@pytest.mark.parametrize("claims", [
+    {**TECH_CLAIMS, "custom:tech_id": "TEC-02"},  # otro tecnico
+    {k: v for k, v in TECH_CLAIMS.items() if k != "custom:tech_id"},  # tecnico sin tech_id
+    _claims("operator"), _claims("management"), {"sub": "x", "email": "sin-rol@example.com"},
+])
+def test_user_close_forbidden(ddb, open_incident, claims, caplog):
+    sfn = FakeSfn()
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close_as(ddb, claims, sfn=sfn)
+    assert resp["statusCode"] == 403 and json.loads(resp["body"])["error"] == "forbidden" and sfn.stops == []
+    _untouched(ddb)
+    (line,) = log_lines(caplog, "cierre_prohibido")
+    assert line["status"] == 403 and line["incident_id"] == INC and line["role"] == claims.get("custom:role")
+
+
+def test_user_close_technician_cannot_close_an_unassigned_incident(ex017, ddb):
+    created(ex017, ddb)  # abierto, sin tecnico todavia
+    resp = _close_as(ddb, TECH_CLAIMS)
+    assert resp["statusCode"] == 403 and get_meta(ddb.registry, INC)["status"] == "open"
+    assert _close_as(ddb, _claims("supervisor"))["statusCode"] == 200
+
+
+@pytest.mark.parametrize("claims", [None, {}])
+def test_user_close_without_claims_is_401(ddb, open_incident, claims, caplog):
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close_as(ddb, claims)
+    assert resp["statusCode"] == 401
+    _untouched(ddb)
+    (line,) = log_lines(caplog, "cierre_no_autorizado")
+    assert line["reasons"] == {"jwt": "missing_claims"}
+
+
+def test_user_close_unknown_incident_is_404_and_twice_is_409(ddb, open_incident):
+    assert _close_as(ddb, _claims("supervisor"), incident_id="INC-EX-017-20261115T1500")["statusCode"] == 404
+    assert _close_as(ddb, TECH_CLAIMS)["statusCode"] == 200
+    assert _close_as(ddb, TECH_CLAIMS)["statusCode"] == 409
+    assert len(outbox_events(ddb.outbox, "incident.closed")) == 1
+
+
+def test_user_close_rejects_a_bad_body(ddb, open_incident):
+    assert _close_as(ddb, TECH_CLAIMS, body="no es json")["statusCode"] == 400
+    bad = {"parts_used": [{"part_id": "PRT-04", "zone_id": "NORTE", "qty": 0}]}
+    assert _close_as(ddb, TECH_CLAIMS, body=bad)["statusCode"] == 400
+    _untouched(ddb)
+
+
+def test_api_key_route_ignores_the_user_route_rules(ddb, keys, open_incident):
+    """La ruta de siempre (consola actual, simulador, smoke) sigue con x-api-key y closed_by del cuerpo."""
+    resp = _close(ddb, keys, body={**BODY, "closed_by": "TEC-01"})
+    assert resp["statusCode"] == 200 and get_meta(ddb.registry, INC)["closed_by"] == "TEC-01"

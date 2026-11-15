@@ -118,18 +118,32 @@ def _mails(world, incident_id, role=None):
             and (role is None or c["MessageAttributes"]["role"]["StringValue"] == role)]
 
 
-def _click_approval(world, incident_id, method="GET"):
-    """El supervisor abre el enlace del correo de WaitForApproval; API Gateway lo entrega a `api/approvals`."""
+def _click_approval(world, incident_id):
+    """El supervisor abre el enlace del correo de WaitForApproval (GET: pagina de confirmacion, no reanuda nada) y
+    pulsa "Aprobar" (POST del formulario a la misma URL); API Gateway entrega ambos a `api/approvals`. Si el GET ya
+    no ofrece el boton, devuelve esa pagina."""
     (mail,) = [c for c in _mails(world, incident_id, "supervisor") if c["Subject"].startswith("[FleetPulse] Aprobar")]
     (link,) = re.findall(r"https://\S+/approvals/\S+", mail["Message"])
     url = urlsplit(link)
     assert f"{url.scheme}://{url.netloc}" == API
     token = url.path.removeprefix("/approvals/")
     query = {k: v[0] for k, v in parse_qs(url.query).items()}
-    event = {"version": "2.0", "rawPath": url.path, "headers": {}, "queryStringParameters": query,
-             "pathParameters": {"token": token}, "requestContext": {"http": {"method": method, "path": url.path}},
-             "body": None, "isBase64Encoded": False}
-    return approvals.handler(event, sfn=world.sfn)
+
+    def request(method, body=None):
+        headers = {"content-type": "application/x-www-form-urlencoded"} if body else {}
+        event = {"version": "2.0", "rawPath": url.path, "headers": headers, "queryStringParameters": query,
+                 "pathParameters": {"token": token}, "requestContext": {"http": {"method": method, "path": url.path}},
+                 "body": body, "isBase64Encoded": False}
+        return approvals.handler(event, sfn=world.sfn, registry=world.ddb.registry)
+
+    before = {name: ex.status for name, ex in world.sfn.executions.items()}
+    page = request("GET")  # lo mismo que hace un escaner de enlaces del correo
+    assert page["statusCode"] == 200
+    assert {name: ex.status for name, ex in world.sfn.executions.items()} == before
+    if '<form method="post">' not in page["body"]:
+        return page
+    assert incident_id in page["body"]
+    return request("POST", "confirm=1")
 
 
 def _close(world, incident_id, closed_by, parts_used):

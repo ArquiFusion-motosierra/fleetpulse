@@ -2170,6 +2170,12 @@
    "tenant_id": "agro"
   },
   {
+   "part_id": "PRT-04",
+   "on_hand_per_zone": 3,
+   "reorder_point": 1,
+   "tenant_id": "agro"
+  },
+  {
    "part_id": "PRT-11",
    "on_hand_per_zone": 8,
    "reorder_point": 3,

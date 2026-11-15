@@ -42,6 +42,7 @@ technicians:
 parts:
   - {part_id: PRT-01, sku: FLT-FUEL-01, name: "Filtro de combustible", unit_cost_usd: 45}
   - {part_id: PRT-02, sku: FLT-HYD-01, name: "Filtro hidraulico", unit_cost_usd: 60}
+  - {part_id: PRT-04, sku: PUMP-HYD-01, name: "Bomba hidraulica", unit_cost_usd: 6800}
   - {part_id: PRT-11, sku: FLT-AIR-01, name: "Filtro de aire", unit_cost_usd: 55}
   - {part_id: PRT-14, sku: PTO-SHAFT-01, name: "Eje de toma de fuerza (PTO)", unit_cost_usd: 640}
   - {part_id: PRT-15, sku: RAD-AGR-01, name: "Radiador de tractor", unit_cost_usd: 820}
@@ -69,6 +70,8 @@ bom:
 part_stock:
   - {part_id: PRT-01, on_hand_per_zone: 8, reorder_point: 3}
   - {part_id: PRT-02, on_hand_per_zone: 6, reorder_point: 2}
+  # PRT-04 (bomba de mineria) en stock de agro: demo de transferencia entre parques (plan de repuestos, T37+)
+  - {part_id: PRT-04, on_hand_per_zone: 3, reorder_point: 1}
   - {part_id: PRT-11, on_hand_per_zone: 8, reorder_point: 3}
   - {part_id: PRT-14, on_hand_per_zone: 1, reorder_point: 1}
   - {part_id: PRT-15, on_hand_per_zone: 1, reorder_point: 1}

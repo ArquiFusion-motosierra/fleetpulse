@@ -14,7 +14,8 @@ Rutas:
 - `POST /reports/{report_id}/close` (technician asignado o sin asignar, supervisor, admin): cuerpo `$defs/close`.
   META cerrado + EV# + `report.closed` y, si el incidente vinculado sigue abierto, el mismo sobre como EV# del
   incidente, en una transaccion. 200 `{report}`; 409 si ya estaba cerrado.
-- `GET /abnormality-types` (todos los roles): el catalogo, para el formulario del operario.
+- `GET /abnormality-types` (todos los roles): el catalogo, para el formulario del operario. Lo edita el admin con
+  la Lambda `admin` (api/admin.py, T35), asi que sus altas y bajas se ven aqui y en la validacion de `POST /reports`.
 Tecnico asignado: lectura perezosa. Si el reporte esta `open`, tiene `incident_id` y aun no tiene tecnico, al leerlo
 o cerrarlo se copia el `tech_id` del incidente (si incident-flow ya asigno) y pasa a `in_review`.
 Idempotencia: crear exige que el META no exista y cerrar que no este cerrado (condiciones en la transaccion); el

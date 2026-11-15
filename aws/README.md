@@ -55,6 +55,13 @@ Reportes del operario (`aws/reports`, stack `fp-reports`, T32), todas con el ID 
 `POST /reports/{report_id}/close` (technician, supervisor, admin) y `GET /abnormality-types`. Las rutas se cuelgan
 del authorizer por id (salida `HttpApiAuthorizerCognitoId` de `fp-core`), asi que `core` va antes que `reports`.
 
+Administracion (Lambda `admin` del mismo stack, T35), solo rol `admin` (otro rol 403, sin token 401):
+`GET /admin/technicians`, `GET|PUT /admin/technicians/{tech_id}` (`zone_id`, `available`, `specialty` sobre
+`fp-state TECH#`; 409 si se cambia `available` con un incidente en curso) y `GET|POST /admin/abnormality-types`,
+`DELETE /admin/abnormality-types/{code}` sobre `fp-registry CATALOG#abnormality_type`. El catalogo se siembra solo
+en la primera lectura con el enum `abnormality_type_seed` de `contracts/report.schema.json` (no hay script); el
+formulario del operario (`GET /abnormality-types`) lee el mismo catalogo. Maquinas y repuestos: solo lectura.
+
 La consola debe enviar el **ID token** (el access token no trae `custom:role`). `auth` debe desplegarse antes que `core`: con los valores por defecto del authorizer (modo offline) `/whoami` responde 401. Orden: `auth` se despliega antes que `core` (ya esta en `serverless-compose.yml`). Luego los usuarios de prueba:
 ```bash
 FP_TEST_PASSWORD='…' scripts/cognito-seed.sh     # operador@, tecnico@, supervisor@, direccion@, admin@example.com

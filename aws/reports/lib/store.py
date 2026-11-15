@@ -259,7 +259,7 @@ def put_type(registry, entry: dict, now_iso: str, by: str) -> bool:
     """Crea o reemplaza `CATALOG#abnormality_type/<code>`. True si era nuevo."""
     old = registry.put_item(Item=to_ddb({"PK": CATALOG_PK, "SK": entry["code"], **entry, "updated_at": now_iso,
                                          "updated_by": by}), ReturnValues="ALL_OLD").get("Attributes")
-    return old is None
+    return not old  # sin item previo DynamoDB omite Attributes (moto devuelve {})
 
 
 def delete_type(registry, code: str) -> bool:

@@ -129,3 +129,21 @@ def test_compose_and_ci_include_supply():
     assert compose["services"]["supply"] == {"path": "supply", "dependsOn": ["shared", "core", "auth"]}
     ci = (ROOT.parents[1] / ".github" / "workflows" / "ci.yml").read_text()
     assert " aws/supply " in ci
+
+
+def test_asl_has_no_null_values_because_serverless_drops_them():
+    """`${file(...asl.json)}` pasa por Serverless, que borra las claves en null: un `"ResultPath": null` desaparece en
+    el deploy y la respuesta de SNS reemplaza el estado (WaitForReceipt perdia `$.id`, 15 nov). Usar una ruta."""
+    nulls = []
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if v is None:
+                    nulls.append(f"{path}.{k}")
+                walk(v, f"{path}.{k}")
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk(v, f"{path}[{i}]")
+    walk(ASL, "$")
+    assert nulls == []

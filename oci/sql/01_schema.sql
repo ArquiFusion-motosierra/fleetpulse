@@ -19,6 +19,14 @@ END;
 /
 GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SEQUENCE, CREATE PROCEDURE, CREATE TYPE TO fleet;
 
+-- REST para FLEET en <ords>/fleet/ (el modulo fleet/v1 lo define 03_ords.sql como FLEET)
+BEGIN
+  ORDS_ADMIN.ENABLE_SCHEMA(p_enabled => TRUE, p_schema => 'FLEET', p_url_mapping_type => 'BASE_PATH',
+                           p_url_mapping_pattern => 'fleet', p_auto_rest_auth => TRUE);
+  COMMIT;
+END;
+/
+
 ALTER SESSION SET CURRENT_SCHEMA = fleet;
 
 CREATE TABLE zones (

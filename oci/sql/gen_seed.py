@@ -22,7 +22,7 @@ def main() -> None:
     zones = {z["zone_id"]: z for z in ids["zones"]}
     L = [
         "-- FleetPulse OCI - 05_seed.sql. GENERADO por oci/sql/gen_seed.py desde contracts/ids.yaml: no editar a mano.",
-        "-- Ejecutar como ADMIN despues de 01_schema.sql y ANTES de cargar incidentes (las FK lo impiden despues).",
+        "-- Ejecutar como FLEET (o ADMIN) despues de 01_schema.sql y ANTES de cargar incidentes (las FK lo impiden despues).",
         "-- Recargable: borra y vuelve a cargar los catalogos.",
         "WHENEVER SQLERROR EXIT SQL.SQLCODE",
         "ALTER SESSION SET CURRENT_SCHEMA = fleet;",

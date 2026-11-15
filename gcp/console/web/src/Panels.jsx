@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, SEVERITY, STATUS_LABEL, ENGINE_LABEL, MODEL_LABEL, MODE_LABEL, EVENT_LABEL, fmtTime, ago } from "./api.js";
+import { api, SEVERITY, statusOf, ENGINE_LABEL, MODEL_LABEL, MODE_LABEL, EVENT_LABEL, fmtTime, ago } from "./api.js";
 
 export function Sev({ s }) {
   const v = SEVERITY[s] || SEVERITY.ok;
@@ -15,7 +15,7 @@ export function IncidentRow({ inc, active, onClick }) {
       </div>
       <div className="inc-mode">{MODE_LABEL[inc.failure_mode] || inc.failure_mode}</div>
       <div className="inc-meta">
-        <span>{STATUS_LABEL[inc.status]}</span>
+        <span>{statusOf(inc)}</span>
         {inc.tech_id && <span>{inc.tech_id}</span>}
         {inc.group_id && inc.group_id !== "-" && <span className="tag">grupo</span>}
         {inc.recurrence_flag && <span className="tag warn">reincidencia</span>}
@@ -62,7 +62,7 @@ export function MachinePanel({ id, onClose, onOpenIncident }) {
                 <div className="inc-top"><b>{MODE_LABEL[i.failure_mode] || i.failure_mode}</b><Sev s={i.severity} /></div>
                 <div className="inc-meta">
                   <span>{fmtTime(i.opened_at)}</span>
-                  <span>{STATUS_LABEL[i.status]}</span>
+                  <span>{statusOf(i)}</span>
                   {i.downtime_h != null && <span>{i.downtime_h} h detenida</span>}
                   {i.recurrence_flag && <span className="tag warn">reincidencia</span>}
                 </div>
@@ -119,7 +119,7 @@ export function IncidentPanel({ id, onClose, onChanged, onMachine }) {
           <div className="facts">
             <div><span>Máquina</span><b className="link" onClick={() => onMachine(inc.machine_id)}>{inc.machine_id}</b></div>
             <div><span>Severidad</span><Sev s={inc.severity} /></div>
-            <div><span>Estado</span><b>{STATUS_LABEL[inc.status]}</b></div>
+            <div><span>Estado</span><b>{statusOf(inc)}</b></div>
             <div><span>Falla</span><b>{MODE_LABEL[inc.failure_mode] || inc.failure_mode}</b></div>
             <div><span>Técnico</span><b>{inc.tech_id || "—"}</b></div>
             <div><span>Score</span><b>{inc.score?.toFixed?.(2) ?? "—"}</b></div>

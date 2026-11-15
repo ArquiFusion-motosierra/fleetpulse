@@ -1,8 +1,9 @@
 # registry (T10, plan B sin OCI). Se despliega desde aws/serverless-compose.yml:
 #   registry:
 #     path: registry
-#     dependsOn: [<pila que crea fp-state, fp-inbox, fp-outbox y el topic fp-domain-events>]
-# Crea fp-registry, la cola registry-q (+ DLQ) suscrita a fp-domain-events y la API de lectura de la consola.
+#     dependsOn: [shared, core]
+# Las tablas (fp-registry, fp-state, fp-inbox, fp-outbox) y el topic fp-domain-events los crea fp-core (aws/ingest).
+# Esta pila crea la cola registry-q (+ DLQ, alarma) suscrita a fp-domain-events y la API de lectura de la consola.
 service: fp-registry
 frameworkVersion: "3"
 
@@ -17,6 +18,8 @@ provider:
   logRetentionInDays: 14
   iam:
     role: arn:aws:iam::${aws:accountId}:role/LabRole
+  layers:
+    - ${ssm:/fleetpulse/layers/shared}
   environment:
     REGISTRY_TABLE: fp-registry
     INBOX_TABLE: fp-inbox
@@ -42,7 +45,7 @@ package:
 functions:
   registry:
     handler: reg/consumer.handler
-    description: Aplica eventos de dominio en fp-registry; reserva atomica de repuestos (idempotente por event_id)
+    description: Reserva atomica de repuestos, consumo al cerrar y KPIs en fp-registry (idempotente por event_id)
     timeout: 30
     events:
       - sqs:
@@ -64,36 +67,6 @@ functions:
 
 resources:
   Resources:
-    RegistryTable:
-      Type: AWS::DynamoDB::Table
-      DeletionPolicy: Retain
-      Properties:
-        TableName: fp-registry
-        BillingMode: PAY_PER_REQUEST
-        DeletionProtectionEnabled: true
-        PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
-        StreamSpecification: {StreamViewType: NEW_IMAGE}
-        AttributeDefinitions:
-          - {AttributeName: PK, AttributeType: S}
-          - {AttributeName: SK, AttributeType: S}
-          - {AttributeName: GSI1PK, AttributeType: S}
-          - {AttributeName: GSI1SK, AttributeType: S}
-          - {AttributeName: GSI2PK, AttributeType: S}
-          - {AttributeName: GSI2SK, AttributeType: S}
-        KeySchema:
-          - {AttributeName: PK, KeyType: HASH}
-          - {AttributeName: SK, KeyType: RANGE}
-        GlobalSecondaryIndexes:
-          - IndexName: GSI1   # MACHINES/<zona>#<id> e INCIDENTS/<opened_at>
-            KeySchema:
-              - {AttributeName: GSI1PK, KeyType: HASH}
-              - {AttributeName: GSI1SK, KeyType: RANGE}
-            Projection: {ProjectionType: ALL}
-          - IndexName: GSI2   # historial por maquina: MACHINE#<id>/INC#<opened_at>
-            KeySchema:
-              - {AttributeName: GSI2PK, KeyType: HASH}
-              - {AttributeName: GSI2SK, KeyType: RANGE}
-            Projection: {ProjectionType: ALL}
     RegistryDlq:
       Type: AWS::SQS::Queue
       Properties:
@@ -128,6 +101,9 @@ resources:
         Protocol: sqs
         Endpoint: !GetAtt RegistryQueue.Arn
         RawMessageDelivery: true
+        # outbox-publisher pone event_type como MessageAttribute: solo llega lo que le toca a registry
+        FilterPolicy:
+          event_type: [part.reserve.requested, incident.closed, kpi.daily]
     RegistryDlqAlarm:
       Type: AWS::CloudWatch::Alarm
       Properties:

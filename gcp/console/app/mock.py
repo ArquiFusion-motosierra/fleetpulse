@@ -74,7 +74,7 @@ class MockRegistry:
                "reservations": []}
         if tech:
             at = opened + timedelta(minutes=2)
-            inc.update(status="assigned", tech_id=tech, assigned_at=_iso(at), approval="approved",
+            inc.update(tech_id=tech, assigned_at=_iso(at), approval="approved",
                        explanation=("Caida sostenida de presion con aceite y vibracion en alza: desgaste interno de "
                                     "la bomba hidraulica." if mode == "hydraulic_pump" else
                                     "Cuatro maquinas de la zona norte con la misma firma tras cargar el lote "
@@ -141,7 +141,10 @@ class MockRegistry:
 
     def list_incidents(self, status=None, limit=50):
         self._live()
-        rows = [self._brief(i) for i in self.incidents.values() if not status or i["status"] == status]
+        if status == "assigned":  # como la API real: abierto con tecnico
+            rows = [self._brief(i) for i in self.incidents.values() if i["status"] == "open" and i.get("tech_id")]
+        else:
+            rows = [self._brief(i) for i in self.incidents.values() if not status or i["status"] == status]
         return {"incidents": sorted(rows, key=lambda i: i["opened_at"], reverse=True)[:limit]}
 
     def incident(self, inc_id):

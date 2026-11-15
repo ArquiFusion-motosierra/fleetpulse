@@ -27,6 +27,8 @@ export const SEVERITY = {
 };
 
 export const STATUS_LABEL = { open: "Abierto", assigned: "Asignado", closed: "Cerrado" };
+// incident-flow solo usa open/closed: un incidente abierto con tecnico se muestra como asignado
+export const statusOf = (inc) => (inc.status === "open" && inc.tech_id ? "Asignado" : STATUS_LABEL[inc.status] || inc.status);
 export const ENGINE_LABEL = { operating: "Operando", idle: "Ralentí", off: "Apagada", in_maintenance: "En mantenimiento" };
 export const MODEL_LABEL = { EX: "Excavadora", CF: "Cargador frontal", VQ: "Volquete", MN: "Motoniveladora", TO: "Tractor de orugas" };
 export const MODE_LABEL = {

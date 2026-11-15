@@ -242,7 +242,7 @@ def test_close_while_waiting_for_approval_keeps_the_incident_closed(ex017, ddb, 
     assert _close(ddb, keys)["statusCode"] == 200
     out = assign({**ev, "approval": {"approval": "timeout", "tech_id": None}}, ddb)
     assert out == {"tech_id": None, "assigned_at": None, "approval": "timeout", "tech_busy": False,
-                   "skipped": "closed"}
+                   "skipped": "closed", "severity": "schedule"}
     assert assign({**ev, "approval": {"approval": "timeout", "tech_id": None}}, ddb) == out  # reintento
     meta = get_meta(ddb.registry, INC)
     assert meta["status"] == "closed" and meta["GSI2PK"] == "STATUS#closed" and "tech_id" not in meta

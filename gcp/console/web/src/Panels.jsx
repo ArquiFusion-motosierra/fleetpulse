@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LinkedReports } from "./Reports.jsx";
 import { api, SEVERITY, statusOf, ENGINE_LABEL, MODEL_LABEL, MODE_LABEL, EVENT_LABEL, PARAM_LABEL, FINDING_LABEL, fmtTime, ago } from "./api.js";
 
 export function Sev({ s }) {
@@ -152,7 +153,7 @@ export function MachinePanel({ id, onClose, onOpenIncident }) {
   );
 }
 
-export function IncidentPanel({ id, onClose, onChanged, onMachine }) {
+export function IncidentPanel({ id, onClose, onChanged, onMachine, onReport, canClose = true }) {
   const [inc, setInc] = useState(null);
   const [err, setErr] = useState("");
   const [closing, setClosing] = useState(false);
@@ -223,6 +224,7 @@ export function IncidentPanel({ id, onClose, onChanged, onMachine }) {
             const a = [...(inc.timeline || [])].reverse().find((t) => t.type === "incident.assigned")?.payload;
             return a?.tech_id ? <p className="muted small">Técnico asignado: <b>{a.tech_id}</b>{a.distance_km != null ? ` a ${fmtNum(a.distance_km)} km` : ""}{a.approval ? ` · ${a.approval === "auto" ? "asignación automática" : a.approval === "approved" ? "aprobado por el supervisor" : "sin respuesta en 30 min"}` : ""}</p> : null;
           })()}
+          {onReport && <LinkedReports incidentId={id} onOpen={onReport} />}
           <h3>Línea de tiempo</h3>
           <ol className="timeline">
             {inc.timeline.map((t, i) => (
@@ -232,7 +234,7 @@ export function IncidentPanel({ id, onClose, onChanged, onMachine }) {
               </li>
             ))}
           </ol>
-          {inc.status !== "closed" ? (
+          {inc.status !== "closed" && !canClose ? null : inc.status !== "closed" ? (
             <div className="close-box">
               <h3>Cerrar incidente</h3>
               <label>Cerrado por<input value={form.closed_by} onChange={(e) => setForm({ ...form, closed_by: e.target.value })} placeholder="TEC-01" /></label>

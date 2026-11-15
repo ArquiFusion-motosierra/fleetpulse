@@ -136,3 +136,108 @@ def test_mock_reports_match_the_incident_contract(mock_client):
     vq = mock_client.get(f"/api/incidents/{mock_client.get('/api/machines/VQ-022').json()['open_incident_id']}").json()
     report = next(t for t in vq["timeline"] if t["type"] == "incident.assigned")["payload"]["explanation"]["report"]
     assert report["resonance"]["natural_frequency_hz"] == 62
+
+
+# ---------- T34: consola por roles (modo de prueba con las reglas de aws/reports) ----------
+
+def H(role):
+    return {"authorization": f"Bearer mock.{role}"}
+
+
+def test_auth_config_mock_lists_five_roles(mock_client):
+    cfg = mock_client.get("/api/auth/config").json()
+    assert cfg["mode"] == "mock" and {u["role"] for u in cfg["users"]} == {
+        "operator", "technician", "supervisor", "management", "admin"}
+
+
+def test_operator_reports_and_sees_checks(mock_client):
+    assert mock_client.post("/api/reports", json={}).status_code == 401
+    body = {"machine_id": "EX-017", "abnormality_type": "high_engine_temp",
+            "description": "Sale vapor y el indicador de temperatura esta en rojo", "severity_perceived": "high"}
+    r = mock_client.post("/api/reports", json=body, headers=H("operator"))
+    assert r.status_code == 201
+    rep = r.json()["report"]
+    assert rep["recommendation"]["checks"] and rep["incident_id"] and rep["incident_link"] == "linked"
+    assert rep["status"] == "in_review" and rep["assigned_tech_id"] == "TEC-01"
+    assert mock_client.post("/api/reports", json=body, headers=H("technician")).status_code == 403
+    mine = mock_client.get("/api/reports?mine=1", headers=H("operator")).json()["reports"]
+    assert [x["report_id"] for x in mine] == [rep["report_id"]]
+    linked = mock_client.get(f"/api/reports?incident_id={rep['incident_id']}", headers=H("supervisor")).json()["reports"]
+    assert linked[0]["report_id"] == rep["report_id"]
+
+
+def test_report_without_open_incident_starts_one_when_urgent(mock_client):
+    body = {"machine_id": "CF-031", "abnormality_type": "smoke", "description": "Humo negro", "severity_perceived": "medium"}
+    rep = mock_client.post("/api/reports", json=body, headers=H("operator")).json()["report"]
+    assert rep["incident_link"] == "started"
+    assert mock_client.get(f"/api/incidents/{rep['incident_id']}").json()["machine_id"] == "CF-031"
+
+
+def test_technician_closes_assigned_report_once(mock_client):
+    body = {"machine_id": "EX-017", "abnormality_type": "low_hydraulic_pressure", "description": "Pierde fuerza",
+            "severity_perceived": "medium"}
+    rid = mock_client.post("/api/reports", json=body, headers=H("operator")).json()["report"]["report_id"]
+    close = {"findings": "Caudal bajo en la bomba", "confirmed_cause": "Bomba hidraulica gastada", "parts_used": []}
+    assert mock_client.post(f"/api/reports/{rid}/close", json=close, headers=H("operator")).status_code == 403
+    assigned = mock_client.get("/api/reports?mine=1", headers=H("technician")).json()["reports"]
+    assert rid in [x["report_id"] for x in assigned]
+    r = mock_client.post(f"/api/reports/{rid}/close", json=close, headers=H("technician"))
+    assert r.status_code == 200 and r.json()["report"]["status"] == "closed"
+    assert mock_client.post(f"/api/reports/{rid}/close", json=close, headers=H("technician")).status_code == 409
+
+
+def test_technician_cannot_close_someone_elses_report(mock_client):
+    body = {"machine_id": "VQ-022", "abnormality_type": "high_engine_temp", "description": "Temperatura alta",
+            "severity_perceived": "high"}
+    rep = mock_client.post("/api/reports", json=body, headers=H("operator")).json()["report"]
+    assert rep["assigned_tech_id"] == "TEC-03"  # incidente de S7 asignado a TEC-03; el usuario de prueba es TEC-01
+    close = {"findings": "x", "confirmed_cause": "y"}
+    assert mock_client.post(f"/api/reports/{rep['report_id']}/close", json=close, headers=H("technician")).status_code == 403
+    assert mock_client.post(f"/api/reports/{rep['report_id']}/close", json=close, headers=H("supervisor")).status_code == 200
+
+
+def test_admin_changes_technician_and_types(mock_client):
+    assert mock_client.put("/api/admin/technicians/TEC-01", json={"available": False}, headers=H("operator")).status_code == 403
+    t = mock_client.put("/api/admin/technicians/TEC-01", json={"available": False}, headers=H("admin")).json()
+    assert t["technician"]["available"] is False
+    listing = mock_client.get("/api/admin/technicians", headers=H("admin")).json()
+    assert len(listing["technicians"]) == 6 and "NORTE" in listing["allowed"]["zone_id"]
+    assert mock_client.get("/api/admin/technicians", headers=H("operator")).status_code == 403
+    assert mock_client.post("/api/admin/abnormality-types", json={"code": "brake_noise", "label_es": "Ruido de frenos"},
+                            headers=H("admin")).status_code == 201
+    codes = [x["code"] for x in mock_client.get("/api/abnormality-types", headers=H("operator")).json()["abnormality_types"]]
+    assert "brake_noise" in codes and len(codes) == 11
+    again = mock_client.post("/api/admin/abnormality-types", json={"code": "brake_noise", "label_es": "Chirrido de frenos"},
+                             headers=H("admin"))
+    assert again.status_code == 200  # reemplaza, como admin.py
+    assert mock_client.delete("/api/admin/abnormality-types/brake_noise", headers=H("admin")).status_code == 200
+
+
+def test_real_mode_forwards_the_cognito_token(monkeypatch):
+    monkeypatch.delenv("MOCK", raising=False)
+    monkeypatch.setenv("STATIC_DIR", "/nonexistent")
+    monkeypatch.setenv("AWS_INCIDENTS_URL", "https://api.example")
+    monkeypatch.setenv("AUTH_USER_POOL_ID", "us-east-1_Abc123")
+    monkeypatch.setenv("AUTH_CLIENT_ID", "client123")
+    monkeypatch.setenv("AUTH_DOMAIN", "fleetpulse-1.auth.us-east-1.amazoncognito.com")
+    import app.aws_api as aws_api
+    import app.main as main
+    importlib.reload(aws_api)
+    importlib.reload(main)
+    seen = []
+
+    def opener(req, timeout):
+        seen.append((req.get_method(), req.full_url, req.headers.get("Authorization"), req.headers.get("X-api-key")))
+        if req.get_method() == "POST":
+            raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, io.BytesIO(b'{"error":"forbidden"}'))
+        return Resp(json.dumps({"reports": []}).encode())
+
+    main.app.state.aws = aws_api.AwsApi(opener=opener, key_loader=lambda: "k")
+    c = TestClient(main.app)
+    cfg = c.get("/api/auth/config").json()
+    assert cfg["mode"] == "cognito" and cfg["authority"].endswith("/us-east-1_Abc123") and cfg["domain"].startswith("https://")
+    assert c.get("/api/reports?mine=1", headers={"authorization": "Bearer eyJ.tok.en"}).json() == {"reports": []}
+    assert seen[0] == ("GET", "https://api.example/reports?mine=1", "Bearer eyJ.tok.en", None)
+    r = c.post("/api/reports", json={"machine_id": "EX-017"}, headers={"authorization": "Bearer eyJ.tok.en"})
+    assert r.status_code == 403 and r.json() == {"error": "forbidden"}
+    assert c.get("/api/reports").status_code == 401

@@ -10,18 +10,48 @@
   --warn: #f97316;
   --bad: #ef4444;
   --radius: 10px;
+  --park: #f59e0b;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
   font-size: 14px;
 }
 * { box-sizing: border-box; }
+:focus-visible { outline: 2px solid var(--park); outline-offset: 2px; }
 html, body, #root { height: 100%; margin: 0; }
 button { font: inherit; color: inherit; cursor: pointer; }
 .mono { font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-left: 6px; }
+.icon { flex: none; display: block; }
+
+/* Base visual: tarjetas, KPI, vacios, esqueletos y etiqueta de parque */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: var(--space-4); margin-bottom: var(--space-4); box-shadow: var(--shadow-1); min-width: 0; }
+.card h3 { margin: 0 0 var(--space-3); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+.card-head h3 { margin-bottom: var(--space-3); }
+.link-btn { background: none; border: 0; padding: 0; color: #93c5fd; font-size: 13px; margin-bottom: var(--space-3); }
+.link-btn:hover { text-decoration: underline; }
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); align-items: start; }
+.grid-cards .card { margin-bottom: 0; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-4); }
+.kpi { display: flex; flex-direction: column; gap: 2px; text-align: left; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--c, var(--line)); border-radius: 12px; padding: var(--space-3) var(--space-4); }
+.kpi b { font-size: 26px; font-variant-numeric: tabular-nums; color: var(--c, var(--text)); line-height: 1.1; }
+.kpi span { font-size: 12px; color: var(--muted); }
+.kpi.clickable:hover { border-color: #3b4c61; background: var(--panel-2); }
+.empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: var(--space-4); color: var(--muted); display: grid; gap: var(--space-3); justify-items: start; }
+.empty p { margin: 0; line-height: 1.45; }
+.skeleton { display: grid; gap: var(--space-2); }
+.skeleton i { display: block; height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--panel-2) 0%, #1d2a38 50%, var(--panel-2) 100%); background-size: 200% 100%; animation: shimmer 1.2s infinite linear; }
+.skeleton i:nth-child(3n + 2) { width: 80%; }
+.skeleton i:nth-child(3n) { width: 55%; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton i { animation: none; } }
+.park-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.park-tag i { width: 8px; height: 8px; border-radius: 2px; background: var(--park); }
 .tag.warn, .warn-text { color: #fdba74; border-color: #7c2d12; }
 
 .app { display: grid; grid-template-rows: auto auto 1fr; height: 100%; }
@@ -120,9 +150,6 @@ table.grid td .tag { margin: 4px 0 0; }
 .tiles div { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .tiles span { display: block; font-size: 12px; color: var(--muted); }
 .tiles b { font-size: 24px; font-variant-numeric: tabular-nums; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
-.card h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-.card-head { display: flex; justify-content: space-between; align-items: center; }
 .toggle { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 12px; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .two-col .card { margin-bottom: 0; }

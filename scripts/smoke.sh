@@ -8,6 +8,8 @@
 #                               #      no entra en `all`). SCENARIO=s1|s2|all, SMOKE_ARGS="--sim --close-stale"
 #   scripts/smoke.sh reports  # T32/T33/T35: reportes del operario, /recommend-checks y admin (crea reportes e
 #                               #      incidentes reales; no entra en `all`). SMOKE_ARGS="--machine EX-019 --via-bff"
+#   scripts/smoke.sh analytics  # T20/T42: insights /supply/analytics, /anomalies/fuel, /forecast/parts con el ID token
+#                               #      de gcloud (~100 MB de BigQuery; no entra en `all`). SMOKE_ARGS="--kpis --job-ids <id>"
 #   scripts/smoke.sh planning # T18: daily-planning a mano: ORDER#/REORDER# en fp-registry, outbox, BigQuery y
 #                               #      consola (escribe ordenes y pedidos reales; no entra en `all`). SMOKE_ARGS="--no-rerun"
 #   scripts/smoke.sh e2e      # T17: mismo incident_id en AWS y GCP
@@ -104,6 +106,16 @@ stage_reports() {
   "${PYTHON:-.venv/bin/python}" scripts/smoke_reports.py --close-incident ${SMOKE_ARGS:-} || { fail "reports"; return 1; }
 }
 
+stage_analytics() {
+  echo "[analytics] T20/T42"
+  if ! command -v gcloud >/dev/null 2>&1; then
+    [ "$SKIP_MISSING" = "1" ] && { skip "analytics (sin gcloud)"; return 0; }
+    fail "analytics: falta gcloud"; return 1
+  fi
+  # shellcheck disable=SC2086 # SMOKE_ARGS son varias banderas (sin comillas: vacio = ningun argumento)
+  "${PYTHON:-.venv/bin/python}" scripts/smoke_analytics.py ${SMOKE_ARGS:-} || { fail "analytics"; return 1; }
+}
+
 stage_planning() {
   echo "[planning] T18"
   if [ -z "${FP_TEST_PASSWORD:-}${FP_TOKEN_HEAD:-}" ]; then
@@ -143,8 +155,9 @@ case "${1:-all}" in
   gcp)     run gcp ;;
   incidents) run incidents ;;
   reports) run reports ;;
+  analytics) run analytics ;;
   planning) run planning ;;
   e2e)     run e2e ;;
   all)     run ingest secrets gcp e2e ;;
-  *)       echo "uso: $0 {ingest|secrets|gcp|incidents|reports|planning|e2e|all}" >&2 ; exit 2 ;;
+  *)       echo "uso: $0 {ingest|secrets|gcp|incidents|reports|analytics|planning|e2e|all}" >&2 ; exit 2 ;;
 esac

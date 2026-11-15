@@ -1,0 +1,30 @@
+# T39: Lambda supply-sourcing (supply-q) y las Lambdas de supply-flow (statemachine/supply-flow.asl.json).
+# Las referencia serverless.yml en `functions:`; T40 declara las suyas en functions-api.yml.
+sourcing:
+  handler: supply/consumer.handler
+  description: supply-sourcing - faltante (part.shortage) -> sugerencia PO o TRF e inicio de supply-flow
+  timeout: 30
+  events:
+    - sqs:
+        arn: {"Fn::GetAtt": [SupplyQueue, Arn]}
+        batchSize: 5
+        maximumBatchingWindow: 5
+        functionResponseType: ReportBatchItemFailures
+flowLoad:
+  handler: supply/flow.load
+flowWaitApproval:
+  handler: supply/flow.wait_approval
+flowApprove:
+  handler: supply/flow.approve
+flowCancel:
+  handler: supply/flow.cancel
+flowPlaceOrder:
+  handler: supply/flow.place_order
+flowShip:
+  handler: supply/flow.ship
+flowWaitReceipt:
+  handler: supply/flow.wait_receipt
+flowReceive:
+  handler: supply/flow.receive
+flowAllocateBackorders:
+  handler: supply/flow.allocate_backorders

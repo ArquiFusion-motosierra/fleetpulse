@@ -1,0 +1,657 @@
+{
+  "Comment": "supply-flow (T39): una ejecucion por orden de compra (PO) o transferencia (TRF), nombre = id. Aprobacion humana y recepcion por task token guardado en fp-registry (META.task_token, waiting_for); la API /supply/* (T40) llama SendTaskSuccess o SendTaskFailure (error SupplyRejected o Rejected). Diseno: docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md, 6.1.",
+  "StartAt": "Load",
+  "States": {
+    "Load": {
+      "Type": "Task",
+      "Resource": "${LoadArn}",
+      "Parameters": {
+        "id.$": "$.id"
+      },
+      "ResultPath": "$.doc",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "InvalidState",
+            "InsufficientStock"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "Status?"
+    },
+    "Status?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.doc.status",
+          "StringEquals": "suggested",
+          "Next": "WaitForApproval"
+        },
+        {
+          "Variable": "$.doc.status",
+          "StringEquals": "approved",
+          "Next": "Kind?"
+        }
+      ],
+      "Default": "AlreadyClosed"
+    },
+    "AlreadyClosed": {
+      "Type": "Succeed",
+      "Comment": "La orden ya avanzo o se cancelo fuera de esta ejecucion"
+    },
+    "WaitForApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "${WaitApprovalArn}",
+        "Payload": {
+          "id.$": "$.id",
+          "token.$": "$$.Task.Token"
+        }
+      },
+      "ResultPath": "$.approval",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "SupplyRejected",
+            "Rejected",
+            "States.Timeout"
+          ],
+          "ResultPath": "$.cancel",
+          "Next": "Cancel"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "Approve",
+      "TimeoutSeconds": 86400
+    },
+    "Approve": {
+      "Type": "Task",
+      "Resource": "${ApproveArn}",
+      "Parameters": {
+        "id.$": "$.id",
+        "approval.$": "$.approval"
+      },
+      "ResultPath": "$.doc",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "InvalidState",
+            "InsufficientStock"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "Kind?"
+    },
+    "Kind?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.doc.kind",
+          "StringEquals": "po",
+          "Next": "PlaceOrder"
+        },
+        {
+          "Variable": "$.doc.kind",
+          "StringEquals": "transfer",
+          "Next": "Ship"
+        }
+      ],
+      "Default": "UnknownKind"
+    },
+    "UnknownKind": {
+      "Type": "Fail",
+      "Error": "UnknownKind",
+      "Cause": "kind no es po ni transfer"
+    },
+    "PlaceOrder": {
+      "Type": "Task",
+      "Resource": "${PlaceOrderArn}",
+      "Parameters": {
+        "id.$": "$.id"
+      },
+      "ResultPath": "$.shipment",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "InvalidState",
+            "InsufficientStock"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "NotifySupplier"
+    },
+    "NotifySupplier": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${NotifyTopicArn}",
+        "Subject.$": "$.shipment.notice.subject",
+        "Message.$": "$.shipment.notice.message",
+        "MessageAttributes": {
+          "role": {
+            "DataType": "String",
+            "StringValue": "supplier"
+          },
+          "tenant_id": {
+            "DataType": "String",
+            "StringValue.$": "$.doc.tenant_id"
+          }
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.notify_error",
+          "Next": "WaitForReceipt"
+        }
+      ],
+      "ResultPath": null,
+      "Next": "WaitForReceipt"
+    },
+    "Ship": {
+      "Type": "Task",
+      "Resource": "${ShipArn}",
+      "Parameters": {
+        "id.$": "$.id"
+      },
+      "ResultPath": "$.shipment",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "InvalidState",
+            "InsufficientStock"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "InsufficientStock"
+          ],
+          "ResultPath": "$.cancel",
+          "Next": "Cancel"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "NotifyShipped"
+    },
+    "NotifyShipped": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${NotifyTopicArn}",
+        "Subject.$": "$.shipment.notice.subject",
+        "Message.$": "$.shipment.notice.message",
+        "MessageAttributes": {
+          "role": {
+            "DataType": "String",
+            "StringValue": "admin"
+          },
+          "tenant_id": {
+            "DataType": "String",
+            "StringValue.$": "$.doc.tenant_id"
+          }
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.notify_error",
+          "Next": "WaitForReceipt"
+        }
+      ],
+      "ResultPath": null,
+      "Next": "WaitForReceipt"
+    },
+    "WaitForReceipt": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "${WaitReceiptArn}",
+        "Payload": {
+          "id.$": "$.id",
+          "token.$": "$$.Task.Token",
+          "late": false
+        }
+      },
+      "ResultPath": "$.receipt",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "ResultPath": "$.late",
+          "Next": "WaitForReceiptLate"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "Receive",
+      "TimeoutSecondsPath": "$.shipment.receipt_timeout_s"
+    },
+    "WaitForReceiptLate": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "${WaitReceiptArn}",
+        "Payload": {
+          "id.$": "$.id",
+          "token.$": "$$.Task.Token",
+          "late": true
+        }
+      },
+      "ResultPath": "$.receipt",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "Receive",
+      "TimeoutSecondsPath": "$.shipment.receipt_timeout_s"
+    },
+    "Receive": {
+      "Type": "Task",
+      "Resource": "${ReceiveArn}",
+      "Parameters": {
+        "id.$": "$.id",
+        "receipt.$": "$.receipt"
+      },
+      "ResultPath": "$.doc",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "InvalidState",
+            "InsufficientStock"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "AllocateBackorders"
+    },
+    "AllocateBackorders": {
+      "Type": "Task",
+      "Resource": "${AllocateBackordersArn}",
+      "Parameters": {
+        "id.$": "$.id"
+      },
+      "ResultPath": "$.allocation",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "InvalidState",
+            "InsufficientStock"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "NotifyReceived"
+    },
+    "NotifyReceived": {
+      "Type": "Parallel",
+      "ResultPath": null,
+      "Next": "Received",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.notify_error",
+          "Next": "Received"
+        }
+      ],
+      "Branches": [
+        {
+          "StartAt": "NotifyTechnician",
+          "States": {
+            "NotifyTechnician": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "$.allocation.notice_technician.subject",
+                "Message.$": "$.allocation.notice_technician.message",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "technician"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.doc.tenant_id"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "ResultPath": null,
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "NotifyAdmin",
+          "States": {
+            "NotifyAdmin": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${NotifyTopicArn}",
+                "Subject.$": "$.allocation.notice_admin.subject",
+                "Message.$": "$.allocation.notice_admin.message",
+                "MessageAttributes": {
+                  "role": {
+                    "DataType": "String",
+                    "StringValue": "admin"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.doc.tenant_id"
+                  }
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "ResultPath": null,
+              "End": true
+            }
+          }
+        }
+      ]
+    },
+    "Received": {
+      "Type": "Succeed"
+    },
+    "Cancel": {
+      "Type": "Task",
+      "Resource": "${CancelArn}",
+      "Parameters": {
+        "id.$": "$.id",
+        "cancel.$": "$.cancel"
+      },
+      "ResultPath": "$.doc",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "InvalidState",
+            "InsufficientStock"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "NotifyCancelled"
+    },
+    "NotifyCancelled": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${NotifyTopicArn}",
+        "Subject.$": "$.doc.notice.subject",
+        "Message.$": "$.doc.notice.message",
+        "MessageAttributes": {
+          "role": {
+            "DataType": "String",
+            "StringValue": "admin"
+          },
+          "tenant_id": {
+            "DataType": "String",
+            "StringValue.$": "$.doc.tenant_id"
+          }
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.notify_error",
+          "Next": "Cancelled"
+        }
+      ],
+      "ResultPath": null,
+      "Next": "Cancelled"
+    },
+    "Cancelled": {
+      "Type": "Succeed"
+    },
+    "PublishAlert": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertsTopicArn}",
+        "Subject.$": "States.Format('[FleetPulse] supply-flow fallo {}', $$.Execution.Name)",
+        "Message.$": "States.Format('supply-flow {} fallo: {} - {}', $$.Execution.Name, $.Error, $.Cause)"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Failed"
+    },
+    "Failed": {
+      "Type": "Fail",
+      "Error": "SupplyFlowFailed",
+      "Cause": "Ver el mensaje en fp-alerts y el historial de la ejecucion"
+    }
+  }
+}

@@ -1,0 +1,1 @@
+# Solo boto3 (incluido en el runtime python3.12); fplib y jsonschema vienen de la layer fp-shared.

@@ -40,6 +40,11 @@ services:
     path: planning
     dependsOn: [shared, core]
 
+  # T39/T40: repuestos y abastecimiento (supply-q, supply-flow, API /supply/*)
+  supply:
+    path: supply
+    dependsOn: [shared, core, auth]
+
   simulator:
     path: ../simulator
     dependsOn: [core]

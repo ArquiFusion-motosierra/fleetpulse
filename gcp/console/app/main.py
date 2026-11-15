@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from app.aws_api import AwsApi, UpstreamError
 from app import mock_reports as mr
 from app.mock import MockRegistry
+from app.mock_supply import MockSupply
 
 log = logging.getLogger("console")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -31,6 +32,8 @@ app = FastAPI(title="FleetPulse console", docs_url=None, redoc_url=None)
 app.state.mock = MockRegistry() if os.environ.get("MOCK") == "1" else None
 app.state.reports = mr.MockReports(app.state.mock) if app.state.mock else None
 app.state.aws = AwsApi()
+# T41: abastecimiento de prueba con MOCK=1, o con SUPPLY_MOCK=1 en modo AWS mientras /supply (T40) no este desplegada
+app.state.supply = MockSupply() if app.state.mock or os.environ.get("SUPPLY_MOCK") == "1" else None
 FLEET_PATH = os.path.join(os.path.dirname(__file__), "fleet.json")
 with open(FLEET_PATH, encoding="utf-8") as _f:
     _FLEET = json.load(_f)
@@ -137,7 +140,8 @@ def tenants(request: Request):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "console", "mode": "mock" if app.state.mock else "aws"}
+    return {"status": "ok", "service": "console", "mode": "mock" if app.state.mock else "aws",
+            "supply_mode": "mock" if app.state.supply else "aws"}
 
 
 @app.get("/api/machines")
@@ -437,6 +441,103 @@ def admin_delete_type(request: Request, code: str):
         _mock(request, app.state.reports.delete_type, code)
         return {"deleted": code}
     return _as_user(request, "DELETE", f"/admin/abnormality-types/{code}")
+
+
+# ---------- T41: abastecimiento (/supply/* de aws/supply, T40) ----------
+DOC_RE = re.compile(r"^(PO|TRF)-[A-Z0-9-]{4,80}$")
+ZONE_RE = re.compile(r"^[A-Z0-9-]{2,20}$")
+PART_RE = re.compile(r"^PRT-[0-9]{2}$")
+SUPPLY_STATUS = (None, "suggested", "approved", "ordered", "in_transit", "received", "cancelled")
+
+
+def _supply_user(request: Request) -> dict:
+    """Usuario para el mock de abastecimiento: el de prueba (MOCK=1) o el de /whoami (SUPPLY_MOCK=1 en modo AWS)."""
+    auth = request.headers.get("authorization", "")
+    if app.state.mock:
+        return mr.user_of(auth)
+    ident = _identity(request)
+    if not ident or not ident.get("role"):
+        raise PermissionError("unauthorized")
+    return {"role": ident["role"], "tenant_id": ident["tenant_id"]}
+
+
+def _supply(request: Request, tenant: str | None, fn, *args):
+    """Llama al mock de abastecimiento con el usuario y su alcance de parques; errores como la API real."""
+    try:
+        return fn(_supply_user(request), scope(request, tenant), *args)
+    except PermissionError as exc:
+        raise HTTPException(401, "UNAUTHORIZED") from exc
+    except mr.Forbidden as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except mr.NotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except mr.Conflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except mr.BadRequest as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+def _qs(**kw) -> str:
+    return "&".join(f"{k}={v}" for k, v in kw.items() if v)
+
+
+@app.get("/api/supply/stock")
+def supply_stock(request: Request, tenant: str | None = None, zone: str | None = None, part: str | None = None):
+    if (zone and not ZONE_RE.match(zone)) or (part and not PART_RE.match(part)):
+        raise HTTPException(400, "BAD_FILTER")
+    if app.state.supply:
+        return {"stock": _supply(request, tenant, app.state.supply.list_stock, zone, part)}
+    return _as_user(request, "GET", "/supply/stock", query=_qs(tenant=tenant, zone=zone, part=part))
+
+
+@app.get("/api/supply/suggestions")
+def supply_suggestions(request: Request, tenant: str | None = None):
+    if app.state.supply:
+        return {"suggestions": _supply(request, tenant, app.state.supply.suggestions)}
+    return _as_user(request, "GET", "/supply/suggestions", query=_qs(tenant=tenant))
+
+
+@app.get("/api/supply/{kind}")
+def supply_list(request: Request, kind: str, status: str | None = None, tenant: str | None = None):
+    if kind == "suppliers":
+        if app.state.supply:
+            return {"suppliers": _supply(request, None, lambda user, _s: app.state.supply.suppliers(user))}
+        return _as_user(request, "GET", "/supply/suppliers")
+    if kind == "kpis":
+        if app.state.supply:
+            return _supply(request, tenant, app.state.supply.kpis)
+        return _as_user(request, "GET", "/supply/kpis", query=_qs(tenant=tenant))
+    if kind not in ("purchase-orders", "transfers"):
+        raise HTTPException(404, "ROUTE_NOT_FOUND")
+    if status not in SUPPLY_STATUS:
+        raise HTTPException(400, "BAD_FILTER")
+    if app.state.supply:
+        key = "purchase_orders" if kind == "purchase-orders" else "transfers"
+        doc_kind = "purchase_order" if kind == "purchase-orders" else "transfer"
+        return {key: _supply(request, tenant, app.state.supply.list_docs, doc_kind, status)}
+    return _as_user(request, "GET", f"/supply/{kind}", query=_qs(status=status, tenant=tenant))
+
+
+@app.get("/api/supply/{kind}/{doc_id}")
+def supply_get(request: Request, kind: str, doc_id: str):
+    if kind not in ("purchase-orders", "transfers") or not DOC_RE.match(doc_id):
+        raise HTTPException(400, "BAD_ID")
+    if app.state.supply:
+        doc_kind = "purchase_order" if kind == "purchase-orders" else "transfer"
+        return _supply(request, None, app.state.supply.get_doc, doc_kind, doc_id)
+    return _as_user(request, "GET", f"/supply/{kind}/{doc_id}")
+
+
+@app.post("/api/supply/{kind}/{doc_id}/{action}")
+async def supply_act(request: Request, kind: str, doc_id: str, action: str):
+    if kind not in ("purchase-orders", "transfers") or not DOC_RE.match(doc_id) or \
+            action not in ("approve", "reject", "receive"):
+        raise HTTPException(400, "BAD_ACTION")
+    body = await _json(request) if (await request.body()) else {}
+    log.info(json.dumps({"msg": "supply_action", "action": action, "doc_id": doc_id}))
+    if app.state.supply:
+        return _supply(request, None, app.state.supply.act, kind, doc_id, action, body)
+    return _as_user(request, "POST", f"/supply/{kind}/{doc_id}/{action}", body)
 
 
 @app.exception_handler(HTTPException)

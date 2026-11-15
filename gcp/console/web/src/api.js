@@ -43,6 +43,13 @@ export const api = {
   kpis: () => req("/kpis"),
   orders: () => req("/orders").then((b) => b.orders),
   reorders: () => req("/reorders").then((b) => b.reorders),
+  // T41: abastecimiento (/supply/* de aws/supply con el ID token)
+  supplyStock: () => req("/supply/stock").then((b) => b.stock),
+  supplySuggestions: () => req("/supply/suggestions").then((b) => b.suggestions),
+  supplyDocs: (kind) => req(`/supply/${kind}`).then((b) => b[kind === "transfers" ? "transfers" : "purchase_orders"]),
+  supplySuppliers: () => req("/supply/suppliers").then((b) => b.suppliers),
+  supplyKpis: () => req("/supply/kpis"),
+  supplyAct: (kind, id, action) => req(`/supply/${kind}/${id}/${action}`, { method: "POST", body: "{}" }),
   close: (id, body) => req(`/incidents/${id}/close`, { method: "POST", body: JSON.stringify(body) }),
 };
 
@@ -91,6 +98,8 @@ export const EVENT_LABEL = {
   "part.reserve.requested": "Reserva de repuestos solicitada",
   "part.reserved": "Repuestos reservados",
   "part.shortage": "Falta de stock: pedido sugerido",
+  "supply.suggested": "Abastecimiento sugerido",
+  "supply.received": "Repuesto recibido",
 };
 
 export function fmtTime(iso) {

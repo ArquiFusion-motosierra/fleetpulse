@@ -1,0 +1,210 @@
+{
+ "approval_threshold_usd": 1000,
+ "transit_h": [
+  {
+   "from": "mineria",
+   "to": "agro",
+   "hours": 16,
+   "freight_usd": 180
+  },
+  {
+   "from": "mineria",
+   "to": "industria",
+   "hours": 20,
+   "freight_usd": 220
+  },
+  {
+   "from": "agro",
+   "to": "industria",
+   "hours": 5,
+   "freight_usd": 90
+  }
+ ],
+ "suppliers": [
+  {
+   "supplier_id": "SUP-HIDRA",
+   "name": "HidraAndes SAC",
+   "email_topic_attr": "supplier"
+  },
+  {
+   "supplier_id": "SUP-MOTOR",
+   "name": "Motores del Pacifico"
+  },
+  {
+   "supplier_id": "SUP-FILTR",
+   "name": "Filtros y Lubricantes Lima"
+  }
+ ],
+ "supplier_parts": [
+  {
+   "supplier_id": "SUP-FILTR",
+   "part_id": "PRT-01",
+   "unit_price_usd": 42,
+   "lead_time_d": 2,
+   "min_qty": 5
+  },
+  {
+   "supplier_id": "SUP-FILTR",
+   "part_id": "PRT-02",
+   "unit_price_usd": 58,
+   "lead_time_d": 2,
+   "min_qty": 5
+  },
+  {
+   "supplier_id": "SUP-HIDRA",
+   "part_id": "PRT-03",
+   "unit_price_usd": 175,
+   "lead_time_d": 3,
+   "min_qty": 2
+  },
+  {
+   "supplier_id": "SUP-HIDRA",
+   "part_id": "PRT-04",
+   "unit_price_usd": 6800,
+   "lead_time_d": 7,
+   "min_qty": 1
+  },
+  {
+   "supplier_id": "SUP-MOTOR",
+   "part_id": "PRT-05",
+   "unit_price_usd": 320,
+   "lead_time_d": 4,
+   "min_qty": 2
+  },
+  {
+   "supplier_id": "SUP-FILTR",
+   "part_id": "PRT-06",
+   "unit_price_usd": 36,
+   "lead_time_d": 2,
+   "min_qty": 6
+  },
+  {
+   "supplier_id": "SUP-MOTOR",
+   "part_id": "PRT-07",
+   "unit_price_usd": 1250,
+   "lead_time_d": 5,
+   "min_qty": 1
+  },
+  {
+   "supplier_id": "SUP-MOTOR",
+   "part_id": "PRT-08",
+   "unit_price_usd": 210,
+   "lead_time_d": 3,
+   "min_qty": 2
+  },
+  {
+   "supplier_id": "SUP-MOTOR",
+   "part_id": "PRT-09",
+   "unit_price_usd": 95,
+   "lead_time_d": 3,
+   "min_qty": 3
+  },
+  {
+   "supplier_id": "SUP-HIDRA",
+   "part_id": "PRT-10",
+   "unit_price_usd": 140,
+   "lead_time_d": 3,
+   "min_qty": 2
+  },
+  {
+   "supplier_id": "SUP-FILTR",
+   "part_id": "PRT-11",
+   "unit_price_usd": 28,
+   "lead_time_d": 2,
+   "min_qty": 8
+  },
+  {
+   "supplier_id": "SUP-MOTOR",
+   "part_id": "PRT-12",
+   "unit_price_usd": 180,
+   "lead_time_d": 4,
+   "min_qty": 2
+  },
+  {
+   "supplier_id": "SUP-HIDRA",
+   "part_id": "PRT-13",
+   "unit_price_usd": 260,
+   "lead_time_d": 4,
+   "min_qty": 2
+  }
+ ],
+ "part_policy": [
+  {
+   "part_id": "PRT-01",
+   "criticality": "C",
+   "safety_stock": 3
+  },
+  {
+   "part_id": "PRT-02",
+   "criticality": "C",
+   "safety_stock": 3
+  },
+  {
+   "part_id": "PRT-03",
+   "criticality": "B",
+   "safety_stock": 2
+  },
+  {
+   "part_id": "PRT-04",
+   "criticality": "A",
+   "safety_stock": 1
+  },
+  {
+   "part_id": "PRT-05",
+   "criticality": "B",
+   "safety_stock": 2
+  },
+  {
+   "part_id": "PRT-06",
+   "criticality": "C",
+   "safety_stock": 4
+  },
+  {
+   "part_id": "PRT-07",
+   "criticality": "A",
+   "safety_stock": 1
+  },
+  {
+   "part_id": "PRT-08",
+   "criticality": "B",
+   "safety_stock": 2
+  },
+  {
+   "part_id": "PRT-09",
+   "criticality": "C",
+   "safety_stock": 3
+  },
+  {
+   "part_id": "PRT-10",
+   "criticality": "B",
+   "safety_stock": 2
+  },
+  {
+   "part_id": "PRT-11",
+   "criticality": "C",
+   "safety_stock": 5
+  },
+  {
+   "part_id": "PRT-12",
+   "criticality": "B",
+   "safety_stock": 2
+  },
+  {
+   "part_id": "PRT-13",
+   "criticality": "B",
+   "safety_stock": 2
+  }
+ ],
+ "downtime_cost_usd_h": {
+  "EX": 450,
+  "CF": 300,
+  "VQ": 380,
+  "MN": 220,
+  "TO": 400,
+  "TA": 120,
+  "CS": 200,
+  "MC": 60,
+  "CP": 90,
+  "GE": 150
+ }
+}

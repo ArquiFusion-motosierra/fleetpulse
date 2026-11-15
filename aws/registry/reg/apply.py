@@ -12,6 +12,8 @@ Idempotencia: fp-inbox con message_id = "registry:<event_id>" en la misma transa
 """
 from __future__ import annotations
 
+import json
+import logging
 import time
 import uuid
 
@@ -20,6 +22,8 @@ from fplib import clock, ids, outbox
 
 from reg import store
 from reg.store import INBOX, OUTBOX, REGISTRY, dumps, key, ser, vals
+
+log = logging.getLogger("registry")
 
 HANDLED = ("part.reserve.requested", "incident.closed", "kpi.daily", "maintenance.order.suggested")
 ZONE_COORDS = {"NORTE": (-13.9000, -71.5600), "CENTRO": (-13.9200, -71.5450), "SUR": (-13.9400, -71.5550)}
@@ -179,6 +183,14 @@ def consume_items(ddb, e: dict) -> list[dict]:
 
 # ---------- entrada ----------
 
+def _incident_closed(ddb, incident_id: str | None) -> bool:
+    """El META del incidente (lo escribe incident-flow) dice closed. Sin META (o sin id) se reserva como siempre."""
+    if not incident_id:
+        return False
+    meta = store.get(ddb, f"INCIDENT#{incident_id}", "META") or {}
+    return meta.get("status") == "closed"
+
+
 def apply(ddb, event: dict) -> dict:
     etype = event["event_type"]
     if etype not in HANDLED:
@@ -186,6 +198,16 @@ def apply(ddb, event: dict) -> dict:
     if already_applied(ddb, event["event_id"]):
         return {"status": "duplicate", "follow_up": []}
     items, follow = [_inbox_put(event)], []
+    if etype == "part.reserve.requested" and _incident_closed(ddb, event.get("incident_id")):
+        # backlog #47: un pedido que llega despues del cierre (cola atrasada o reentrega de SQS) no reserva ni emite
+        # part.shortage, que crearia un BACKORDER# huerfano. Se marca en fp-inbox para no reprocesarlo.
+        log.info(json.dumps({"msg": "reserva_de_incidente_cerrado", "incident_id": event.get("incident_id"),
+                             "event_id": event["event_id"]}))
+        try:
+            _transact(ddb, items)
+        except Duplicate:
+            return {"status": "duplicate", "follow_up": []}
+        return {"status": "skipped_closed", "follow_up": []}
     if etype == "part.reserve.requested":
         reservation = reserve(ddb, event)  # idempotente por linea (reservation_id = <event_id>#<linea>)
         follow = follow_up_events(event, reservation)

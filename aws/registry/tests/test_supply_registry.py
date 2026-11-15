@@ -104,3 +104,21 @@ def test_stock_rows_without_supply_fields_read_as_zero(ddb):
                     UpdateExpression="REMOVE on_order, in_transit, criticality, safety_stock")
     row = next(x for x in api.list_stock(ddb) if x["part_id"] == "PRT-01" and x["zone_id"] == "NORTE")
     assert (row["on_order"], row["in_transit"], row["criticality"], row["safety_stock"]) == (0, 0, "C", 3)
+
+
+def test_reserve_after_close_is_skipped_without_shortage(ddb):
+    """backlog #47: una reserva que llega cuando el incidente ya cerro no reserva ni deja faltante (BACKORDER huerfano)."""
+    seed.seed(ddb, IDS, with_state=False, supply=SUPPLY, demo_supply=True)
+    ddb.put_item(TableName="fp-registry", Item=store.ser({"PK": f"INCIDENT#{RESERVE['incident_id']}", "SK": "META",
+                                                          "incident_id": RESERVE["incident_id"], "status": "closed"}))
+    assert reg_apply.apply(ddb, RESERVE) == {"status": "skipped_closed", "follow_up": []}
+    assert store.get(ddb, "STOCK#PRT-03#NORTE", "META")["reserved"] == 0
+    assert ddb.scan(TableName="fp-outbox")["Count"] == 0
+    assert reg_apply.apply(ddb, RESERVE)["status"] == "duplicate"  # marcado en fp-inbox
+
+
+def test_reserve_with_open_incident_still_works(ddb):
+    seed.seed(ddb, IDS, with_state=False, supply=SUPPLY)
+    ddb.put_item(TableName="fp-registry", Item=store.ser({"PK": f"INCIDENT#{RESERVE['incident_id']}", "SK": "META",
+                                                          "incident_id": RESERVE["incident_id"], "status": "open"}))
+    assert reg_apply.apply(ddb, RESERVE)["follow_up"] == ["part.reserved"]

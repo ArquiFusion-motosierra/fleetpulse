@@ -111,7 +111,9 @@ def test_scores_and_starts_execution_when_drift(table):
     inp = json.loads(call["input"])
     assert inp["failure_mode"] == "hydraulic_pump"
     assert set(inp) == {"incident_id", "machine_id", "model", "serial", "zone_id", "lat", "lon", "geohash6", "ts",
-                        "batch_id", "score", "severity", "z", "deviated_vars", "failure_mode", "hours_total"}
+                        "batch_id", "score", "severity", "z", "deviated_vars", "failure_mode", "hours_total",
+                        "tenant_id"}
+    assert inp["tenant_id"] == "mineria"
     assert inp["ts"] == last and inp["lat"] == -13.9003 and inp["hours_total"] == 1200.5
 
 

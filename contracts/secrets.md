@@ -19,10 +19,11 @@ Caché de 5 minutos en cada Lambda. `scripts/push-secrets.sh` solo maneja las ll
 |---|---|
 | Tablas DynamoDB | `fp-state`, `fp-outbox`, `fp-inbox`, `fp-registry` |
 | Bucket S3 | `fp-raw-<accountId>` (prefijos `telemetry/dt=YYYY-MM-DD/hr=HH/`, `events/dt=YYYY-MM-DD/`, `backfill/`) |
-| SNS | `fp-domain-events`, `fp-notify` (atributo `role`: technician, supervisor, management, operator), `fp-alerts` |
+| SNS | `fp-domain-events` (atributos `event_type`, `tenant_id`), `fp-notify` (atributos `role`: technician, supervisor, management, operator, y `tenant_id`), `fp-alerts` |
+| Cognito | pool `fleetpulse-users`; grupos `tenant-mineria`, `tenant-agro`, `tenant-industria`, `maintenance-head` |
 | SQS | `registry-q` + `registry-dlq` (pila `aws/registry`), `gcp-events-q` + `gcp-events-dlq` |
 | Step Functions | `incident-flow`, `daily-planning` |
-| SSM | `/fleetpulse/sim/scenarios` (escenarios activos), `/fleetpulse/api/url` (HTTP API de ingest), `/fleetpulse/registry/url` (API de lectura) |
+| SSM | `/fleetpulse/tenants`, `/fleetpulse/tenants/<parque>`, `/fleetpulse/sim/scenarios` (escenarios activos), `/fleetpulse/api/url` (HTTP API de ingest), `/fleetpulse/registry/url` (API de lectura) |
 
 ## AWS: HTTP API de ingest e incidentes (Benjamin)
 
@@ -55,6 +56,8 @@ Lambda `registry` (cola `registry-q`, filtrada a `part.reserve.requested`, `inci
 - Idempotencia: `fp-inbox` con `message_id = registry:<event_id>`, en la misma transacción.
 
 ## AWS: API de lectura para la consola (`registry`, HTTP API propia, header `x-api-key` = console-key)
+
+Todas las rutas aceptan `?tenant=<parque>[,<parque>...]` (lo pone el BFF segun el token; sin parametro = `mineria`). Un detalle de otro parque responde 404. Cada fila lleva `tenant_id`. `fp-registry` tiene ademas GSI3 `TENANT#<parque>` / `INC#<opened_at>` o `RPT#<reported_at>`.
 
 | Ruta | Respuesta |
 |---|---|

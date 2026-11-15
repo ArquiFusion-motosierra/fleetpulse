@@ -1,6 +1,7 @@
 # FleetPulse - IDs fijos (T04). Fuente unica para el seed de OCI, DynamoDB y el simulador.
 # Congelado con el tag m1-contratos: cambiar solo con revision de los tres.
 # ASUNCION: los cargadores frontales se numeran CF-031..CF-050 para que exista CF-042 (escenario S3).
+tenant_id: mineria
 operation: Operacion Cerro Azul
 timezone: America/Lima
 

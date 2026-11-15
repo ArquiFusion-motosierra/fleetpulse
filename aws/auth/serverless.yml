@@ -1,4 +1,4 @@
-# Stack fp-auth: identidad y roles con Cognito. La consola (Cloud Run) inicia sesion por la Hosted UI
+# Stack fp-auth: identidad, roles y parques (tenants) con Cognito. La consola (Cloud Run) inicia sesion por la Hosted UI
 # y el HTTP API fp-api valida el JWT. Otros stacks leen Outputs (cf:) o los parametros SSM /fleetpulse/auth/*.
 service: fp-auth
 frameworkVersion: "3"
@@ -73,6 +73,66 @@ resources:
         # admin-create-user / admin-update-user-attributes (scripts/cognito-seed.sh), que ignoran este filtro.
         WriteAttributes: [email]
 
+    # Multi-tenancy (docs/superpowers/plans/2026-11-15-multi-tenancy.md): un grupo por parque y uno transversal.
+    # El ID token trae los grupos en `cognito:groups`; fplib.authz.tenant_of los lee. Solo un administrador IAM mete
+    # usuarios en un grupo (admin-add-user-to-group, scripts/cognito-seed.sh). Grupos y no un atributo
+    # custom:tenant_id para no tocar el Schema del pool ya desplegado (cambiarlo puede forzar su reemplazo).
+    # Usuario sin grupo de parque = mineria (los usuarios creados antes del multi-tenancy).
+    TenantMineriaGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        UserPoolId: !Ref UserPool
+        GroupName: tenant-mineria
+        Description: "Parque minero (Operacion Cerro Azul): roles del parque ven y gestionan solo este parque"
+        Precedence: 10
+    TenantAgroGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        UserPoolId: !Ref UserPool
+        GroupName: tenant-agro
+        Description: "Parque agricola (Fundo Valle Sur): roles del parque ven y gestionan solo este parque"
+        Precedence: 10
+    TenantIndustriaGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        UserPoolId: !Ref UserPool
+        GroupName: tenant-industria
+        Description: "Parque industrial (Planta Lurin): roles del parque ven y gestionan solo este parque"
+        Precedence: 10
+    MaintenanceHeadGroup:
+      Type: AWS::Cognito::UserPoolGroup
+      Properties:
+        UserPoolId: !Ref UserPool
+        GroupName: maintenance-head
+        Description: "Jefe de mantenimiento: rol transversal, ve todos los parques"
+        Precedence: 0
+
+    TenantsParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/tenants
+        Type: String
+        Description: Parques (tenants) de FleetPulse; el catalogo de cada uno esta en contracts/tenants.yaml
+        Value: mineria,agro,industria
+    TenantMineriaParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/tenants/mineria
+        Type: String
+        Value: '{"name":"Parque minero","operation":"Operacion Cerro Azul","zones":["NORTE","CENTRO","SUR"],"cognito_group":"tenant-mineria","default":true}'
+    TenantAgroParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/tenants/agro
+        Type: String
+        Value: '{"name":"Parque agricola","operation":"Fundo Valle Sur","zones":["FUNDO-A","FUNDO-B","PACKING"],"cognito_group":"tenant-agro"}'
+    TenantIndustriaParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/tenants/industria
+        Type: String
+        Value: '{"name":"Parque industrial","operation":"Planta Lurin","zones":["PLANTA-1","PLANTA-2","ALMACEN"],"cognito_group":"tenant-industria"}'
+
     UserPoolDomain:
       Type: AWS::Cognito::UserPoolDomain
       Properties:
@@ -113,3 +173,5 @@ resources:
       Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
     HostedUiDomain:
       Value: fleetpulse-${aws:accountId}.auth.us-east-1.amazoncognito.com
+    TenantGroups:
+      Value: tenant-mineria,tenant-agro,tenant-industria,maintenance-head

@@ -89,6 +89,10 @@
                   "role": {
                     "DataType": "String",
                     "StringValue": "supervisor"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.classified.tenant_id"
                   }
                 }
               },
@@ -120,6 +124,10 @@
                   "role": {
                     "DataType": "String",
                     "StringValue": "management"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.classified.tenant_id"
                   }
                 }
               },
@@ -151,6 +159,10 @@
                   "role": {
                     "DataType": "String",
                     "StringValue": "operator"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.classified.tenant_id"
                   }
                 }
               },
@@ -427,6 +439,10 @@
                   "role": {
                     "DataType": "String",
                     "StringValue": "technician"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.classified.tenant_id"
                   }
                 }
               },
@@ -458,6 +474,10 @@
                   "role": {
                     "DataType": "String",
                     "StringValue": "supervisor"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.classified.tenant_id"
                   }
                 }
               },
@@ -516,6 +536,10 @@
                   "role": {
                     "DataType": "String",
                     "StringValue": "management"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.classified.tenant_id"
                   }
                 }
               },
@@ -551,6 +575,10 @@
                   "role": {
                     "DataType": "String",
                     "StringValue": "operator"
+                  },
+                  "tenant_id": {
+                    "DataType": "String",
+                    "StringValue.$": "$.classified.tenant_id"
                   }
                 }
               },

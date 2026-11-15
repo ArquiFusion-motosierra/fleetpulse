@@ -17,6 +17,9 @@ Semilla del catalogo: perezosa, la misma que usa `GET /abnormality-types` de la 
 recommend.seed_catalog, puts condicionales + marca `#seeded`); cada ruta del catalogo siembra antes de leer o
 escribir, asi un tipo semilla borrado no reaparece. El formulario del operario y `POST /reports` leen ese mismo
 catalogo, por eso los cambios del admin se ven al instante. Maquinas y repuestos son de solo lectura (ids.yaml).
+Multi-tenancy: el `admin` administra solo su parque (grupo `tenant-<id>`; sin grupo = mineria): lista y edita sus
+tecnicos y solo puede moverlos a zonas de su parque; un tecnico de otro parque responde 404. El catalogo de tipos de
+anormalidad sigue compartido entre parques (pendiente partirlo, ver docs/superpowers/plans/2026-11-15-multi-tenancy.md).
 """
 from __future__ import annotations
 
@@ -37,6 +40,16 @@ def _admin(event: dict) -> str:
     return authz.user_of(event)[:128] or "admin"
 
 
+def _park(event: dict) -> str | None:
+    """Parque que administra este admin (None = todos, si ademas es jefe de mantenimiento)."""
+    return authz.tenant_of(event)
+
+
+def _own_tech(event: dict, tech_id: str) -> None:
+    if not authz.can_access(event, ids.tenant_of_technician(tech_id)):
+        raise web.HttpError(404, {"error": "technician not found", "tech_id": tech_id})
+
+
 def specialties() -> list[str]:
     return sorted({t["specialty"] for t in ids.technicians()} | set(ids.load()["specialty_by_failure_mode"].values()))
 
@@ -50,15 +63,15 @@ def _tech_id(event: dict) -> str:
     return tech_id
 
 
-def _tech_fields(body: dict) -> dict:
+def _tech_fields(body: dict, park: str | None = None) -> dict:
     extra = set(body) - {"zone_id", "available", "specialty"}
     if extra or not body:
         raise web.HttpError(400, {"error": "body must set zone_id, available and/or specialty only",
                                   "unknown": sorted(extra)})
     if "available" in body and not isinstance(body["available"], bool):
         raise web.HttpError(400, {"error": "available must be a boolean"})
-    if "zone_id" in body and body["zone_id"] not in ids.zones():
-        raise web.HttpError(400, {"error": "unknown zone_id", "allowed": sorted(ids.zones())})
+    if "zone_id" in body and body["zone_id"] not in ids.zones(park):
+        raise web.HttpError(400, {"error": "unknown zone_id", "allowed": sorted(ids.zones(park))})
     if "specialty" in body and body["specialty"] not in specialties():
         raise web.HttpError(400, {"error": "unknown specialty", "allowed": specialties()})
     return dict(body)
@@ -66,19 +79,23 @@ def _tech_fields(body: dict) -> dict:
 
 def list_technicians(event: dict, deps) -> dict:
     _admin(event)
-    state = {it["tech_id"]: it for it in crew.list_all(deps.state)}
+    park = _park(event)
+    catalog = ids.technicians(park)
+    state = {it["tech_id"]: it for it in crew.list_all(deps.state)
+             if authz.can_access(event, ids.tenant_of_technician(it["tech_id"]))}
     rows = [{**t, **store.public(state[t["tech_id"]]), "seeded": True} if t["tech_id"] in state
-            else {**t, "seeded": False} for t in ids.technicians()]
+            else {**t, "seeded": False} for t in catalog]
     rows += [{**store.public(it), "seeded": True} for tid, it in state.items()
-             if tid not in {t["tech_id"] for t in ids.technicians()}]
+             if tid not in {t["tech_id"] for t in catalog}]
     rows.sort(key=lambda r: r["tech_id"])
-    return web.resp(200, {"technicians": rows, "allowed": {"zone_id": sorted(ids.zones()),
-                                                           "specialty": specialties()}})
+    return web.resp(200, {"technicians": rows, "tenant_id": park,
+                          "allowed": {"zone_id": sorted(ids.zones(park)), "specialty": specialties()}})
 
 
 def get_technician(event: dict, deps) -> dict:
     _admin(event)
     tech_id = _tech_id(event)
+    _own_tech(event, tech_id)
     item = crew.get(deps.state, tech_id)
     if item is None:
         raise web.HttpError(404, {"error": "technician not found", "tech_id": tech_id})
@@ -88,7 +105,8 @@ def get_technician(event: dict, deps) -> dict:
 def put_technician(event: dict, deps) -> dict:
     by = _admin(event)
     tech_id = _tech_id(event)
-    fields = _tech_fields(web.body(event))
+    _own_tech(event, tech_id)
+    fields = _tech_fields(web.body(event), _park(event))
     try:
         item = crew.update(deps.state, tech_id, fields, clock.iso(clock.now()), by)
     except crew.NotFound:

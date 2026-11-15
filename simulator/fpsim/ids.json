@@ -1,6 +1,30 @@
 {
  "operation": "Operacion Cerro Azul",
  "timezone": "America/Lima",
+ "failure_modes": [
+  "head_gasket",
+  "hydraulic_pump",
+  "hydraulic_contamination",
+  "hydraulic_overheat",
+  "fuel_contamination",
+  "engine_overheat",
+  "final_drive",
+  "brake_wear",
+  "electrical_fault",
+  "sensor_fault"
+ ],
+ "specialty_by_failure_mode": {
+  "head_gasket": "engine",
+  "hydraulic_pump": "hydraulics",
+  "hydraulic_contamination": "hydraulics",
+  "hydraulic_overheat": "hydraulics",
+  "fuel_contamination": "engine",
+  "engine_overheat": "engine",
+  "final_drive": "transmission",
+  "brake_wear": "transmission",
+  "electrical_fault": "electrical",
+  "sensor_fault": "electrical"
+ },
  "zones": [
   {
    "zone_id": "NORTE",
@@ -8,7 +32,8 @@
    "lat": -13.9,
    "lon": -71.56,
    "altitude_m": 4280,
-   "weather_risk": "dust"
+   "weather_risk": "dust",
+   "tenant_id": "mineria"
   },
   {
    "zone_id": "CENTRO",
@@ -16,7 +41,8 @@
    "lat": -13.92,
    "lon": -71.545,
    "altitude_m": 4150,
-   "weather_risk": "dust"
+   "weather_risk": "dust",
+   "tenant_id": "mineria"
   },
   {
    "zone_id": "SUR",
@@ -24,24 +50,118 @@
    "lat": -13.94,
    "lon": -71.555,
    "altitude_m": 4050,
-   "weather_risk": "rain"
+   "weather_risk": "rain",
+   "tenant_id": "mineria"
+  },
+  {
+   "zone_id": "FUNDO-A",
+   "name": "Fundo A - Vinedos",
+   "lat": -14.07,
+   "lon": -75.735,
+   "altitude_m": 410,
+   "weather_risk": "dust",
+   "tenant_id": "agro"
+  },
+  {
+   "zone_id": "FUNDO-B",
+   "name": "Fundo B - Esparragos",
+   "lat": -14.09,
+   "lon": -75.72,
+   "altitude_m": 395,
+   "weather_risk": "dust",
+   "tenant_id": "agro"
+  },
+  {
+   "zone_id": "PACKING",
+   "name": "Planta de empaque",
+   "lat": -14.08,
+   "lon": -75.705,
+   "altitude_m": 400,
+   "weather_risk": "heat",
+   "tenant_id": "agro"
+  },
+  {
+   "zone_id": "PLANTA-1",
+   "name": "Planta 1 - Produccion",
+   "lat": -12.275,
+   "lon": -76.87,
+   "altitude_m": 40,
+   "weather_risk": "humidity",
+   "tenant_id": "industria"
+  },
+  {
+   "zone_id": "PLANTA-2",
+   "name": "Planta 2 - Energia y aire",
+   "lat": -12.28,
+   "lon": -76.86,
+   "altitude_m": 45,
+   "weather_risk": "humidity",
+   "tenant_id": "industria"
+  },
+  {
+   "zone_id": "ALMACEN",
+   "name": "Almacen central",
+   "lat": -12.27,
+   "lon": -76.855,
+   "altitude_m": 38,
+   "weather_risk": "humidity",
+   "tenant_id": "industria"
   }
  ],
  "fuel_stations": [
   {
    "station_id": "EST-NORTE",
    "zone_id": "NORTE",
-   "lot": "L-2311"
+   "lot": "L-2311",
+   "tenant_id": "mineria"
   },
   {
    "station_id": "EST-CENTRO",
    "zone_id": "CENTRO",
-   "lot": "L-2309"
+   "lot": "L-2309",
+   "tenant_id": "mineria"
   },
   {
    "station_id": "EST-SUR",
    "zone_id": "SUR",
-   "lot": "L-2307"
+   "lot": "L-2307",
+   "tenant_id": "mineria"
+  },
+  {
+   "station_id": "EST-FUNDO-A",
+   "zone_id": "FUNDO-A",
+   "lot": "L-3101",
+   "tenant_id": "agro"
+  },
+  {
+   "station_id": "EST-FUNDO-B",
+   "zone_id": "FUNDO-B",
+   "lot": "L-3102",
+   "tenant_id": "agro"
+  },
+  {
+   "station_id": "EST-PACKING",
+   "zone_id": "PACKING",
+   "lot": "L-3103",
+   "tenant_id": "agro"
+  },
+  {
+   "station_id": "EST-PLANTA-1",
+   "zone_id": "PLANTA-1",
+   "lot": "L-4101",
+   "tenant_id": "industria"
+  },
+  {
+   "station_id": "EST-PLANTA-2",
+   "zone_id": "PLANTA-2",
+   "lot": "L-4102",
+   "tenant_id": "industria"
+  },
+  {
+   "station_id": "EST-ALMACEN",
+   "zone_id": "ALMACEN",
+   "lot": "L-4103",
+   "tenant_id": "industria"
   }
  ],
  "models": [
@@ -50,35 +170,80 @@
    "name": "Excavadora hidraulica",
    "count": 20,
    "service_interval_h": 500,
-   "fuel_lph_base": 38
+   "fuel_lph_base": 38,
+   "tenant_id": "mineria"
   },
   {
    "model_id": "CF",
    "name": "Cargador frontal",
    "count": 20,
    "service_interval_h": 500,
-   "fuel_lph_base": 24
+   "fuel_lph_base": 24,
+   "tenant_id": "mineria"
   },
   {
    "model_id": "VQ",
    "name": "Camion volquete",
    "count": 40,
    "service_interval_h": 600,
-   "fuel_lph_base": 45
+   "fuel_lph_base": 45,
+   "tenant_id": "mineria"
   },
   {
    "model_id": "MN",
    "name": "Motoniveladora",
    "count": 12,
    "service_interval_h": 500,
-   "fuel_lph_base": 18
+   "fuel_lph_base": 18,
+   "tenant_id": "mineria"
   },
   {
    "model_id": "TO",
    "name": "Tractor de orugas",
    "count": 8,
    "service_interval_h": 400,
-   "fuel_lph_base": 42
+   "fuel_lph_base": 42,
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "TA",
+   "name": "Tractor agricola",
+   "count": 8,
+   "service_interval_h": 250,
+   "fuel_lph_base": 14,
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "CS",
+   "name": "Cosechadora",
+   "count": 4,
+   "service_interval_h": 250,
+   "fuel_lph_base": 30,
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "MC",
+   "name": "Montacargas",
+   "count": 6,
+   "service_interval_h": 250,
+   "fuel_lph_base": 4,
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "CP",
+   "name": "Compresor de tornillo",
+   "count": 3,
+   "service_interval_h": 2000,
+   "fuel_lph_base": 12,
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "GE",
+   "name": "Grupo electrogeno",
+   "count": 3,
+   "service_interval_h": 500,
+   "fuel_lph_base": 28,
+   "tenant_id": "industria"
   }
  ],
  "machines": [
@@ -89,7 +254,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2023-09-15",
    "hours_total": 1508,
-   "hours_since_service": 421
+   "hours_since_service": 421,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-002",
@@ -98,7 +264,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2018-07-15",
    "hours_total": 20760,
-   "hours_since_service": 122
+   "hours_since_service": 122,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-003",
@@ -107,7 +274,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2020-03-15",
    "hours_total": 21340,
-   "hours_since_service": 168
+   "hours_since_service": 168,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-004",
@@ -116,7 +284,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2022-05-15",
    "hours_total": 5077,
-   "hours_since_service": 75
+   "hours_since_service": 75,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-005",
@@ -125,7 +294,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-02-15",
    "hours_total": 6163,
-   "hours_since_service": 157
+   "hours_since_service": 157,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-006",
@@ -134,7 +304,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2020-04-15",
    "hours_total": 14192,
-   "hours_since_service": 31
+   "hours_since_service": 31,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-007",
@@ -143,7 +314,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2018-09-15",
    "hours_total": 10637,
-   "hours_since_service": 78
+   "hours_since_service": 78,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-008",
@@ -152,7 +324,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2021-02-15",
    "hours_total": 7166,
-   "hours_since_service": 463
+   "hours_since_service": 463,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-009",
@@ -161,7 +334,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2018-02-15",
    "hours_total": 17580,
-   "hours_since_service": 28
+   "hours_since_service": 28,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-010",
@@ -170,7 +344,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2022-07-15",
    "hours_total": 7733,
-   "hours_since_service": 406
+   "hours_since_service": 406,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-011",
@@ -179,7 +354,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-09-15",
    "hours_total": 5699,
-   "hours_since_service": 312
+   "hours_since_service": 312,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-012",
@@ -188,7 +364,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2019-09-15",
    "hours_total": 17316,
-   "hours_since_service": 139
+   "hours_since_service": 139,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-013",
@@ -197,7 +374,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2022-04-15",
    "hours_total": 2564,
-   "hours_since_service": 430
+   "hours_since_service": 430,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-014",
@@ -206,7 +384,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2021-03-15",
    "hours_total": 3937,
-   "hours_since_service": 90
+   "hours_since_service": 90,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-015",
@@ -215,7 +394,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2023-09-15",
    "hours_total": 8882,
-   "hours_since_service": 73
+   "hours_since_service": 73,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-016",
@@ -224,7 +404,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2023-08-15",
    "hours_total": 8305,
-   "hours_since_service": 23
+   "hours_since_service": 23,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-017",
@@ -233,7 +414,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-08-15",
    "hours_total": 2762,
-   "hours_since_service": 286
+   "hours_since_service": 286,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-018",
@@ -242,7 +424,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2022-07-15",
    "hours_total": 8893,
-   "hours_since_service": 208
+   "hours_since_service": 208,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-019",
@@ -251,7 +434,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2022-01-15",
    "hours_total": 3806,
-   "hours_since_service": 475
+   "hours_since_service": 475,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "EX-020",
@@ -260,7 +444,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2019-08-15",
    "hours_total": 6999,
-   "hours_since_service": 33
+   "hours_since_service": 33,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-031",
@@ -269,7 +454,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2021-05-15",
    "hours_total": 8202,
-   "hours_since_service": 78
+   "hours_since_service": 78,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-032",
@@ -278,7 +464,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2019-08-15",
    "hours_total": 19585,
-   "hours_since_service": 165
+   "hours_since_service": 165,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-033",
@@ -287,7 +474,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2021-03-15",
    "hours_total": 5602,
-   "hours_since_service": 396
+   "hours_since_service": 396,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-034",
@@ -296,7 +484,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2021-05-15",
    "hours_total": 7987,
-   "hours_since_service": 174
+   "hours_since_service": 174,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-035",
@@ -305,7 +494,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2023-04-15",
    "hours_total": 1542,
-   "hours_since_service": 59
+   "hours_since_service": 59,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-036",
@@ -314,7 +504,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2020-08-15",
    "hours_total": 17782,
-   "hours_since_service": 71
+   "hours_since_service": 71,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-037",
@@ -323,7 +514,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2018-08-15",
    "hours_total": 19358,
-   "hours_since_service": 278
+   "hours_since_service": 278,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-038",
@@ -332,7 +524,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-07-15",
    "hours_total": 1064,
-   "hours_since_service": 109
+   "hours_since_service": 109,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-039",
@@ -341,7 +534,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2023-02-15",
    "hours_total": 5302,
-   "hours_since_service": 58
+   "hours_since_service": 58,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-040",
@@ -350,7 +544,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2019-05-15",
    "hours_total": 9607,
-   "hours_since_service": 240
+   "hours_since_service": 240,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-041",
@@ -359,7 +554,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2021-08-15",
    "hours_total": 2638,
-   "hours_since_service": 123
+   "hours_since_service": 123,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-042",
@@ -368,7 +564,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-03-15",
    "hours_total": 1913,
-   "hours_since_service": 239
+   "hours_since_service": 239,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-043",
@@ -377,7 +574,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2018-05-15",
    "hours_total": 16605,
-   "hours_since_service": 337
+   "hours_since_service": 337,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-044",
@@ -386,7 +584,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-09-15",
    "hours_total": 1444,
-   "hours_since_service": 311
+   "hours_since_service": 311,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-045",
@@ -395,7 +594,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2022-04-15",
    "hours_total": 6642,
-   "hours_since_service": 149
+   "hours_since_service": 149,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-046",
@@ -404,7 +604,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2020-01-15",
    "hours_total": 20683,
-   "hours_since_service": 182
+   "hours_since_service": 182,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-047",
@@ -413,7 +614,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2018-04-15",
    "hours_total": 13204,
-   "hours_since_service": 354
+   "hours_since_service": 354,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-048",
@@ -422,7 +624,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2018-09-15",
    "hours_total": 10458,
-   "hours_since_service": 170
+   "hours_since_service": 170,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-049",
@@ -431,7 +634,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2021-09-15",
    "hours_total": 3026,
-   "hours_since_service": 185
+   "hours_since_service": 185,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "CF-050",
@@ -440,7 +644,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2020-09-15",
    "hours_total": 14028,
-   "hours_since_service": 348
+   "hours_since_service": 348,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-001",
@@ -449,7 +654,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2020-08-15",
    "hours_total": 20538,
-   "hours_since_service": 459
+   "hours_since_service": 459,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-002",
@@ -458,7 +664,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2018-01-15",
    "hours_total": 11328,
-   "hours_since_service": 178
+   "hours_since_service": 178,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-003",
@@ -467,7 +674,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2021-02-15",
    "hours_total": 2696,
-   "hours_since_service": 545
+   "hours_since_service": 545,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-004",
@@ -476,7 +684,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2020-06-15",
    "hours_total": 19297,
-   "hours_since_service": 408
+   "hours_since_service": 408,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-005",
@@ -485,7 +694,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2020-08-15",
    "hours_total": 16104,
-   "hours_since_service": 211
+   "hours_since_service": 211,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-006",
@@ -494,7 +704,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2020-08-15",
    "hours_total": 7100,
-   "hours_since_service": 561
+   "hours_since_service": 561,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-007",
@@ -503,7 +714,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-02-15",
    "hours_total": 1467,
-   "hours_since_service": 390
+   "hours_since_service": 390,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-008",
@@ -512,7 +724,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2020-08-15",
    "hours_total": 18316,
-   "hours_since_service": 395
+   "hours_since_service": 395,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-009",
@@ -521,7 +734,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2022-05-15",
    "hours_total": 6814,
-   "hours_since_service": 66
+   "hours_since_service": 66,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-010",
@@ -530,7 +744,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2020-04-15",
    "hours_total": 12987,
-   "hours_since_service": 110
+   "hours_since_service": 110,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-011",
@@ -539,7 +754,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-03-15",
    "hours_total": 1320,
-   "hours_since_service": 194
+   "hours_since_service": 194,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-012",
@@ -548,7 +764,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2021-02-15",
    "hours_total": 2551,
-   "hours_since_service": 546
+   "hours_since_service": 546,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-013",
@@ -557,7 +774,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2018-03-15",
    "hours_total": 18285,
-   "hours_since_service": 67
+   "hours_since_service": 67,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-014",
@@ -566,7 +784,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2022-09-15",
    "hours_total": 6115,
-   "hours_since_service": 271
+   "hours_since_service": 271,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-015",
@@ -575,7 +794,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-04-15",
    "hours_total": 1345,
-   "hours_since_service": 303
+   "hours_since_service": 303,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-016",
@@ -584,7 +804,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2019-02-15",
    "hours_total": 12185,
-   "hours_since_service": 316
+   "hours_since_service": 316,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-017",
@@ -593,7 +814,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2022-02-15",
    "hours_total": 8076,
-   "hours_since_service": 151
+   "hours_since_service": 151,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-018",
@@ -602,7 +824,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-09-15",
    "hours_total": 8167,
-   "hours_since_service": 338
+   "hours_since_service": 338,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-019",
@@ -611,7 +834,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-02-15",
    "hours_total": 4483,
-   "hours_since_service": 382
+   "hours_since_service": 382,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-020",
@@ -620,7 +844,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2023-03-15",
    "hours_total": 4748,
-   "hours_since_service": 284
+   "hours_since_service": 284,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-021",
@@ -629,7 +854,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2020-09-15",
    "hours_total": 19082,
-   "hours_since_service": 246
+   "hours_since_service": 246,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-022",
@@ -638,7 +864,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-08-15",
    "hours_total": 5781,
-   "hours_since_service": 81
+   "hours_since_service": 81,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-023",
@@ -647,7 +874,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2018-08-15",
    "hours_total": 10236,
-   "hours_since_service": 85
+   "hours_since_service": 85,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-024",
@@ -656,7 +884,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2019-05-15",
    "hours_total": 16667,
-   "hours_since_service": 553
+   "hours_since_service": 553,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-025",
@@ -665,7 +894,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-01-15",
    "hours_total": 6539,
-   "hours_since_service": 483
+   "hours_since_service": 483,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-026",
@@ -674,7 +904,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2022-04-15",
    "hours_total": 7773,
-   "hours_since_service": 47
+   "hours_since_service": 47,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-027",
@@ -683,7 +914,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-02-15",
    "hours_total": 5869,
-   "hours_since_service": 269
+   "hours_since_service": 269,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-028",
@@ -692,7 +924,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-09-15",
    "hours_total": 7632,
-   "hours_since_service": 159
+   "hours_since_service": 159,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-029",
@@ -701,7 +934,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2019-03-15",
    "hours_total": 9117,
-   "hours_since_service": 488
+   "hours_since_service": 488,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-030",
@@ -710,7 +944,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-05-15",
    "hours_total": 8622,
-   "hours_since_service": 108
+   "hours_since_service": 108,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-031",
@@ -719,7 +954,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-01-15",
    "hours_total": 7989,
-   "hours_since_service": 85
+   "hours_since_service": 85,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-032",
@@ -728,7 +964,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2023-05-15",
    "hours_total": 4765,
-   "hours_since_service": 105
+   "hours_since_service": 105,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-033",
@@ -737,7 +974,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2019-09-15",
    "hours_total": 19934,
-   "hours_since_service": 187
+   "hours_since_service": 187,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-034",
@@ -746,7 +984,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-07-15",
    "hours_total": 5105,
-   "hours_since_service": 495
+   "hours_since_service": 495,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-035",
@@ -755,7 +994,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2018-03-15",
    "hours_total": 8572,
-   "hours_since_service": 117
+   "hours_since_service": 117,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-036",
@@ -764,7 +1004,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2021-08-15",
    "hours_total": 1109,
-   "hours_since_service": 295
+   "hours_since_service": 295,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-037",
@@ -773,7 +1014,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2022-05-15",
    "hours_total": 6251,
-   "hours_since_service": 275
+   "hours_since_service": 275,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-038",
@@ -782,7 +1024,8 @@
    "zone_id": "CENTRO",
    "commissioned_at": "2019-05-15",
    "hours_total": 6312,
-   "hours_since_service": 577
+   "hours_since_service": 577,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-039",
@@ -791,7 +1034,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2018-01-15",
    "hours_total": 7981,
-   "hours_since_service": 94
+   "hours_since_service": 94,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "VQ-040",
@@ -800,7 +1044,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2023-08-15",
    "hours_total": 2242,
-   "hours_since_service": 566
+   "hours_since_service": 566,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-001",
@@ -809,7 +1054,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2018-07-15",
    "hours_total": 5154,
-   "hours_since_service": 67
+   "hours_since_service": 67,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-002",
@@ -818,7 +1064,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-06-15",
    "hours_total": 8857,
-   "hours_since_service": 178
+   "hours_since_service": 178,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-003",
@@ -827,7 +1074,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2020-02-15",
    "hours_total": 13215,
-   "hours_since_service": 96
+   "hours_since_service": 96,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-004",
@@ -836,7 +1084,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2022-06-15",
    "hours_total": 1711,
-   "hours_since_service": 42
+   "hours_since_service": 42,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-005",
@@ -845,7 +1094,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2019-06-15",
    "hours_total": 7810,
-   "hours_since_service": 347
+   "hours_since_service": 347,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-006",
@@ -854,7 +1104,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2021-08-15",
    "hours_total": 6567,
-   "hours_since_service": 149
+   "hours_since_service": 149,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-007",
@@ -863,7 +1114,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2018-04-15",
    "hours_total": 21685,
-   "hours_since_service": 346
+   "hours_since_service": 346,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-008",
@@ -872,7 +1124,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2018-07-15",
    "hours_total": 9609,
-   "hours_since_service": 159
+   "hours_since_service": 159,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-009",
@@ -881,7 +1134,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2020-09-15",
    "hours_total": 4588,
-   "hours_since_service": 127
+   "hours_since_service": 127,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-010",
@@ -890,7 +1144,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2021-08-15",
    "hours_total": 1973,
-   "hours_since_service": 32
+   "hours_since_service": 32,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-011",
@@ -899,7 +1154,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2019-03-15",
    "hours_total": 9794,
-   "hours_since_service": 114
+   "hours_since_service": 114,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "MN-012",
@@ -908,7 +1164,8 @@
    "zone_id": "SUR",
    "commissioned_at": "2023-09-15",
    "hours_total": 7079,
-   "hours_since_service": 107
+   "hours_since_service": 107,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "TO-001",
@@ -917,7 +1174,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2018-02-15",
    "hours_total": 10144,
-   "hours_since_service": 148
+   "hours_since_service": 148,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "TO-002",
@@ -926,7 +1184,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2019-09-15",
    "hours_total": 19978,
-   "hours_since_service": 291
+   "hours_since_service": 291,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "TO-003",
@@ -935,7 +1194,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2021-02-15",
    "hours_total": 4192,
-   "hours_since_service": 294
+   "hours_since_service": 294,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "TO-004",
@@ -944,7 +1204,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2022-04-15",
    "hours_total": 7963,
-   "hours_since_service": 197
+   "hours_since_service": 197,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "TO-005",
@@ -953,7 +1214,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2020-04-15",
    "hours_total": 21089,
-   "hours_since_service": 97
+   "hours_since_service": 97,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "TO-006",
@@ -962,7 +1224,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2018-05-15",
    "hours_total": 5361,
-   "hours_since_service": 372
+   "hours_since_service": 372,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "TO-007",
@@ -971,7 +1234,8 @@
    "zone_id": "NORTE",
    "commissioned_at": "2020-03-15",
    "hours_total": 17947,
-   "hours_since_service": 259
+   "hours_since_service": 259,
+   "tenant_id": "mineria"
   },
   {
    "machine_id": "TO-008",
@@ -980,7 +1244,248 @@
    "zone_id": "NORTE",
    "commissioned_at": "2023-07-15",
    "hours_total": 1879,
-   "hours_since_service": 374
+   "hours_since_service": 374,
+   "tenant_id": "mineria"
+  },
+  {
+   "machine_id": "TA-001",
+   "model_id": "TA",
+   "serial": "AFCTA00121",
+   "zone_id": "FUNDO-A",
+   "commissioned_at": "2021-09-15",
+   "hours_total": 13599,
+   "hours_since_service": 258,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "TA-002",
+   "model_id": "TA",
+   "serial": "AFCTA00221",
+   "zone_id": "FUNDO-B",
+   "commissioned_at": "2021-09-15",
+   "hours_total": 10423,
+   "hours_since_service": 117,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "TA-003",
+   "model_id": "TA",
+   "serial": "AFCTA00319",
+   "zone_id": "PACKING",
+   "commissioned_at": "2019-09-15",
+   "hours_total": 8594,
+   "hours_since_service": 342,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "TA-004",
+   "model_id": "TA",
+   "serial": "AFCTA00422",
+   "zone_id": "FUNDO-A",
+   "commissioned_at": "2022-03-15",
+   "hours_total": 2342,
+   "hours_since_service": 248,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "TA-005",
+   "model_id": "TA",
+   "serial": "AFCTA00520",
+   "zone_id": "FUNDO-B",
+   "commissioned_at": "2020-03-15",
+   "hours_total": 2285,
+   "hours_since_service": 295,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "TA-006",
+   "model_id": "TA",
+   "serial": "AFCTA00624",
+   "zone_id": "PACKING",
+   "commissioned_at": "2024-01-15",
+   "hours_total": 10555,
+   "hours_since_service": 222,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "TA-007",
+   "model_id": "TA",
+   "serial": "AFCTA00721",
+   "zone_id": "FUNDO-A",
+   "commissioned_at": "2021-03-15",
+   "hours_total": 11009,
+   "hours_since_service": 27,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "TA-008",
+   "model_id": "TA",
+   "serial": "AFCTA00824",
+   "zone_id": "FUNDO-B",
+   "commissioned_at": "2024-09-15",
+   "hours_total": 1834,
+   "hours_since_service": 50,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "CS-001",
+   "model_id": "CS",
+   "serial": "AFCCS00118",
+   "zone_id": "FUNDO-A",
+   "commissioned_at": "2018-04-15",
+   "hours_total": 4763,
+   "hours_since_service": 327,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "CS-002",
+   "model_id": "CS",
+   "serial": "AFCCS00218",
+   "zone_id": "FUNDO-B",
+   "commissioned_at": "2018-08-15",
+   "hours_total": 6145,
+   "hours_since_service": 245,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "CS-003",
+   "model_id": "CS",
+   "serial": "AFCCS00322",
+   "zone_id": "PACKING",
+   "commissioned_at": "2022-04-15",
+   "hours_total": 9305,
+   "hours_since_service": 139,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "CS-004",
+   "model_id": "CS",
+   "serial": "AFCCS00423",
+   "zone_id": "FUNDO-A",
+   "commissioned_at": "2023-05-15",
+   "hours_total": 8988,
+   "hours_since_service": 22,
+   "tenant_id": "agro"
+  },
+  {
+   "machine_id": "MC-001",
+   "model_id": "MC",
+   "serial": "AFCMC00119",
+   "zone_id": "ALMACEN",
+   "commissioned_at": "2019-07-15",
+   "hours_total": 12101,
+   "hours_since_service": 234,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "MC-002",
+   "model_id": "MC",
+   "serial": "AFCMC00223",
+   "zone_id": "PLANTA-1",
+   "commissioned_at": "2023-05-15",
+   "hours_total": 8649,
+   "hours_since_service": 451,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "MC-003",
+   "model_id": "MC",
+   "serial": "AFCMC00319",
+   "zone_id": "PLANTA-2",
+   "commissioned_at": "2019-08-15",
+   "hours_total": 9196,
+   "hours_since_service": 113,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "MC-004",
+   "model_id": "MC",
+   "serial": "AFCMC00422",
+   "zone_id": "ALMACEN",
+   "commissioned_at": "2022-09-15",
+   "hours_total": 4667,
+   "hours_since_service": 423,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "MC-005",
+   "model_id": "MC",
+   "serial": "AFCMC00518",
+   "zone_id": "PLANTA-1",
+   "commissioned_at": "2018-01-15",
+   "hours_total": 6879,
+   "hours_since_service": 319,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "MC-006",
+   "model_id": "MC",
+   "serial": "AFCMC00621",
+   "zone_id": "PLANTA-2",
+   "commissioned_at": "2021-02-15",
+   "hours_total": 3174,
+   "hours_since_service": 426,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "CP-001",
+   "model_id": "CP",
+   "serial": "AFCCP00124",
+   "zone_id": "ALMACEN",
+   "commissioned_at": "2024-04-15",
+   "hours_total": 4612,
+   "hours_since_service": 375,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "CP-002",
+   "model_id": "CP",
+   "serial": "AFCCP00218",
+   "zone_id": "PLANTA-1",
+   "commissioned_at": "2018-07-15",
+   "hours_total": 12902,
+   "hours_since_service": 414,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "CP-003",
+   "model_id": "CP",
+   "serial": "AFCCP00321",
+   "zone_id": "PLANTA-2",
+   "commissioned_at": "2021-08-15",
+   "hours_total": 1358,
+   "hours_since_service": 188,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "GE-001",
+   "model_id": "GE",
+   "serial": "AFCGE00122",
+   "zone_id": "ALMACEN",
+   "commissioned_at": "2022-08-15",
+   "hours_total": 12169,
+   "hours_since_service": 79,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "GE-002",
+   "model_id": "GE",
+   "serial": "AFCGE00223",
+   "zone_id": "PLANTA-1",
+   "commissioned_at": "2023-06-15",
+   "hours_total": 1180,
+   "hours_since_service": 99,
+   "tenant_id": "industria"
+  },
+  {
+   "machine_id": "GE-003",
+   "model_id": "GE",
+   "serial": "AFCGE00323",
+   "zone_id": "PLANTA-2",
+   "commissioned_at": "2023-02-15",
+   "hours_total": 2845,
+   "hours_since_service": 434,
+   "tenant_id": "industria"
   }
  ],
  "technicians": [
@@ -988,37 +1493,795 @@
    "tech_id": "TEC-01",
    "name": "Rosa Quispe",
    "specialty": "hydraulics",
-   "zone_id": "NORTE"
+   "zone_id": "NORTE",
+   "tenant_id": "mineria"
   },
   {
    "tech_id": "TEC-02",
    "name": "Luis Mamani",
    "specialty": "hydraulics",
-   "zone_id": "CENTRO"
+   "zone_id": "CENTRO",
+   "tenant_id": "mineria"
   },
   {
    "tech_id": "TEC-03",
    "name": "Carla Huaman",
    "specialty": "engine",
-   "zone_id": "NORTE"
+   "zone_id": "NORTE",
+   "tenant_id": "mineria"
   },
   {
    "tech_id": "TEC-04",
    "name": "Jorge Condori",
    "specialty": "engine",
-   "zone_id": "SUR"
+   "zone_id": "SUR",
+   "tenant_id": "mineria"
   },
   {
    "tech_id": "TEC-05",
    "name": "Ana Flores",
    "specialty": "electrical",
-   "zone_id": "CENTRO"
+   "zone_id": "CENTRO",
+   "tenant_id": "mineria"
   },
   {
    "tech_id": "TEC-06",
    "name": "Pedro Ccori",
    "specialty": "transmission",
-   "zone_id": "SUR"
+   "zone_id": "SUR",
+   "tenant_id": "mineria"
+  },
+  {
+   "tech_id": "TEC-11",
+   "name": "Milagros Yupanqui",
+   "specialty": "hydraulics",
+   "zone_id": "FUNDO-A",
+   "tenant_id": "agro"
+  },
+  {
+   "tech_id": "TEC-12",
+   "name": "Raul Huaraca",
+   "specialty": "engine",
+   "zone_id": "FUNDO-B",
+   "tenant_id": "agro"
+  },
+  {
+   "tech_id": "TEC-13",
+   "name": "Elena Pariona",
+   "specialty": "transmission",
+   "zone_id": "FUNDO-A",
+   "tenant_id": "agro"
+  },
+  {
+   "tech_id": "TEC-14",
+   "name": "Victor Tasayco",
+   "specialty": "electrical",
+   "zone_id": "PACKING",
+   "tenant_id": "agro"
+  },
+  {
+   "tech_id": "TEC-21",
+   "name": "Sandra Chumpitaz",
+   "specialty": "hydraulics",
+   "zone_id": "ALMACEN",
+   "tenant_id": "industria"
+  },
+  {
+   "tech_id": "TEC-22",
+   "name": "Hector Villanueva",
+   "specialty": "engine",
+   "zone_id": "PLANTA-2",
+   "tenant_id": "industria"
+  },
+  {
+   "tech_id": "TEC-23",
+   "name": "Giuliana Torres",
+   "specialty": "electrical",
+   "zone_id": "PLANTA-2",
+   "tenant_id": "industria"
+  },
+  {
+   "tech_id": "TEC-24",
+   "name": "Manuel Ancajima",
+   "specialty": "transmission",
+   "zone_id": "PLANTA-1",
+   "tenant_id": "industria"
+  }
+ ],
+ "bom": [
+  {
+   "model_id": "EX",
+   "part_id": "PRT-04",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "hydraulic_pump",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-03",
+   "qty": 2,
+   "replace_every_h": 3000,
+   "failure_mode": "hydraulic_pump",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-10",
+   "qty": 4,
+   "replace_every_h": 2000,
+   "failure_mode": "hydraulic_overheat",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-05",
+   "qty": 1,
+   "replace_every_h": 6000,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-09",
+   "qty": 1,
+   "replace_every_h": 4000,
+   "failure_mode": "sensor_fault",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "EX",
+   "part_id": "PRT-13",
+   "qty": 1,
+   "replace_every_h": 12000,
+   "failure_mode": "head_gasket",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-03",
+   "qty": 2,
+   "replace_every_h": 3000,
+   "failure_mode": "hydraulic_pump",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-12",
+   "qty": 4,
+   "replace_every_h": 1500,
+   "failure_mode": "brake_wear",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-08",
+   "qty": 1,
+   "replace_every_h": 2000,
+   "failure_mode": "electrical_fault",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "CF",
+   "part_id": "PRT-13",
+   "qty": 1,
+   "replace_every_h": 12000,
+   "failure_mode": "head_gasket",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-05",
+   "qty": 1,
+   "replace_every_h": 6000,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-06",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-12",
+   "qty": 6,
+   "replace_every_h": 1500,
+   "failure_mode": "brake_wear",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-07",
+   "qty": 1,
+   "replace_every_h": 10000,
+   "failure_mode": "final_drive",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-08",
+   "qty": 1,
+   "replace_every_h": 2000,
+   "failure_mode": "electrical_fault",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "VQ",
+   "part_id": "PRT-13",
+   "qty": 1,
+   "replace_every_h": 12000,
+   "failure_mode": "head_gasket",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-08",
+   "qty": 1,
+   "replace_every_h": 2000,
+   "failure_mode": "electrical_fault",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "MN",
+   "part_id": "PRT-13",
+   "qty": 1,
+   "replace_every_h": 12000,
+   "failure_mode": "head_gasket",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-05",
+   "qty": 1,
+   "replace_every_h": 6000,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-07",
+   "qty": 1,
+   "replace_every_h": 10000,
+   "failure_mode": "final_drive",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-06",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "TO",
+   "part_id": "PRT-13",
+   "qty": 1,
+   "replace_every_h": 12000,
+   "failure_mode": "head_gasket",
+   "tenant_id": "mineria"
+  },
+  {
+   "model_id": "TA",
+   "part_id": "PRT-18",
+   "qty": 1,
+   "replace_every_h": 6000,
+   "failure_mode": "hydraulic_pump",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "TA",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "TA",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "TA",
+   "part_id": "PRT-19",
+   "qty": 1,
+   "replace_every_h": 5000,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "TA",
+   "part_id": "PRT-15",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "TA",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 250,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "TA",
+   "part_id": "PRT-14",
+   "qty": 1,
+   "replace_every_h": 7000,
+   "failure_mode": "final_drive",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "CS",
+   "part_id": "PRT-17",
+   "qty": 2,
+   "replace_every_h": 3000,
+   "failure_mode": "final_drive",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "CS",
+   "part_id": "PRT-16",
+   "qty": 1,
+   "replace_every_h": 1500,
+   "failure_mode": "final_drive",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "CS",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 250,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "CS",
+   "part_id": "PRT-15",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "CS",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "CS",
+   "part_id": "PRT-02",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "hydraulic_contamination",
+   "tenant_id": "agro"
+  },
+  {
+   "model_id": "MC",
+   "part_id": "PRT-21",
+   "qty": 1,
+   "replace_every_h": 3000,
+   "failure_mode": "hydraulic_pump",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "MC",
+   "part_id": "PRT-20",
+   "qty": 1,
+   "replace_every_h": 4000,
+   "failure_mode": "final_drive",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "MC",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "MC",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 250,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "MC",
+   "part_id": "PRT-08",
+   "qty": 1,
+   "replace_every_h": 2000,
+   "failure_mode": "electrical_fault",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "CP",
+   "part_id": "PRT-23",
+   "qty": 1,
+   "replace_every_h": 20000,
+   "failure_mode": "final_drive",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "CP",
+   "part_id": "PRT-22",
+   "qty": 1,
+   "replace_every_h": 4000,
+   "failure_mode": "hydraulic_contamination",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "CP",
+   "part_id": "PRT-26",
+   "qty": 1,
+   "replace_every_h": 2000,
+   "failure_mode": "hydraulic_overheat",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "CP",
+   "part_id": "PRT-09",
+   "qty": 1,
+   "replace_every_h": 8000,
+   "failure_mode": "sensor_fault",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "GE",
+   "part_id": "PRT-24",
+   "qty": 1,
+   "replace_every_h": 10000,
+   "failure_mode": "electrical_fault",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "GE",
+   "part_id": "PRT-25",
+   "qty": 1,
+   "replace_every_h": 6000,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "GE",
+   "part_id": "PRT-11",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "engine_overheat",
+   "tenant_id": "industria"
+  },
+  {
+   "model_id": "GE",
+   "part_id": "PRT-01",
+   "qty": 1,
+   "replace_every_h": 500,
+   "failure_mode": "fuel_contamination",
+   "tenant_id": "industria"
+  }
+ ],
+ "part_stock": [
+  {
+   "part_id": "PRT-01",
+   "on_hand_per_zone": 12,
+   "reorder_point": 4,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-02",
+   "on_hand_per_zone": 10,
+   "reorder_point": 3,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-03",
+   "on_hand_per_zone": 6,
+   "reorder_point": 2,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-04",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-05",
+   "on_hand_per_zone": 4,
+   "reorder_point": 2,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-06",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-07",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-08",
+   "on_hand_per_zone": 5,
+   "reorder_point": 2,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-09",
+   "on_hand_per_zone": 3,
+   "reorder_point": 1,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-10",
+   "on_hand_per_zone": 8,
+   "reorder_point": 3,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-11",
+   "on_hand_per_zone": 12,
+   "reorder_point": 4,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-12",
+   "on_hand_per_zone": 10,
+   "reorder_point": 4,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-13",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "mineria"
+  },
+  {
+   "part_id": "PRT-01",
+   "on_hand_per_zone": 8,
+   "reorder_point": 3,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-02",
+   "on_hand_per_zone": 6,
+   "reorder_point": 2,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-04",
+   "on_hand_per_zone": 3,
+   "reorder_point": 1,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-11",
+   "on_hand_per_zone": 8,
+   "reorder_point": 3,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-14",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-15",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-16",
+   "on_hand_per_zone": 2,
+   "reorder_point": 1,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-17",
+   "on_hand_per_zone": 2,
+   "reorder_point": 1,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-18",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-19",
+   "on_hand_per_zone": 3,
+   "reorder_point": 1,
+   "tenant_id": "agro"
+  },
+  {
+   "part_id": "PRT-01",
+   "on_hand_per_zone": 6,
+   "reorder_point": 2,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-08",
+   "on_hand_per_zone": 3,
+   "reorder_point": 1,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-09",
+   "on_hand_per_zone": 2,
+   "reorder_point": 1,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-11",
+   "on_hand_per_zone": 6,
+   "reorder_point": 2,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-20",
+   "on_hand_per_zone": 2,
+   "reorder_point": 1,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-21",
+   "on_hand_per_zone": 3,
+   "reorder_point": 1,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-22",
+   "on_hand_per_zone": 2,
+   "reorder_point": 1,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-23",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-24",
+   "on_hand_per_zone": 1,
+   "reorder_point": 1,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-25",
+   "on_hand_per_zone": 2,
+   "reorder_point": 1,
+   "tenant_id": "industria"
+  },
+  {
+   "part_id": "PRT-26",
+   "on_hand_per_zone": 4,
+   "reorder_point": 2,
+   "tenant_id": "industria"
   }
  ],
  "parts": [
@@ -1099,344 +2362,136 @@
    "sku": "GSK-HEAD-01",
    "name": "Kit de junta de culata",
    "unit_cost_usd": 380
+  },
+  {
+   "part_id": "PRT-14",
+   "sku": "PTO-SHAFT-01",
+   "name": "Eje de toma de fuerza (PTO)",
+   "unit_cost_usd": 640
+  },
+  {
+   "part_id": "PRT-15",
+   "sku": "RAD-AGR-01",
+   "name": "Radiador de tractor",
+   "unit_cost_usd": 820
+  },
+  {
+   "part_id": "PRT-16",
+   "sku": "BELT-ROT-01",
+   "name": "Correa del rotor de trilla",
+   "unit_cost_usd": 260
+  },
+  {
+   "part_id": "PRT-17",
+   "sku": "BRG-ROT-01",
+   "name": "Rodamiento del rotor de trilla",
+   "unit_cost_usd": 410
+  },
+  {
+   "part_id": "PRT-18",
+   "sku": "PUMP-HYD-AG",
+   "name": "Bomba hidraulica de levante",
+   "unit_cost_usd": 1900
+  },
+  {
+   "part_id": "PRT-19",
+   "sku": "INJ-AG-01",
+   "name": "Inyector (motor agricola)",
+   "unit_cost_usd": 310
+  },
+  {
+   "part_id": "PRT-20",
+   "sku": "CHN-MAST-01",
+   "name": "Cadena de mastil",
+   "unit_cost_usd": 290
+  },
+  {
+   "part_id": "PRT-21",
+   "sku": "SEAL-LIFT-01",
+   "name": "Kit de sellos del cilindro de elevacion",
+   "unit_cost_usd": 150
+  },
+  {
+   "part_id": "PRT-22",
+   "sku": "SEP-OIL-01",
+   "name": "Separador aire-aceite",
+   "unit_cost_usd": 380
+  },
+  {
+   "part_id": "PRT-23",
+   "sku": "BRG-SCR-01",
+   "name": "Rodamiento del tornillo compresor",
+   "unit_cost_usd": 960
+  },
+  {
+   "part_id": "PRT-24",
+   "sku": "AVR-GEN-01",
+   "name": "Regulador de voltaje (AVR)",
+   "unit_cost_usd": 520
+  },
+  {
+   "part_id": "PRT-25",
+   "sku": "PUMP-H2O-01",
+   "name": "Bomba de agua del motor",
+   "unit_cost_usd": 340
+  },
+  {
+   "part_id": "PRT-26",
+   "sku": "OIL-CMP-20L",
+   "name": "Aceite de compresor 20 L",
+   "unit_cost_usd": 160
   }
  ],
- "bom": [
+ "tenants": [
   {
-   "model_id": "EX",
-   "part_id": "PRT-04",
-   "qty": 1,
-   "replace_every_h": 8000,
-   "failure_mode": "hydraulic_pump"
+   "tenant_id": "mineria",
+   "name": "Parque minero",
+   "operation": "Operacion Cerro Azul",
+   "center": {
+    "lat": -13.92,
+    "lon": -71.555
+   },
+   "cognito_group": "tenant-mineria",
+   "zones": [
+    "NORTE",
+    "CENTRO",
+    "SUR"
+   ]
   },
   {
-   "model_id": "EX",
-   "part_id": "PRT-03",
-   "qty": 2,
-   "replace_every_h": 3000,
-   "failure_mode": "hydraulic_pump"
+   "tenant_id": "agro",
+   "name": "Parque agricola",
+   "operation": "Fundo Valle Sur",
+   "center": {
+    "lat": -14.08,
+    "lon": -75.72
+   },
+   "cognito_group": "tenant-agro",
+   "zones": [
+    "FUNDO-A",
+    "FUNDO-B",
+    "PACKING"
+   ]
   },
   {
-   "model_id": "EX",
-   "part_id": "PRT-02",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "hydraulic_contamination"
-  },
-  {
-   "model_id": "EX",
-   "part_id": "PRT-10",
-   "qty": 4,
-   "replace_every_h": 2000,
-   "failure_mode": "hydraulic_overheat"
-  },
-  {
-   "model_id": "EX",
-   "part_id": "PRT-01",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "fuel_contamination"
-  },
-  {
-   "model_id": "EX",
-   "part_id": "PRT-05",
-   "qty": 1,
-   "replace_every_h": 6000,
-   "failure_mode": "fuel_contamination"
-  },
-  {
-   "model_id": "EX",
-   "part_id": "PRT-11",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "engine_overheat"
-  },
-  {
-   "model_id": "EX",
-   "part_id": "PRT-09",
-   "qty": 1,
-   "replace_every_h": 4000,
-   "failure_mode": "sensor_fault"
-  },
-  {
-   "model_id": "EX",
-   "part_id": "PRT-13",
-   "qty": 1,
-   "replace_every_h": 12000,
-   "failure_mode": "head_gasket"
-  },
-  {
-   "model_id": "CF",
-   "part_id": "PRT-02",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "hydraulic_contamination"
-  },
-  {
-   "model_id": "CF",
-   "part_id": "PRT-03",
-   "qty": 2,
-   "replace_every_h": 3000,
-   "failure_mode": "hydraulic_pump"
-  },
-  {
-   "model_id": "CF",
-   "part_id": "PRT-01",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "fuel_contamination"
-  },
-  {
-   "model_id": "CF",
-   "part_id": "PRT-11",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "engine_overheat"
-  },
-  {
-   "model_id": "CF",
-   "part_id": "PRT-12",
-   "qty": 4,
-   "replace_every_h": 1500,
-   "failure_mode": "brake_wear"
-  },
-  {
-   "model_id": "CF",
-   "part_id": "PRT-08",
-   "qty": 1,
-   "replace_every_h": 2000,
-   "failure_mode": "electrical_fault"
-  },
-  {
-   "model_id": "CF",
-   "part_id": "PRT-13",
-   "qty": 1,
-   "replace_every_h": 12000,
-   "failure_mode": "head_gasket"
-  },
-  {
-   "model_id": "VQ",
-   "part_id": "PRT-01",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "fuel_contamination"
-  },
-  {
-   "model_id": "VQ",
-   "part_id": "PRT-05",
-   "qty": 1,
-   "replace_every_h": 6000,
-   "failure_mode": "fuel_contamination"
-  },
-  {
-   "model_id": "VQ",
-   "part_id": "PRT-06",
-   "qty": 1,
-   "replace_every_h": 8000,
-   "failure_mode": "engine_overheat"
-  },
-  {
-   "model_id": "VQ",
-   "part_id": "PRT-11",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "engine_overheat"
-  },
-  {
-   "model_id": "VQ",
-   "part_id": "PRT-12",
-   "qty": 6,
-   "replace_every_h": 1500,
-   "failure_mode": "brake_wear"
-  },
-  {
-   "model_id": "VQ",
-   "part_id": "PRT-07",
-   "qty": 1,
-   "replace_every_h": 10000,
-   "failure_mode": "final_drive"
-  },
-  {
-   "model_id": "VQ",
-   "part_id": "PRT-08",
-   "qty": 1,
-   "replace_every_h": 2000,
-   "failure_mode": "electrical_fault"
-  },
-  {
-   "model_id": "VQ",
-   "part_id": "PRT-13",
-   "qty": 1,
-   "replace_every_h": 12000,
-   "failure_mode": "head_gasket"
-  },
-  {
-   "model_id": "MN",
-   "part_id": "PRT-01",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "fuel_contamination"
-  },
-  {
-   "model_id": "MN",
-   "part_id": "PRT-11",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "engine_overheat"
-  },
-  {
-   "model_id": "MN",
-   "part_id": "PRT-02",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "hydraulic_contamination"
-  },
-  {
-   "model_id": "MN",
-   "part_id": "PRT-08",
-   "qty": 1,
-   "replace_every_h": 2000,
-   "failure_mode": "electrical_fault"
-  },
-  {
-   "model_id": "MN",
-   "part_id": "PRT-13",
-   "qty": 1,
-   "replace_every_h": 12000,
-   "failure_mode": "head_gasket"
-  },
-  {
-   "model_id": "TO",
-   "part_id": "PRT-01",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "fuel_contamination"
-  },
-  {
-   "model_id": "TO",
-   "part_id": "PRT-05",
-   "qty": 1,
-   "replace_every_h": 6000,
-   "failure_mode": "fuel_contamination"
-  },
-  {
-   "model_id": "TO",
-   "part_id": "PRT-07",
-   "qty": 1,
-   "replace_every_h": 10000,
-   "failure_mode": "final_drive"
-  },
-  {
-   "model_id": "TO",
-   "part_id": "PRT-02",
-   "qty": 1,
-   "replace_every_h": 500,
-   "failure_mode": "hydraulic_contamination"
-  },
-  {
-   "model_id": "TO",
-   "part_id": "PRT-06",
-   "qty": 1,
-   "replace_every_h": 8000,
-   "failure_mode": "engine_overheat"
-  },
-  {
-   "model_id": "TO",
-   "part_id": "PRT-13",
-   "qty": 1,
-   "replace_every_h": 12000,
-   "failure_mode": "head_gasket"
+   "tenant_id": "industria",
+   "name": "Parque industrial",
+   "operation": "Planta Lurin",
+   "center": {
+    "lat": -12.275,
+    "lon": -76.862
+   },
+   "cognito_group": "tenant-industria",
+   "zones": [
+    "PLANTA-1",
+    "PLANTA-2",
+    "ALMACEN"
+   ]
   }
  ],
- "part_stock": [
-  {
-   "part_id": "PRT-01",
-   "on_hand_per_zone": 12,
-   "reorder_point": 4
-  },
-  {
-   "part_id": "PRT-02",
-   "on_hand_per_zone": 10,
-   "reorder_point": 3
-  },
-  {
-   "part_id": "PRT-03",
-   "on_hand_per_zone": 6,
-   "reorder_point": 2
-  },
-  {
-   "part_id": "PRT-04",
-   "on_hand_per_zone": 1,
-   "reorder_point": 1
-  },
-  {
-   "part_id": "PRT-05",
-   "on_hand_per_zone": 4,
-   "reorder_point": 2
-  },
-  {
-   "part_id": "PRT-06",
-   "on_hand_per_zone": 1,
-   "reorder_point": 1
-  },
-  {
-   "part_id": "PRT-07",
-   "on_hand_per_zone": 1,
-   "reorder_point": 1
-  },
-  {
-   "part_id": "PRT-08",
-   "on_hand_per_zone": 5,
-   "reorder_point": 2
-  },
-  {
-   "part_id": "PRT-09",
-   "on_hand_per_zone": 3,
-   "reorder_point": 1
-  },
-  {
-   "part_id": "PRT-10",
-   "on_hand_per_zone": 8,
-   "reorder_point": 3
-  },
-  {
-   "part_id": "PRT-11",
-   "on_hand_per_zone": 12,
-   "reorder_point": 4
-  },
-  {
-   "part_id": "PRT-12",
-   "on_hand_per_zone": 10,
-   "reorder_point": 4
-  },
-  {
-   "part_id": "PRT-13",
-   "on_hand_per_zone": 1,
-   "reorder_point": 1
-  }
+ "default_tenant": "mineria",
+ "global_roles": [
+  "maintenance_head"
  ],
- "failure_modes": [
-  "head_gasket",
-  "hydraulic_pump",
-  "hydraulic_contamination",
-  "hydraulic_overheat",
-  "fuel_contamination",
-  "engine_overheat",
-  "final_drive",
-  "brake_wear",
-  "electrical_fault",
-  "sensor_fault"
- ],
- "specialty_by_failure_mode": {
-  "head_gasket": "engine",
-  "hydraulic_pump": "hydraulics",
-  "hydraulic_contamination": "hydraulics",
-  "hydraulic_overheat": "hydraulics",
-  "fuel_contamination": "engine",
-  "engine_overheat": "engine",
-  "final_drive": "transmission",
-  "brake_wear": "transmission",
-  "electrical_fault": "electrical",
-  "sensor_fault": "electrical"
- }
+ "global_group": "maintenance-head"
 }

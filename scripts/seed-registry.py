@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Carga contracts/ids.yaml: stock en fp-registry y maquinas/tecnicos en fp-state (modelo del plan de AWS).
+"""Carga el catalogo de todos los parques (contracts/tenants.yaml: ids.yaml de mineria + tenants/*.yaml): stock en
+fp-registry y maquinas/tecnicos en fp-state (modelo del plan de AWS), cada item con su `tenant_id`.
 
     python scripts/seed-registry.py            # stock en fp-registry + maquinas y tecnicos en fp-state
     python scripts/seed-registry.py --no-state # solo stock
@@ -21,12 +22,11 @@ def main() -> None:
     ap.add_argument("--no-state", action="store_true", help="no escribir el catalogo en fp-state")
     a = ap.parse_args()
     import boto3
-    import yaml
 
+    from fplib.ids import merge_catalogs
     from reg.seed import counts, seed
 
-    with open(os.path.join(ROOT, "contracts", "ids.yaml"), encoding="utf-8") as f:
-        ids = yaml.safe_load(f)
+    ids = merge_catalogs(os.path.join(ROOT, "contracts"))
     client = boto3.client("dynamodb", region_name="us-east-1")
     print(json.dumps(seed(client, ids, with_state=not a.no_state)))
     print(json.dumps(counts(client, ids)))

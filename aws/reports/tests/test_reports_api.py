@@ -423,3 +423,41 @@ def test_report_lifecycle_end_to_end_with_roles(svc, ex017, monkeypatch):
     assert len(outbox_events(ex017.outbox, "report.created")) == 1
     assert len(outbox_events(ex017.outbox, "report.closed")) == 1
     assert sorted(i["type"] for i in ev_items(ex017.registry, f"INCIDENT#{INC}")) == ["report.closed"]
+
+
+# --- multi-tenancy: reportes acotados al parque ----------------------------------------------------------------------
+
+OPERATOR_AGRO = {**OPERATOR, "email": "operador.agro@example.com", "cognito:groups": "[tenant-agro]"}
+SUPERVISOR_AGRO = {**SUPERVISOR, "email": "supervisor.agro@example.com", "cognito:groups": "[tenant-agro]"}
+HEAD = {"custom:role": "maintenance_head", "email": "jefe.mantenimiento@example.com", "sub": "sub-head",
+        "cognito:groups": "[maintenance-head]"}
+
+
+def test_report_carries_the_park_and_its_tenant_index(svc, ddb, ex017):
+    rep = body_of(_create(svc))["report"]
+    meta = _meta(ddb)
+    assert meta["tenant_id"] == "mineria" and meta["GSI3PK"] == "TENANT#mineria"
+    assert meta["GSI3SK"] == f"RPT#{meta['reported_at']}" and "GSI3PK" not in rep and rep["tenant_id"] == "mineria"
+    (env, *_) = outbox_events(ddb.outbox, "report.created")
+    assert env["tenant_id"] == "mineria"
+
+
+def test_operator_cannot_report_a_machine_of_another_park(svc, ddb, ex017):
+    r = _create(svc, OPERATOR_AGRO)
+    assert r["statusCode"] == 403 and _meta(ddb) is None
+
+
+def test_reports_of_another_park_are_invisible(svc, ddb, ex017):
+    assert _create(svc)["statusCode"] == 201
+    assert body_of(svc.call(api_event(LIST, SUPERVISOR_AGRO)))["reports"] == []
+    assert svc.call(api_event(GET, SUPERVISOR_AGRO, path={"report_id": RPT}))["statusCode"] == 404
+    assert _close(svc, SUPERVISOR_AGRO)["statusCode"] == 404
+    assert svc.call(api_event(LIST, SUPERVISOR_AGRO, qs={"tenant": "mineria"}))["statusCode"] == 403
+    assert len(body_of(svc.call(api_event(LIST, SUPERVISOR)))["reports"]) == 1
+
+
+def test_maintenance_head_sees_every_park_and_can_filter(svc, ddb, ex017):
+    assert _create(svc)["statusCode"] == 201
+    assert len(body_of(svc.call(api_event(LIST, HEAD)))["reports"]) == 1
+    assert body_of(svc.call(api_event(LIST, HEAD, qs={"tenant": "agro"})))["reports"] == []
+    assert svc.call(api_event(GET, HEAD, path={"report_id": RPT}))["statusCode"] == 200

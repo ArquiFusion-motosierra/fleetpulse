@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 S2_MACHINES = ("EX-003", "VQ-011", "VQ-014", "TO-002")
 S2_LOT = "L-2311"
+S2_PIN_ZONE = "NORTE"  # mientras corre S2, las cuatro maquinas quedan junto a la estacion EST-NORTE (misma celda)
 S7_MACHINE = "VQ-022"  # volquete de la zona norte: la junta de culata lo lleva a resonancia del chasis
 
 # SPN SAE J1939 y codigos propios del fabricante (>= 520192) para hidraulica
@@ -65,6 +66,14 @@ def parse_active(param: dict | None) -> dict[str, datetime]:
 
 def batches_since(since: datetime, now: datetime) -> float:
     return max((now - since).total_seconds() / 60.0, 0.0)
+
+
+def live_pin(machine_id: str, active: dict[str, datetime], now: datetime) -> str | None:
+    """Zona donde fijar la posicion de la maquina (S2: las cuatro cargaron L-2311 en EST-NORTE y la correlacion en
+    vivo las agrupa por celda geohash6), o None."""
+    if "S2" in active and machine_id in S2_MACHINES and active["S2"] <= now:
+        return S2_PIN_ZONE
+    return None
 
 
 def live_effect(machine_id: str, active: dict[str, datetime], now: datetime) -> Effect:

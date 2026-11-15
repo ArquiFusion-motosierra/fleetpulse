@@ -52,7 +52,18 @@ def test_publishes_insert_with_attributes():
         "event_type": {"DataType": "String", "StringValue": "incident.opened"},
         "aggregate_type": {"DataType": "String", "StringValue": "incident"},
         "incident_id": {"DataType": "String", "StringValue": "inc-1"},
+        "tenant_id": {"DataType": "String", "StringValue": "mineria"},  # sobre sin tenant_id: parque por defecto
     }
+
+
+@pytest.mark.parametrize("envelope,tenant", [
+    ({"event_id": "e", "aggregate_type": "incident", "tenant_id": "industria"}, "industria"),
+    ({"event_id": "e", "aggregate_type": "incident", "machine_id": "CS-003"}, "agro"),
+])
+def test_tenant_attribute_lets_subscribers_filter_by_park(envelope, tenant):
+    sns = FakeSns()
+    handler({"Records": [_record("evt-1", payload=json.dumps(envelope))]}, sns=sns)
+    assert sns.calls[0]["MessageAttributes"]["tenant_id"] == {"DataType": "String", "StringValue": tenant}
 
 
 def test_omits_incident_id_when_absent_or_empty():

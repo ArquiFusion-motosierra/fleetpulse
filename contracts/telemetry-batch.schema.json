@@ -14,6 +14,7 @@
     },
     "sent_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
     "source": {"type": "string", "enum": ["simulator.live", "simulator.backfill"]},
+    "tenant_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,30}$", "description": "Parque que envia el lote (opcional). ingest rechaza con 400 TENANT_MISMATCH un lote con maquinas de otro parque."},
     "time_warp": {"type": "integer", "minimum": 1, "maximum": 60, "description": "Minutos simulados por minuto real (en vivo 5)."},
     "readings": {
       "type": "array",
@@ -35,13 +36,14 @@
         "engine_rpm", "fuel_rate_lph", "speed_kmh", "load_t", "ambient_temp_c"
       ],
       "properties": {
-        "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+        "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$"},
+        "tenant_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,30}$", "description": "Opcional; ingest lo fija por catalogo."},
         "serial": {"type": "string", "maxLength": 32},
-        "model": {"type": "string", "enum": ["EX", "CF", "VQ", "MN", "TO"]},
+        "model": {"type": "string", "enum": ["EX", "CF", "VQ", "MN", "TO", "TA", "CS", "MC", "CP", "GE"]},
         "ts": {"type": "string", "format": "date-time", "pattern": "Z$", "description": "Momento simulado de la lectura, UTC."},
         "lat": {"type": "number", "minimum": -90, "maximum": 90},
         "lon": {"type": "number", "minimum": -180, "maximum": 180},
-        "zone_id": {"type": "string", "enum": ["NORTE", "CENTRO", "SUR"]},
+        "zone_id": {"type": "string", "enum": ["NORTE", "CENTRO", "SUR", "FUNDO-A", "FUNDO-B", "PACKING", "PLANTA-1", "PLANTA-2", "ALMACEN"]},
         "cumulative_operating_hours": {"type": "number", "minimum": 0},
         "cumulative_idle_hours": {"type": "number", "minimum": 0},
         "cumulative_fuel_used_l": {"type": "number", "minimum": 0},

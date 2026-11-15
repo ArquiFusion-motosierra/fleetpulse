@@ -1,4 +1,7 @@
-"""Flota fija (contracts/ids.yaml, vendorizado como ids.json) y parametros fisicos por modelo."""
+"""Flota fija de los tres parques (contracts/tenants.yaml: ids.yaml de mineria + tenants/*.yaml, unidos y vendorizados
+como ids.json por sync_ids.py) y parametros fisicos por modelo.
+
+FP_TENANTS=mineria,agro (por defecto todos) apaga parques sin tocar codigo."""
 from __future__ import annotations
 
 import json
@@ -22,12 +25,27 @@ MODEL_PARAMS = {
                speed=10.0, load=0.0, cycle_t=0.0, cycles_h=0, km_h=8.0, tank_l=350.0, idle=0.10),
     "TO": dict(coolant=90.0, hyd_temp=60.0, pressure=280.0, vibration=7.5, rpm=1900.0, fuel=42.0,
                speed=4.0, load=0.0, cycle_t=0.0, cycles_h=0, km_h=2.5, tank_l=700.0, idle=0.12),
+    # Parque agricola (agro): tractor y cosechadora
+    "TA": dict(coolant=84.0, hyd_temp=55.0, pressure=190.0, vibration=5.0, rpm=2000.0, fuel=14.0,
+               speed=9.0, load=0.0, cycle_t=0.0, cycles_h=0, km_h=7.0, tank_l=300.0, idle=0.15),
+    "CS": dict(coolant=86.0, hyd_temp=60.0, pressure=210.0, vibration=7.0, rpm=2100.0, fuel=30.0,
+               speed=6.0, load=8.0, cycle_t=8.0, cycles_h=4, km_h=5.0, tank_l=750.0, idle=0.12),
+    # Parque industrial (industria): montacargas, compresor y grupo electrogeno (estos dos, estacionarios)
+    "MC": dict(coolant=82.0, hyd_temp=48.0, pressure=170.0, vibration=3.5, rpm=2200.0, fuel=4.0,
+               speed=8.0, load=2.5, cycle_t=2.5, cycles_h=25, km_h=5.0, tank_l=60.0, idle=0.25),
+    "CP": dict(coolant=80.0, hyd_temp=85.0, pressure=120.0, vibration=3.0, rpm=1500.0, fuel=12.0,
+               speed=0.0, load=0.0, cycle_t=0.0, cycles_h=0, km_h=0.0, tank_l=400.0, idle=0.20),
+    "GE": dict(coolant=82.0, hyd_temp=60.0, pressure=100.0, vibration=3.0, rpm=1800.0, fuel=28.0,
+               speed=0.0, load=0.0, cycle_t=0.0, cycles_h=0, km_h=0.0, tank_l=900.0, idle=0.10),
 }
+
+# Temperatura ambiente base por parque sobre la del tajo a 4 000 m (Ica y Lurin son calidos).
+AMBIENT_OFFSET = {"mineria": 0.0, "agro": 16.0, "industria": 12.0}
 
 # Sigma del ruido gaussiano por variable: calibrado para que el baseline no dispare falsas alarmas.
 NOISE_SIGMA = dict(coolant=1.2, hyd_temp=1.0, pressure=6.0, vibration=0.35, rpm=35.0, fuel=1.2, speed=1.5)
 
-STATIONS = {"NORTE": "EST-NORTE", "CENTRO": "EST-CENTRO", "SUR": "EST-SUR"}
+DEFAULT_TENANT = "mineria"
 
 
 def unit_hash(*parts: object) -> float:
@@ -45,6 +63,7 @@ class Machine:
     hours_since_service: float
     zone_lat: float
     zone_lon: float
+    tenant_id: str = DEFAULT_TENANT
     # Rasgos propios, deterministas por machine_id
     availability: float = 0.85
     idle_ratio: float = 0.15
@@ -67,12 +86,27 @@ def load_ids() -> dict:
         return json.load(f)
 
 
+def enabled_tenants() -> tuple[str, ...]:
+    """Parques simulados: FP_TENANTS (lista separada por comas) o todos los de ids.json, en orden de registro."""
+    known = [t["tenant_id"] for t in load_ids().get("tenants") or [{"tenant_id": DEFAULT_TENANT}]]
+    wanted = [t for t in os.environ.get("FP_TENANTS", "").split(",") if t]
+    return tuple(t for t in known if not wanted or t in wanted)
+
+
+def stations() -> dict[str, dict]:
+    """Estacion de combustible por zona: `{zone_id: {station_id, lot}}`."""
+    return {s["zone_id"]: s for s in load_ids()["fuel_stations"]}
+
+
 @lru_cache(maxsize=1)
 def fleet() -> tuple[Machine, ...]:
     ids = load_ids()
     zones = {z["zone_id"]: z for z in ids["zones"]}
+    enabled = enabled_tenants()
     out = []
     for m in ids["machines"]:
+        if m.get("tenant_id", DEFAULT_TENANT) not in enabled:
+            continue
         mid, model = m["machine_id"], m["model_id"]
         p = MODEL_PARAMS[model]
         idle = p["idle"] * (0.8 + 0.4 * unit_hash(mid, "idle"))
@@ -93,7 +127,7 @@ def fleet() -> tuple[Machine, ...]:
         out.append(Machine(
             machine_id=mid, model=model, serial=m["serial"], zone_id=m["zone_id"],
             hours_total=float(m["hours_total"]), hours_since_service=float(m["hours_since_service"]),
-            zone_lat=z["lat"], zone_lon=z["lon"],
+            zone_lat=z["lat"], zone_lon=z["lon"], tenant_id=m.get("tenant_id", DEFAULT_TENANT),
             availability=0.78 + 0.17 * unit_hash(mid, "avail"),
             idle_ratio=idle, hours_per_day=hours_per_day, bias=bias,
         ))
@@ -104,5 +138,8 @@ def by_id() -> dict[str, Machine]:
     return {m.machine_id: m for m in fleet()}
 
 
-def zones() -> dict[str, dict]:
-    return {z["zone_id"]: z for z in load_ids()["zones"]}
+def zones(tenant: str | None = None) -> dict[str, dict]:
+    """Zonas de los parques simulados (o de uno)."""
+    enabled = enabled_tenants()
+    return {z["zone_id"]: z for z in load_ids()["zones"]
+            if z.get("tenant_id", DEFAULT_TENANT) in enabled and (tenant is None or z.get("tenant_id", DEFAULT_TENANT) == tenant)}

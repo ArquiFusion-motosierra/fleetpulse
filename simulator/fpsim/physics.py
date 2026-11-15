@@ -12,13 +12,14 @@ import random
 from datetime import datetime, timedelta, timezone
 
 from fpsim import oem
-from fpsim.fleet import MODEL_PARAMS, NOISE_SIGMA, STATIONS, Machine, unit_hash, zones
+from fpsim.fleet import AMBIENT_OFFSET, MODEL_PARAMS, NOISE_SIGMA, Machine, stations, unit_hash, zones
 from fpsim.scenarios import Effect
 
 ANCHOR = datetime(2026, 10, 1, tzinfo=timezone.utc)
 LIMA = timedelta(hours=-5)
 NOMINAL_ON_H = 14.0  # 12 h de turno pleno + 4 h a media carga
 ZONE_ORDER = ("NORTE", "CENTRO", "SUR")
+PIN_JITTER = 0.0004  # grados (~45 m de lado): muy por debajo de una celda geohash6 (~0,0055 x 0,011 grados)
 RESONANCE_GAIN = 1.6  # el RMS de vibracion sube cuando un armonico de las rpm cruza una frecuencia natural
 
 
@@ -58,7 +59,7 @@ def engine_status(m: Machine, t: datetime) -> str:
 
 def ambient_c(m: Machine, t: datetime, rng: random.Random) -> float:
     h = local_hour(t)
-    zone_off = {"NORTE": -1.5, "CENTRO": 0.0, "SUR": 0.8}[m.zone_id]
+    zone_off = {"NORTE": -1.5, "CENTRO": 0.0, "SUR": 0.8}.get(m.zone_id, 0.0) + AMBIENT_OFFSET.get(m.tenant_id, 0.0)
     return 6.0 + 7.0 * math.sin(2 * math.pi * (h - 9) / 24) + zone_off + rng.gauss(0, 0.4)
 
 
@@ -77,8 +78,15 @@ def fuel_cycle(m: Machine, e_h: float) -> tuple[float, int]:
     return round(0.95 - (total % usable) / p["tank_l"], 3), int(total // usable)
 
 
-def position(m: Machine, t: datetime, status: str) -> tuple[float, float, str]:
+def position(m: Machine, t: datetime, status: str, pin: str | None = None) -> tuple[float, float, str]:
+    """`pin` = zona: la maquina queda junto a la estacion de esa zona (S2), en la misma celda geohash6 que las otras
+    fijadas, con un temblor de unos 20 m."""
     slot = slot_of(t)
+    if pin is not None:
+        z = zones()[pin]
+        lat = z["lat"] + (unit_hash(m.machine_id, slot, "jy") - 0.5) * PIN_JITTER
+        lon = z["lon"] + (unit_hash(m.machine_id, slot, "jx") - 0.5) * PIN_JITTER
+        return round(lat, 6), round(lon, 6), pin
     zone = m.zone_id
     lat, lon = m.zone_lat, m.zone_lon
     if m.model == "VQ" and status == "operating":
@@ -91,7 +99,8 @@ def position(m: Machine, t: datetime, status: str) -> tuple[float, float, str]:
     return round(lat, 6), round(lon, 6), zone
 
 
-def reading(m: Machine, t: datetime, effect: Effect | None = None, warp_extra_h: float = 0.0) -> dict:
+def reading(m: Machine, t: datetime, effect: Effect | None = None, warp_extra_h: float = 0.0,
+            pin: str | None = None) -> dict:
     eff = effect or Effect()
     p = MODEL_PARAMS[m.model]
     rng = random.Random(f"{m.machine_id}|{iso(t)}")
@@ -143,7 +152,7 @@ def reading(m: Machine, t: datetime, effect: Effect | None = None, warp_extra_h:
     idle_h = m.hours_total * m.idle_ratio + idle_rate * e_h
     fuel_ratio, _ = fuel_cycle(m, e_h)
     loads = int(op_h * p["cycles_h"])
-    lat, lon, zone = position(m, t, status)
+    lat, lon, zone = position(m, t, status, pin)
 
     return {
         "machine_id": m.machine_id,
@@ -183,8 +192,8 @@ def refill_context(m: Machine, t: datetime, lot: str | None = None) -> dict:
         "ts": iso(t),
         "zone_id": zone,
         "machine_id": m.machine_id,
-        "station_id": STATIONS[zone],
-        "fuel_lot": lot or {"NORTE": "L-2311", "CENTRO": "L-2309", "SUR": "L-2307"}[zone],
+        "station_id": stations()[zone]["station_id"],
+        "fuel_lot": lot or stations()[zone]["lot"],
         "liters": round(0.8 * m.params["tank_l"], 1),
     }
 
@@ -192,7 +201,7 @@ def refill_context(m: Machine, t: datetime, lot: str | None = None) -> dict:
 def weather_context(zone_id: str, t: datetime) -> dict:
     slot = slot_of(t)
     u = unit_hash(zone_id, slot // 4, "wx")  # cambia cada hora
-    risk = {"NORTE": "dust", "CENTRO": "dust", "SUR": "rain"}[zone_id]
+    risk = {"heat": "dust", "humidity": "fog"}.get(zones()[zone_id]["weather_risk"], zones()[zone_id]["weather_risk"])
     condition = risk if u > 0.6 else "clear"
     return {
         "context_id": f"CTX-{t.strftime('%Y%m%dT%H%M%SZ')}-{int(unit_hash(zone_id, iso(t)) * 0xFFFFFF):06x}",

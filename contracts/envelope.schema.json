@@ -41,10 +41,11 @@
     "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$", "description": "ISO 8601 en UTC."},
     "incident_id": {
       "type": "string",
-      "pattern": "^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$",
+      "pattern": "^INC-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$",
       "description": "Obligatorio en incident.* y part.*. Mismo valor en las 3 nubes."
     },
-    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$"},
+    "tenant_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,30}$", "description": "Parque (tenant) dueno del dato: mineria, agro, industria (contracts/tenants.yaml). Ausente = mineria (eventos anteriores al multi-tenancy)."},
     "trace_id": {"type": "string", "maxLength": 64, "description": "Opcional: X-Ray o id de ejecucion de Step Functions."},
     "payload": {"type": "object"}
   },

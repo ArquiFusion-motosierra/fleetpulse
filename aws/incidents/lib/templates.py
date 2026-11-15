@@ -9,6 +9,7 @@ from __future__ import annotations
 from fplib import ids
 
 COMPONENT = {
+    "head_gasket": "Junta de culata",
     "hydraulic_pump": "Bomba hidraulica principal",
     "hydraulic_contamination": "Filtro y aceite del circuito hidraulico",
     "hydraulic_overheat": "Enfriador de aceite hidraulico",
@@ -48,7 +49,16 @@ def _var(d: dict) -> str:
     return f"{d['var']} {'alta' if d['z'] > 0 else 'baja'} (z {d['z']:+.1f})"
 
 
-def explanation(deviated_vars: list[dict], failure_mode: str, machine_id: str) -> dict:
+def common_cause(group_id: str | None, fuel_lots: list[str] | None) -> str | None:
+    """Causa comun de un incidente agrupado (S2: lote L-2311 compartido); None sin grupo o sin lote en el contexto."""
+    if not group_id or not fuel_lots:
+        return None
+    return (f"Lote de combustible {', '.join(fuel_lots)} cargado en la zona por las maquinas del grupo {group_id}: "
+            "combustible contaminado probable. Inmovilizar el lote y revisar filtros e inyectores del grupo.")[:300]
+
+
+def explanation(deviated_vars: list[dict], failure_mode: str, machine_id: str, group_id: str | None = None,
+                fuel_lots: list[str] | None = None) -> dict:
     top = sorted(deviated_vars, key=lambda d: abs(d["z"]), reverse=True)[:3]
     component = COMPONENT.get(failure_mode, failure_mode)
     signs = ", ".join(_var(d) for d in top) or "sin variables desviadas"
@@ -57,7 +67,7 @@ def explanation(deviated_vars: list[dict], failure_mode: str, machine_id: str) -
         "summary": f"{machine_id}: {signs}. Causa probable: {component.lower()} ({failure_mode}).",
         "probable_component": component,
         "suggested_parts": [b["part_id"] for b in ids.bom_for(model_of(machine_id), failure_mode)],
-        "common_cause": None,
+        "common_cause": common_cause(group_id, fuel_lots),
     }
 
 

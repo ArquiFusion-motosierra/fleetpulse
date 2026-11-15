@@ -16,6 +16,10 @@ Rutas:
   incidente, en una transaccion. 200 `{report}`; 409 si ya estaba cerrado.
 - `GET /abnormality-types` (todos los roles): el catalogo, para el formulario del operario. Lo edita el admin con
   la Lambda `admin` (api/admin.py, T35), asi que sus altas y bajas se ven aqui y en la validacion de `POST /reports`.
+Multi-tenancy (docs/superpowers/plans/2026-11-15-multi-tenancy.md): cada rol ve y opera solo su parque (grupo de
+Cognito `tenant-<id>`; sin grupo = mineria). Crear un reporte de una maquina de otro parque: 403; listar filtra por el
+alcance (`?tenant=` solo lo usa el jefe de mantenimiento, `maintenance_head`, que ve todos); ver o cerrar un reporte de
+otro parque: 404. El META lleva `tenant_id` y GSI3 `TENANT#<tenant>` / `RPT#<reported_at>`.
 Tecnico asignado: lectura perezosa. Si el reporte esta `open`, tiene `incident_id` y aun no tiene tecnico, al leerlo
 o cerrarlo se copia el `tech_id` del incidente (si incident-flow ya asigno) y pasa a `in_review`.
 Idempotencia: crear exige que el META no exista y cerrar que no este cerrado (condiciones en la transaccion); el
@@ -30,12 +34,12 @@ from types import SimpleNamespace
 from fplib import authz, clock, envelope, ids, log, schema
 from lib import link_incident, recommend, snapshot, store, web
 
-ROLES = ("operator", "technician", "supervisor", "management", "admin")
-CREATE_ROLES = ("operator", "supervisor", "admin")
-CLOSE_ROLES = ("technician", "supervisor", "admin")
-RPT_RE = re.compile(r"^RPT-(?:EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
-MACHINE_RE = re.compile(r"^(?:EX|CF|VQ|MN|TO)-[0-9]{3}$")
-INC_RE = re.compile(r"^INC-((?:EX|CF|VQ|MN|TO)-[0-9]{3})-[0-9]{8}T[0-9]{4}$")
+ROLES = ("operator", "technician", "supervisor", "management", "admin", authz.GLOBAL_ROLE)
+CREATE_ROLES = ("operator", "supervisor", "admin", authz.GLOBAL_ROLE)
+CLOSE_ROLES = ("technician", "supervisor", "admin", authz.GLOBAL_ROLE)
+RPT_RE = re.compile(r"^RPT-(?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
+MACHINE_RE = re.compile(r"^(?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$")
+INC_RE = re.compile(r"^INC-((?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3})-[0-9]{8}T[0-9]{4}$")
 MAX_USER = 128
 
 
@@ -93,6 +97,8 @@ def create(event: dict, deps) -> dict:
     machine_id, kind = body["machine_id"], body["abnormality_type"]
     if machine_id not in ids.machines():
         raise web.HttpError(400, {"error": "unknown machine_id", "machine_id": machine_id})
+    tenant = ids.tenant_of_machine(machine_id)
+    authz.require_tenant_access(event, tenant)  # 403: la maquina es de otro parque
     now = clock.now()
     reported_at = clock.iso(now)
     types = _catalog(deps.registry, now)
@@ -121,9 +127,9 @@ def create(event: dict, deps) -> dict:
     item = {
         **store.report_key(report_id), **draft, "model": snap["model"], "zone_id": snap["zone_id"],
         "status": status, "telemetry_snapshot": snap, "recommendation": rec, "incident_id": link["incident_id"],
-        "incident_link": link["link"],
+        "incident_link": link["link"], "tenant_id": tenant,
         "GSI1PK": f"MACHINE#{machine_id}", "GSI1SK": f"RPT#{reported_at}", "GSI2PK": f"RSTATUS#{status}",
-        "GSI2SK": reported_at,
+        "GSI2SK": reported_at, "GSI3PK": f"TENANT#{tenant}", "GSI3SK": f"RPT#{reported_at}",
     }
     if link["tech_id"]:
         item["assigned_tech_id"] = link["tech_id"]
@@ -134,7 +140,7 @@ def create(event: dict, deps) -> dict:
         "suggested_parts": rec["suggested_parts"], "incident_id": link["incident_id"], "incident_link": link["link"],
     }
     env = envelope.build("report.created", "aws.reports-api", "report", report_id, payload,
-                         incident_id=link["incident_id"], machine_id=machine_id, occurred_at=now)
+                         incident_id=link["incident_id"], machine_id=machine_id, occurred_at=now, tenant_id=tenant)
     try:
         store.put_report(deps.registry, deps.outbox.name, item, env, link["tx_items"])
     except store.ConditionFailed:
@@ -165,6 +171,7 @@ def list_reports(event: dict, deps) -> dict:
     except ValueError:
         raise web.HttpError(400, {"error": "limit must be an integer"}) from None
     mine = qs.get("mine") in ("1", "true") or role == "operator"
+    allowed = authz.scope(event, qs.get("tenant"))  # 403 si un usuario de parque pide otro
     if inc_match:
         if machine_id and machine_id != inc_match.group(1):
             return web.resp(200, {"reports": []})
@@ -177,6 +184,7 @@ def list_reports(event: dict, deps) -> dict:
         rows = [r for s in store.STATUSES for r in store.reports_by_status(deps.registry, s)]
     if incident_id:
         rows = [r for r in rows if r.get("incident_id") == incident_id]
+    rows = [r for r in rows if ids.tenant_of_item(r) in allowed]
     cache: dict = {}
     rows = [resolve_tech(deps.registry, r, cache) for r in rows]
     if status:
@@ -191,7 +199,7 @@ def list_reports(event: dict, deps) -> dict:
 def _load(event: dict, deps) -> dict:
     report_id = (event.get("pathParameters") or {}).get("report_id") or ""
     item = store.get_report(deps.registry, report_id) if RPT_RE.match(report_id) else None
-    if item is None:
+    if item is None or not authz.can_access(event, ids.tenant_of_item(item)):  # otro parque: como si no existiera
         raise web.HttpError(404, {"error": "report not found", "report_id": report_id})
     return item
 

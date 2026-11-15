@@ -10,10 +10,10 @@
     "schema_version": {"const": 1},
     "source": {"enum": ["aws.incident-flow", "aws.registry", "simulator.backfill"]},
     "aggregate_type": {"const": "part_reservation"},
-    "aggregate_id": {"type": "string", "pattern": "^RSV-INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$", "description": "RSV-<incident_id>: una solicitud de reserva por incidente."},
+    "aggregate_id": {"type": "string", "pattern": "^RSV-INC-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$", "description": "RSV-<incident_id>: una solicitud de reserva por incidente."},
     "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
-    "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$"},
-    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+    "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$"},
+    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$"},
     "trace_id": {"type": "string", "maxLength": 64}
   },
   "oneOf": [
@@ -75,7 +75,7 @@
     }
   ],
   "$defs": {
-    "zone_id": {"enum": ["NORTE", "CENTRO", "SUR"]},
+    "zone_id": {"enum": ["NORTE", "CENTRO", "SUR", "FUNDO-A", "FUNDO-B", "PACKING", "PLANTA-1", "PLANTA-2", "ALMACEN"]},
     "part_id": {"type": "string", "pattern": "^PRT-[0-9]{2}$"},
     "line": {
       "type": "object",

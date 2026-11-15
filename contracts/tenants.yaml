@@ -1,0 +1,13 @@
+# FleetPulse - Registro de tenants (parques). Ver docs/superpowers/plans/2026-11-15-multi-tenancy.md.
+# Un tenant = un parque con sus propias maquinas, zonas, tecnicos y stock. Los IDs de negocio son unicos entre
+# parques, asi que el tenant de cualquier entidad se deduce del catalogo. Todo dato o evento sin tenant_id es del
+# tenant `default` (mineria): asi el stack desplegado antes del multi-tenancy sigue funcionando.
+# catalog: ruta relativa a contracts/. El de mineria es el ids.yaml original (congelado con m1-contratos).
+default: mineria
+tenants:
+  - {tenant_id: mineria, name: "Parque minero", operation: "Operacion Cerro Azul", catalog: ids.yaml, center: {lat: -13.92, lon: -71.555}, cognito_group: tenant-mineria}
+  - {tenant_id: agro, name: "Parque agricola", operation: "Fundo Valle Sur", catalog: tenants/agro.yaml, center: {lat: -14.08, lon: -75.72}, cognito_group: tenant-agro}
+  - {tenant_id: industria, name: "Parque industrial", operation: "Planta Lurin", catalog: tenants/industria.yaml, center: {lat: -12.275, lon: -76.862}, cognito_group: tenant-industria}
+# Rol transversal: ve y gestiona todos los parques (grupo de Cognito maintenance-head).
+global_roles: [maintenance_head]
+global_group: maintenance-head

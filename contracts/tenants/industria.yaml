@@ -1,0 +1,83 @@
+# FleetPulse - Catalogo del parque industrial (tenant `industria`). Misma forma que contracts/ids.yaml.
+# IDs unicos entre parques: modelos MC/CP/GE, zonas PLANTA-1/PLANTA-2/ALMACEN, tecnicos TEC-21..24, repuestos PRT-20..26.
+# Ver docs/superpowers/plans/2026-11-15-multi-tenancy.md.
+tenant_id: industria
+operation: Planta Lurin
+timezone: America/Lima
+
+zones:
+  - {zone_id: PLANTA-1, name: "Planta 1 - Produccion", lat: -12.275, lon: -76.87, altitude_m: 40, weather_risk: humidity}
+  - {zone_id: PLANTA-2, name: "Planta 2 - Energia y aire", lat: -12.28, lon: -76.86, altitude_m: 45, weather_risk: humidity}
+  - {zone_id: ALMACEN, name: "Almacen central", lat: -12.27, lon: -76.855, altitude_m: 38, weather_risk: humidity}
+
+fuel_stations:
+  - {station_id: EST-PLANTA-1, zone_id: PLANTA-1, lot: L-4101}
+  - {station_id: EST-PLANTA-2, zone_id: PLANTA-2, lot: L-4102}
+  - {station_id: EST-ALMACEN, zone_id: ALMACEN, lot: L-4103}
+
+models:
+  - {model_id: MC, name: "Montacargas", count: 6, service_interval_h: 250, fuel_lph_base: 4}
+  - {model_id: CP, name: "Compresor de tornillo", count: 3, service_interval_h: 2000, fuel_lph_base: 12}
+  - {model_id: GE, name: "Grupo electrogeno", count: 3, service_interval_h: 500, fuel_lph_base: 28}
+
+machines:
+  - {machine_id: MC-001, model_id: MC, serial: AFCMC00119, zone_id: ALMACEN, commissioned_at: '2019-07-15', hours_total: 12101, hours_since_service: 234}
+  - {machine_id: MC-002, model_id: MC, serial: AFCMC00223, zone_id: PLANTA-1, commissioned_at: '2023-05-15', hours_total: 8649, hours_since_service: 451}
+  - {machine_id: MC-003, model_id: MC, serial: AFCMC00319, zone_id: PLANTA-2, commissioned_at: '2019-08-15', hours_total: 9196, hours_since_service: 113}
+  - {machine_id: MC-004, model_id: MC, serial: AFCMC00422, zone_id: ALMACEN, commissioned_at: '2022-09-15', hours_total: 4667, hours_since_service: 423}
+  - {machine_id: MC-005, model_id: MC, serial: AFCMC00518, zone_id: PLANTA-1, commissioned_at: '2018-01-15', hours_total: 6879, hours_since_service: 319}
+  - {machine_id: MC-006, model_id: MC, serial: AFCMC00621, zone_id: PLANTA-2, commissioned_at: '2021-02-15', hours_total: 3174, hours_since_service: 426}
+  - {machine_id: CP-001, model_id: CP, serial: AFCCP00124, zone_id: ALMACEN, commissioned_at: '2024-04-15', hours_total: 4612, hours_since_service: 375}
+  - {machine_id: CP-002, model_id: CP, serial: AFCCP00218, zone_id: PLANTA-1, commissioned_at: '2018-07-15', hours_total: 12902, hours_since_service: 414}
+  - {machine_id: CP-003, model_id: CP, serial: AFCCP00321, zone_id: PLANTA-2, commissioned_at: '2021-08-15', hours_total: 1358, hours_since_service: 188}
+  - {machine_id: GE-001, model_id: GE, serial: AFCGE00122, zone_id: ALMACEN, commissioned_at: '2022-08-15', hours_total: 12169, hours_since_service: 79}
+  - {machine_id: GE-002, model_id: GE, serial: AFCGE00223, zone_id: PLANTA-1, commissioned_at: '2023-06-15', hours_total: 1180, hours_since_service: 99}
+  - {machine_id: GE-003, model_id: GE, serial: AFCGE00323, zone_id: PLANTA-2, commissioned_at: '2023-02-15', hours_total: 2845, hours_since_service: 434}
+
+technicians:
+  - {tech_id: TEC-21, name: "Sandra Chumpitaz", specialty: hydraulics, zone_id: ALMACEN}
+  - {tech_id: TEC-22, name: "Hector Villanueva", specialty: engine, zone_id: PLANTA-2}
+  - {tech_id: TEC-23, name: "Giuliana Torres", specialty: electrical, zone_id: PLANTA-2}
+  - {tech_id: TEC-24, name: "Manuel Ancajima", specialty: transmission, zone_id: PLANTA-1}
+
+parts:
+  - {part_id: PRT-01, sku: FLT-FUEL-01, name: "Filtro de combustible", unit_cost_usd: 45}
+  - {part_id: PRT-08, sku: BELT-ALT-01, name: "Correa del alternador", unit_cost_usd: 70}
+  - {part_id: PRT-09, sku: SNS-PRS-01, name: "Sensor de presion", unit_cost_usd: 210}
+  - {part_id: PRT-11, sku: FLT-AIR-01, name: "Filtro de aire", unit_cost_usd: 55}
+  - {part_id: PRT-20, sku: CHN-MAST-01, name: "Cadena de mastil", unit_cost_usd: 290}
+  - {part_id: PRT-21, sku: SEAL-LIFT-01, name: "Kit de sellos del cilindro de elevacion", unit_cost_usd: 150}
+  - {part_id: PRT-22, sku: SEP-OIL-01, name: "Separador aire-aceite", unit_cost_usd: 380}
+  - {part_id: PRT-23, sku: BRG-SCR-01, name: "Rodamiento del tornillo compresor", unit_cost_usd: 960}
+  - {part_id: PRT-24, sku: AVR-GEN-01, name: "Regulador de voltaje (AVR)", unit_cost_usd: 520}
+  - {part_id: PRT-25, sku: PUMP-H2O-01, name: "Bomba de agua del motor", unit_cost_usd: 340}
+  - {part_id: PRT-26, sku: OIL-CMP-20L, name: "Aceite de compresor 20 L", unit_cost_usd: 160}
+
+bom:
+  - {model_id: MC, part_id: PRT-21, qty: 1, replace_every_h: 3000, failure_mode: hydraulic_pump}
+  - {model_id: MC, part_id: PRT-20, qty: 1, replace_every_h: 4000, failure_mode: final_drive}
+  - {model_id: MC, part_id: PRT-01, qty: 1, replace_every_h: 500, failure_mode: fuel_contamination}
+  - {model_id: MC, part_id: PRT-11, qty: 1, replace_every_h: 250, failure_mode: engine_overheat}
+  - {model_id: MC, part_id: PRT-08, qty: 1, replace_every_h: 2000, failure_mode: electrical_fault}
+  - {model_id: CP, part_id: PRT-23, qty: 1, replace_every_h: 20000, failure_mode: final_drive}
+  - {model_id: CP, part_id: PRT-22, qty: 1, replace_every_h: 4000, failure_mode: hydraulic_contamination}
+  - {model_id: CP, part_id: PRT-26, qty: 1, replace_every_h: 2000, failure_mode: hydraulic_overheat}
+  - {model_id: CP, part_id: PRT-09, qty: 1, replace_every_h: 8000, failure_mode: sensor_fault}
+  - {model_id: GE, part_id: PRT-24, qty: 1, replace_every_h: 10000, failure_mode: electrical_fault}
+  - {model_id: GE, part_id: PRT-25, qty: 1, replace_every_h: 6000, failure_mode: engine_overheat}
+  - {model_id: GE, part_id: PRT-11, qty: 1, replace_every_h: 500, failure_mode: engine_overheat}
+  - {model_id: GE, part_id: PRT-01, qty: 1, replace_every_h: 500, failure_mode: fuel_contamination}
+
+# Stock inicial: mismo on_hand en las 3 zonas del parque, reserved = 0.
+part_stock:
+  - {part_id: PRT-01, on_hand_per_zone: 6, reorder_point: 2}
+  - {part_id: PRT-08, on_hand_per_zone: 3, reorder_point: 1}
+  - {part_id: PRT-09, on_hand_per_zone: 2, reorder_point: 1}
+  - {part_id: PRT-11, on_hand_per_zone: 6, reorder_point: 2}
+  - {part_id: PRT-20, on_hand_per_zone: 2, reorder_point: 1}
+  - {part_id: PRT-21, on_hand_per_zone: 3, reorder_point: 1}
+  - {part_id: PRT-22, on_hand_per_zone: 2, reorder_point: 1}
+  - {part_id: PRT-23, on_hand_per_zone: 1, reorder_point: 1}
+  - {part_id: PRT-24, on_hand_per_zone: 1, reorder_point: 1}
+  - {part_id: PRT-25, on_hand_per_zone: 2, reorder_point: 1}
+  - {part_id: PRT-26, on_hand_per_zone: 4, reorder_point: 2}

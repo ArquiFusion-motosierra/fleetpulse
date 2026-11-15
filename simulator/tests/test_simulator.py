@@ -22,16 +22,20 @@ def iso(t):
 
 
 def test_ids_in_sync():
-    yaml = pytest.importorskip("yaml")
-    with open(os.path.join(ROOT, "contracts", "ids.yaml"), encoding="utf-8") as f:
-        expected = yaml.safe_load(f)
+    pytest.importorskip("yaml")
+    from fpsim import sync_ids
+    expected = sync_ids.merged()
     with open(os.path.join(ROOT, "simulator", "fpsim", "ids.json"), encoding="utf-8") as f:
         assert json.load(f) == expected, "corre: python simulator/fpsim/sync_ids.py"
 
 
-def test_fleet_has_100_machines_and_scenario_ids():
+def test_fleet_has_three_parks_and_scenario_ids():
     ids = by_id()
-    assert len(fleet()) == 100
+    assert len(fleet()) == 124
+    by_tenant = {}
+    for m in fleet():
+        by_tenant[m.tenant_id] = by_tenant.get(m.tenant_id, 0) + 1
+    assert by_tenant == {"mineria": 100, "agro": 12, "industria": 12}
     for mid in ("EX-017", "EX-003", "VQ-011", "VQ-014", "TO-002", "CF-042", "MN-005", "EX-009", "VQ-031", "MN-003"):
         assert mid in ids
     assert {ids[m].zone_id for m in ("EX-017", "EX-003", "VQ-011", "VQ-014", "TO-002")} == {"NORTE"}
@@ -79,6 +83,49 @@ def test_s2_context_points_to_lot_l2311():
     lots = {c["machine_id"]: c["fuel_lot"] for c in ctx if c["type"] == "fuel.refill"}
     assert {m: lots.get(m) for m in ("EX-003", "VQ-011", "VQ-014", "TO-002")} == dict.fromkeys(
         ("EX-003", "VQ-011", "VQ-014", "TO-002"), "L-2311")
+
+
+def _geohash6(lat: float, lon: float) -> str:
+    alphabet, rng, bits, even = "0123456789bcdefghjkmnpqrstuvwxyz", {True: [-180.0, 180.0], False: [-90.0, 90.0]}, [], True
+    while len(bits) < 30:
+        lo, hi = rng[even]
+        mid = (lo + hi) / 2
+        value = lon if even else lat
+        bits.append(int(value >= mid))
+        rng[even] = [mid, hi] if value >= mid else [lo, mid]
+        even = not even
+    return "".join(alphabet[int("".join(map(str, bits[i:i + 5])), 2)] for i in range(0, 30, 5))
+
+
+S2 = ("EX-003", "VQ-011", "VQ-014", "TO-002")
+
+
+def test_s2_pins_the_four_machines_to_one_geohash6_cell():
+    """La correlacion en vivo agrupa por celda geohash6: sin S2 las cuatro no comparten celda; con S2 si, en
+    todos los bloques de 15 min (los volquetes dejan de rotar de zona) y en la zona NORTE."""
+    since = NOW - timedelta(minutes=5)
+    act = parse_active({"S2": {"since": iso(since)}})
+    cells, zones_seen = set(), set()
+    for minutes in range(0, 90, 7):
+        batch = live.build_batch(NOW + timedelta(minutes=minutes), act, machine_ids=set(S2) | {"EX-018"})
+        for r in batch["readings"]:
+            if r["machine_id"] in S2:
+                cells.add(_geohash6(r["lat"], r["lon"]))
+                zones_seen.add(r["zone_id"])
+    assert len(cells) == 1 and zones_seen == {"NORTE"}
+    base = live.build_batch(NOW, {}, machine_ids=set(S2))["readings"]
+    assert len({_geohash6(r["lat"], r["lon"]) for r in base}) > 1  # el problema que resuelve
+
+
+def test_s2_pin_only_after_since_and_only_s2_machines():
+    def where(batch):
+        return [(r["lat"], r["lon"], r["zone_id"]) for r in batch["readings"]]
+
+    act = parse_active({"S2": {"since": iso(NOW + timedelta(minutes=30))}})
+    assert where(live.build_batch(NOW, act, machine_ids=set(S2))) == where(live.build_batch(NOW, {}, machine_ids=set(S2)))
+    act = parse_active({"S2": {"since": iso(NOW - timedelta(minutes=5))}})
+    other = {"EX-018", "VQ-022"}
+    assert live.build_batch(NOW, act, machine_ids=other) == live.build_batch(NOW, {}, machine_ids=other)
 
 
 def test_s3_idle_and_s6_usage():
@@ -158,7 +205,11 @@ def test_handler_posts_batch_with_api_key(monkeypatch):
                 "/fleetpulse/api/url": "https://api.example/"})
     out = handler.handler({}, None, now=NOW, ssm=ssm, secrets=_Secrets(), opener=opener)
     assert sent[0][0] == "https://api.example/telemetry" and sent[0][1] == "test-key"
-    assert sent[0][2]["batch_id"] == out["batch_id"] and out["readings"] == 1000
+    assert sent[0][2]["batch_id"] == out["batch_id"] and out["readings"] == 1240
+    tele = [s[2] for s in sent if s[0].endswith("/telemetry")]
+    assert [b["tenant_id"] for b in tele] == ["mineria", "agro", "industria"]  # un lote por parque
+    assert len({b["batch_id"] for b in tele}) == 3 and [b["tenant_id"] for b in out["batches"]] == [
+        "mineria", "agro", "industria"]
     assert sent[0][3] == handler.HTTP_TIMEOUT_S
 
 
@@ -182,7 +233,8 @@ def test_oem_specs_valid_and_in_sync():
     jsonschema.validate(data, SCHEMA("oem_specs.schema.json"))
     with open(os.path.join(ROOT, "simulator", "fpsim", "oem.json"), encoding="utf-8") as f:
         assert json.load(f) == data, "corre: python simulator/fpsim/sync_ids.py"
-    parts = {p["part_id"] for p in yaml.safe_load(open(os.path.join(ROOT, "contracts", "ids.yaml"), encoding="utf-8"))["parts"]}
+    from fpsim.fleet import load_ids
+    parts = {p["part_id"] for p in load_ids()["parts"]}
     for m in data["models"].values():
         for s in m["service_schedule"]:
             assert {p["part_id"] for p in s["parts"]} <= parts
@@ -200,7 +252,7 @@ def test_normal_operation_stays_inside_oem_normal_ranges():
     worst = {}
     for h in range(0, 24, 3):
         t = NOW.replace(hour=h)
-        for r in live.build_batch(t, {})["readings"]:
+        for r in [r for b in live.build_batches(t, {}) for r in b["readings"]]:
             if r["engine_status"] != "operating":
                 continue
             lim = oem.model(r["model"])["limits"]
@@ -266,3 +318,35 @@ def test_s7_coolant_crosses_the_oem_warning():
     act = parse_active({"S7": {"since": iso(NOW - timedelta(minutes=25))}})
     d = _operating(live.build_batch(NOW, act, machine_ids={"VQ-022"})["readings"])
     assert _mean(d, "coolant_temp_c") > oem.model("VQ")["limits"]["coolant_temp_c"]["warning"]
+
+
+# ---------- multi-tenancy: un lote por parque ----------
+
+def test_each_park_batch_matches_the_contract_and_only_has_its_machines():
+    schema = SCHEMA("telemetry-batch.schema.json")
+    batches = live.build_batches(NOW, {})
+    assert [b["tenant_id"] for b in batches] == ["mineria", "agro", "industria"]
+    for b in batches:
+        jsonschema.validate(b, schema)
+        assert {by_id()[r["machine_id"]].tenant_id for r in b["readings"]} == {b["tenant_id"]}
+    assert batches[0]["batch_id"] == live.build_batch(NOW, {})["batch_id"]  # mineria conserva su batch_id
+
+
+def test_fp_tenants_turns_parks_off(monkeypatch):
+    from fpsim import fleet as fl
+    monkeypatch.setenv("FP_TENANTS", "agro")
+    fl.fleet.cache_clear()
+    try:
+        assert {m.tenant_id for m in fl.fleet()} == {"agro"} and len(fl.fleet()) == 12
+        assert [b["tenant_id"] for b in live.build_batches(NOW, {})] == ["agro"]
+    finally:
+        monkeypatch.delenv("FP_TENANTS")
+        fl.fleet.cache_clear()
+
+
+def test_weather_context_covers_every_park():
+    ctx = live.build_context(NOW.replace(minute=15), {})
+    zones = {c["zone_id"] for c in ctx if c["type"] == "weather"}
+    assert {"NORTE", "PACKING", "ALMACEN"} <= zones
+    for c in ctx:
+        jsonschema.validate(c, SCHEMA("fuel.refill.schema.json"))

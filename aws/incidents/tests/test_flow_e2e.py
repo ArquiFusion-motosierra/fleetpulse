@@ -333,3 +333,66 @@ def test_s2_four_machines_same_cell_are_grouped_with_the_common_fuel_lot(world, 
             "statusCode"] == 200
     assert all(get_tech(ddb.state, t["tech_id"])["available"] is True for t in ids.technicians())
     assert len(outbox_events(ddb.outbox, "incident.closed")) == 4
+
+
+# --- scripts/smoke_incidents.py: lo que arma el smoke en vivo corre igual por el flujo ------------------------------
+
+def _smoke():
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[3] / "scripts" / "smoke_incidents.py"
+    spec = importlib.util.spec_from_file_location("smoke_incidents", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _history(ex, *, exited=False):
+    """Eventos de get_execution_history que deja un WaitForApproval (forma real de Step Functions)."""
+    params = {"FunctionName": "arn:aws:lambda:us-east-1:000000000000:function:fp-incidents-dev-waitForApproval",
+              "Payload": {"input": ex._waiting[2], "token": ex.token}}
+    events = [{"type": "TaskStateEntered", "stateEnteredEventDetails": {"name": "WaitForApproval"}},
+              {"type": "TaskScheduled", "taskScheduledEventDetails": {
+                  "resourceType": "lambda", "resource": "invoke.waitForTaskToken", "region": "us-east-1",
+                  "parameters": json.dumps(params)}},
+              {"type": "TaskStarted", "taskStartedEventDetails": {"resourceType": "lambda",
+                                                                  "resource": "invoke.waitForTaskToken"}}]
+    before_submit = list(events)
+    events.append({"type": "TaskSubmitted", "taskSubmittedEventDetails": {"resourceType": "lambda",
+                                                                          "resource": "invoke.waitForTaskToken"}})
+    if exited:
+        events.append({"type": "TaskStateExited", "stateExitedEventDetails": {"name": "WaitForApproval"}})
+    return before_submit, events
+
+
+def test_smoke_s1_input_waits_and_its_approval_link_is_the_one_in_the_mail(world, monkeypatch):
+    smoke = _smoke()
+    _at(monkeypatch, 0)
+    pos = {"zone_id": "NORTE", "lat": LAT, "lon": LON}
+    ex = world.sfn.start(smoke.build_input("EX-017", pos, 2.4, "hydraulic_pump", smoke.S1, NOW))
+    assert ex.name == INC and ex.status == "WAITING"
+    before_submit, history = _history(ex)
+    assert smoke.waiting_token(before_submit) is None  # el correo aun no salio
+    tok = smoke.waiting_token(history)
+    assert tok == {"token": ex.token, "tech_id": "TEC-01"}
+    (mail,) = _mails(world, INC, "supervisor")
+    assert smoke.approval_link(API, tok["token"], tok["tech_id"], INC) in mail["Message"]
+    assert smoke.waiting_token(_history(ex, exited=True)[1]) is None
+    # la ejecucion que escala usa la ventana siguiente: otro nombre, mismo incidente abierto
+    worse = smoke.build_input("EX-017", pos, 3.7, "hydraulic_pump", smoke.S1, NOW, window=NOW + timedelta(minutes=15))
+    assert worse["incident_id"] == "INC-EX-017-20261115T1445"
+    assert world.sfn.start(worse).visited[-1] == "EscalatedOrIgnored"
+
+
+def test_smoke_s2_inputs_group_the_four_machines(world):
+    smoke = _smoke()
+    z = ids.zones()["NORTE"]
+    gh = geohash.encode(z["lat"], z["lon"], 6)
+    for mid in smoke.S2_SCORES:
+        world.ddb.state.put_item(Item={"PK": f"CELL#{gh}", "SK": f"A#2026-11-15T14:37:00Z#{mid}", "machine_id": mid,
+                                       "score": Decimal("2.4"), "severity": "schedule"})
+    spot = {"zone_id": "NORTE", "lat": z["lat"], "lon": z["lon"], "geohash6": gh}
+    runs = [world.sfn.start(smoke.build_input(mid, spot, score, "fuel_contamination", smoke.S2, NOW))
+            for mid, score in smoke.S2_SCORES.items()]
+    assert [r.status for r in runs] == ["SUCCEEDED", "SUCCEEDED", "WAITING", "WAITING"]
+    assert {get_meta(world.ddb.registry, r.name)["group_id"] for r in runs} == {f"GRP-{gh}-20261115T14"}

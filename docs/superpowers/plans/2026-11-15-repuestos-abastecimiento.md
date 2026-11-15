@@ -60,8 +60,8 @@ eso:
 Un **almacén** es una zona de un parque (`zone_id`): las claves `STOCK#<part>#<zone>` que ya existen no cambian,
 `reserve` sigue igual y el parque sale del catálogo de T36. Los repuestos son un catálogo único (`PRT-01..13` de hoy
 y `PRT-14+` de los parques nuevos); un repuesto se puede transferir entre parques si ambos lo tienen en stock. Para la
-demo, el catálogo de `agro` (T36) debe tener stock de **PRT-04 bomba hidráulica** en `FUNDO-A` (sus tractores `TA`
-la usan) y `mineria` arranca con PRT-04 en 0 (perfil `--demo-supply` del seed).
+demo, el seed de T36 (fleetpulse#29) ya deja **PRT-04 bomba hidráulica** en `agro` con 3 por zona (incluida
+`FUNDO-A`, punto de reorden 1) y `mineria` arranca con PRT-04 en 0 (perfil `--demo-supply` del seed).
 
 `contracts/ids.yaml` está congelado; los datos nuevos van en un archivo propio, `contracts/supply.yaml`, que
 `fplib.ids` carga junto con los catálogos:
@@ -372,10 +372,7 @@ entrante), números de serie y lotes, valorización FIFO, presupuestos por parqu
 
 ## 9. Preguntas abiertas para el equipo
 
-1. ¿Qué repuestos comparten los catálogos de T36? La demo necesita PRT-04 con stock en `agro` (FUNDO-A); si los
-   tractores `TA` no la usan, se cambia la demo a un repuesto compartido (PRT-02 filtro hidráulico o PRT-10 aceite)
-   con la misma historia, aunque con menos impacto en USD.
-2. Umbral de aprobación del admin del parque: USD 1.000 propuesto.
-3. ¿El correo al proveedor va a una casilla del equipo o se omite?
-4. ¿La consola reemplaza `StockView` por la matriz nueva para todos los roles o solo en la pestaña Abastecimiento?
-5. ¿Se congela `contracts/supply.yaml` con T37 antes de las 10:00 o se acepta tocarlo después del tag `m3-e2e`?
+1. Umbral de aprobación del admin del parque: USD 1.000 propuesto.
+2. ¿El correo al proveedor va a una casilla del equipo o se omite?
+3. ¿La consola reemplaza `StockView` por la matriz nueva para todos los roles o solo en la pestaña Abastecimiento?
+4. ¿Se congela `contracts/supply.yaml` con T37 antes de las 10:00 o se acepta tocarlo después del tag `m3-e2e`?

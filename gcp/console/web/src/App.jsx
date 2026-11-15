@@ -9,11 +9,15 @@ const REFRESH_MS = 15000;
 export default function App() {
   const TABS = ["map", "incidents", "stock", "planning"];
   // La pestana vive en la URL (#planning) para poder abrirla directo al grabar
-  const [tab, setTabState] = useState(() => (TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "map"));
+  const [tab, setTabState] = useState(() => (TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : location.hash.startsWith("#incident:") ? "incidents" : "map"));
   const setTab = (t) => { setTabState(t); history.replaceState(null, "", `#${t}`); };
   const [machines, setMachines] = useState([]);
   const [incidents, setIncidents] = useState([]);
-  const [drawer, setDrawer] = useState(null); // {kind: "machine"|"incident", id}
+  // Enlace directo para grabar: #machine:VQ-022 o #incident:INC-VQ-022-20261115T1500
+  const [drawer, setDrawer] = useState(() => {
+    const m = location.hash.match(/^#(machine|incident):([A-Z0-9-]+)$/);
+    return m ? { kind: m[1], id: m[2] } : null;
+  }); // {kind: "machine"|"incident", id}
   const [updated, setUpdated] = useState(null);
   const [error, setError] = useState("");
   const [mode, setMode] = useState("");

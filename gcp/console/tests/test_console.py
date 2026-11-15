@@ -104,3 +104,35 @@ def test_aws_proxy_sends_key_and_maps_errors(monkeypatch):
     c.post("/api/incidents/INC-EX-017-20261115T1430/close", json={"closed_by": "TEC-01"})
     assert calls[0] == ("GET", "https://reg.example/machines", "secret-key", 6.0)
     assert calls[-1][:2] == ("POST", "https://inc.example/incidents/INC-EX-017-20261115T1430/close")
+
+
+# ---------- T29: informe tecnico y plan del fabricante ----------
+
+def test_oem_json_in_sync_and_endpoint(mock_client):
+    yaml = pytest.importorskip("yaml")
+    with open(os.path.join(ROOT, "contracts", "oem_specs.yaml"), encoding="utf-8") as f:
+        expected = yaml.safe_load(f)
+    with open(os.path.join(ROOT, "gcp", "console", "app", "oem.json"), encoding="utf-8") as f:
+        assert json.load(f) == expected, "cp simulator/fpsim/oem.json gcp/console/app/oem.json"
+    vq = mock_client.get("/api/oem/VQ").json()
+    assert vq["illustrative"] is True and vq["service_schedule"] and vq["limits"]["coolant_temp_c"]["warning"] == 103
+    assert mock_client.get("/api/oem/XX").status_code == 404
+
+
+def test_mock_reports_match_the_incident_contract(mock_client):
+    import jsonschema
+    with open(os.path.join(ROOT, "contracts", "incident.schema.json"), encoding="utf-8") as f:
+        schema = json.load(f)
+    for mid in ("EX-017", "VQ-022"):
+        inc_id = mock_client.get(f"/api/machines/{mid}").json()["open_incident_id"]
+        inc = mock_client.get(f"/api/incidents/{inc_id}").json()
+        assigned = next(t for t in inc["timeline"] if t["type"] == "incident.assigned")
+        event = {"event_id": "3f2b8c1e-5d4a-4b7e-9a1c-2e6f8d0b4c11", "event_type": "incident.assigned",
+                 "schema_version": 1, "source": "aws.incident-flow", "aggregate_type": "incident",
+                 "aggregate_id": inc_id, "occurred_at": assigned["ts"], "incident_id": inc_id, "machine_id": mid,
+                 "payload": assigned["payload"]}
+        jsonschema.validate(event, schema)
+        assert assigned["payload"]["explanation"]["report"]["findings"]
+    vq = mock_client.get(f"/api/incidents/{mock_client.get('/api/machines/VQ-022').json()['open_incident_id']}").json()
+    report = next(t for t in vq["timeline"] if t["type"] == "incident.assigned")["payload"]["explanation"]["report"]
+    assert report["resonance"]["natural_frequency_hz"] == 62

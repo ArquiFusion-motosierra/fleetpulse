@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, SEVERITY, statusOf, ENGINE_LABEL, MODEL_LABEL, MODE_LABEL, EVENT_LABEL, fmtTime, ago } from "./api.js";
+import { api, SEVERITY, statusOf, ENGINE_LABEL, MODEL_LABEL, MODE_LABEL, EVENT_LABEL, PARAM_LABEL, FINDING_LABEL, fmtTime, ago } from "./api.js";
 
 export function Sev({ s }) {
   const v = SEVERITY[s] || SEVERITY.ok;
@@ -22,6 +22,79 @@ export function IncidentRow({ inc, active, onClick }) {
         <span className="muted">{ago(inc.opened_at)}</span>
       </div>
     </button>
+  );
+}
+
+// Informe tecnico de anormalidad (explanation.report de incident.assigned; contracts/incident.schema.json)
+export function reportOf(inc) {
+  const assigned = [...(inc.timeline || [])].reverse().find((t) => t.type === "incident.assigned");
+  return assigned?.payload?.explanation?.report || null;
+}
+
+const fmtNum = (v) => (typeof v === "number" ? v.toLocaleString("es-PE", { maximumFractionDigits: 1 }) : v);
+
+export function ReportView({ report }) {
+  return (
+    <div className="report">
+      <h3>Informe técnico</h3>
+      <p className="report-summary">{report.summary}</p>
+      <table className="mini findings">
+        <thead><tr><th>Parámetro</th><th>Valor</th><th>Fabricante</th></tr></thead>
+        <tbody>
+          {report.findings.map((f, i) => (
+            <tr key={i}>
+              <td>{PARAM_LABEL[f.parameter] || f.parameter}
+                <div className={`finding ${f.status}`}>{FINDING_LABEL[f.status]}</div></td>
+              <td className="num">{fmtNum(f.value)} {f.unit}</td>
+              <td className="small">{f.oem_limit}{f.note && <div className="muted">{f.note}</div>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {report.resonance && (
+        <p className="banner warn">
+          Resonancia: el {report.resonance.harmonic} ({fmtNum(report.resonance.frequency_hz)} Hz) coincide con {report.resonance.component.toLowerCase()} ({fmtNum(report.resonance.natural_frequency_hz)} Hz).
+        </p>
+      )}
+      <dl className="report-dl">
+        <dt>Causa probable</dt><dd>{report.probable_cause}</dd>
+        <dt>Acción</dt><dd>{report.recommended_action}</dd>
+        <dt>Repuestos</dt><dd>{report.parts.length ? report.parts.map((p) => `${p.part_id} ×${p.qty}`).join(", ") : "—"}</dd>
+      </dl>
+      <p className="muted small">{report.oem_reference}. Valores del fabricante ilustrativos.</p>
+    </div>
+  );
+}
+
+// Plan del fabricante: horas motor contra cada intervalo de servicio de la ficha (oem_specs.yaml)
+export function OemPlan({ model, hours }) {
+  const [spec, setSpec] = useState(null);
+  useEffect(() => { setSpec(null); if (model) api.oem(model).then(setSpec).catch(() => setSpec(false)); }, [model]);
+  if (spec === false) return null;
+  if (!spec) return <p className="muted">Cargando plan del fabricante…</p>;
+  const h = Number(hours) || 0;
+  const rows = spec.service_schedule.map((s) => {
+    const next = Math.ceil((h + 0.01) / s.every_h) * s.every_h;
+    return { ...s, next, left: next - h };
+  }).sort((a, b) => a.left - b.left);
+  return (
+    <>
+      <h3>Plan del fabricante</h3>
+      <table className="mini plan">
+        <thead><tr><th>Servicio</th><th>Cada</th><th>Próximo</th><th>Faltan</th></tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.every_h} className={r.left <= 50 ? "due" : ""}>
+              <td>{r.task}<div className="muted small">{r.parts.map((p) => `${p.part_id} ×${p.qty}`).join(", ") || "sin repuestos"}</div></td>
+              <td className="num">{r.every_h.toLocaleString("es-PE")} h</td>
+              <td className="num">{r.next.toLocaleString("es-PE")} h</td>
+              <td className="num"><b>{Math.round(r.left).toLocaleString("es-PE")} h</b></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">Horas motor: {Math.round(h).toLocaleString("es-PE")}. Ficha {spec.name} (ilustrativa).</p>
+    </>
   );
 }
 
@@ -54,6 +127,7 @@ export function MachinePanel({ id, onClose, onOpenIncident }) {
             <div><span>Horas</span><b>{Math.round(m.hours_total || 0).toLocaleString("es-PE")}</b></div>
             <div><span>Reincidencias</span><b className={m.recurrences ? "warn-text" : ""}>{m.recurrences}</b></div>
           </div>
+          <OemPlan model={m.model} hours={m.state?.hours_total ?? m.hours_total} />
           <h3>Historial</h3>
           {m.incidents.length === 0 && <p className="muted">Sin incidentes registrados.</p>}
           <ol className="history">
@@ -144,6 +218,11 @@ export function IncidentPanel({ id, onClose, onChanged, onMachine }) {
               </table>
             </>
           )}
+          {reportOf(inc) && <ReportView report={reportOf(inc)} />}
+          {(() => {
+            const a = [...(inc.timeline || [])].reverse().find((t) => t.type === "incident.assigned")?.payload;
+            return a?.tech_id ? <p className="muted small">Técnico asignado: <b>{a.tech_id}</b>{a.distance_km != null ? ` a ${fmtNum(a.distance_km)} km` : ""}{a.approval ? ` · ${a.approval === "auto" ? "asignación automática" : a.approval === "approved" ? "aprobado por el supervisor" : "sin respuesta en 30 min"}` : ""}</p> : null;
+          })()}
           <h3>Línea de tiempo</h3>
           <ol className="timeline">
             {inc.timeline.map((t, i) => (

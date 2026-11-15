@@ -1,0 +1,52 @@
+# Stack fp-reports: reportes de anormalidad del operario (T32) y administracion (T35) en la HTTP API fp-api de fp-core
+# (provider.httpApi.id), todas las rutas con el autorizador JWT `cognito` (aws/auth + aws/ingest).
+# Con una API externa Serverless v3 no deja declarar ni nombrar authorizers: las rutas lo referencian por id, que
+# fp-core exporta como HttpApiAuthorizerCognitoId. Tablas fp-state / fp-registry / fp-outbox: fp-core. Secreto
+# fleetpulse/gcp/sa-invoker: Fabricio (contracts/secrets.md). incident-flow: fp-incidents.
+# Sin CORS: la consola llama desde su BFF (servidor a servidor) reenviando el ID token.
+service: fp-reports
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 15  # token 3 s + /recommend-checks 8 s + DynamoDB; la plantilla cubre cualquier falla de la IA
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+  layers:
+    - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+  httpApi:
+    id: ${cf:fp-core-${sls:stage}.HttpApiId, 'offline-default-id'}
+  environment:
+    STATE_TABLE: fp-state
+    REGISTRY_TABLE: fp-registry
+    OUTBOX_TABLE: fp-outbox
+    INVOKER_SECRET: fleetpulse/gcp/sa-invoker
+    STATE_MACHINE_ARN: arn:aws:states:${aws:region}:${aws:accountId}:stateMachine:incident-flow
+
+custom:
+  cognitoAuthorizer:
+    type: jwt
+    id: ${cf:fp-core-${sls:stage}.HttpApiAuthorizerCognitoId, 'offline-authorizer-id'}
+
+package:
+  patterns:
+    - "!**"
+    - "api/**"
+    - "lib/**"
+    - "!**/__pycache__/**"
+
+functions:
+  reports:
+    handler: api/reports.handler
+    events:
+      - httpApi: {method: POST, path: /reports, authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: GET, path: /reports, authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: GET, path: "/reports/{report_id}", authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: POST, path: "/reports/{report_id}/close", authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: GET, path: /abnormality-types, authorizer: "${self:custom.cognitoAuthorizer}"}

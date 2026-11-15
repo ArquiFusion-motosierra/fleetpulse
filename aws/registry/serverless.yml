@@ -63,6 +63,7 @@ functions:
       - httpApi: {method: GET, path: "/incidents/{id}"}
       - httpApi: {method: GET, path: /stock}
       - httpApi: {method: GET, path: /reorders}
+      - httpApi: {method: GET, path: /orders}
       - httpApi: {method: GET, path: "/kpis/{day}"}
 
 resources:
@@ -103,7 +104,7 @@ resources:
         RawMessageDelivery: true
         # outbox-publisher pone event_type como MessageAttribute: solo llega lo que le toca a registry
         FilterPolicy:
-          event_type: [part.reserve.requested, incident.closed, kpi.daily]
+          event_type: [part.reserve.requested, incident.closed, kpi.daily, maintenance.order.suggested]
     RegistryDlqAlarm:
       Type: AWS::CloudWatch::Alarm
       Properties:

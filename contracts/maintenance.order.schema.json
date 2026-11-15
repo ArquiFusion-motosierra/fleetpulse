@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fleetpulse.arquifusion/contracts/maintenance.order.schema.json",
+  "title": "maintenance.order.suggested event",
+  "description": "Orden de mantenimiento sugerida (preventivo por horas desde el ultimo servicio o correctivo). La emite daily-planning (T18) en el outbox; registry la guarda en fp-registry ORDER#<machine_id>/<due_at> y la consola la lista (T19). PROPUESTA de Alex para T18: Benjamin la confirma o ajusta.",
+  "type": "object",
+  "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "machine_id", "payload"],
+  "properties": {
+    "event_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "event_type": {"const": "maintenance.order.suggested"},
+    "schema_version": {"const": 1},
+    "source": {"enum": ["aws.daily-planning", "simulator.backfill"]},
+    "aggregate_type": {"const": "machine"},
+    "aggregate_id": {"type": "string", "pattern": "^ORD-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}$", "description": "ORD-<machine_id>-<dia de due_at>: una orden por maquina y dia."},
+    "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+    "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$"},
+    "trace_id": {"type": "string", "maxLength": 64},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "due_at", "reason"],
+      "properties": {
+        "kind": {"enum": ["preventive", "corrective"]},
+        "due_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+        "reason": {"type": "string", "maxLength": 300},
+        "hours_since_service": {"type": "number", "minimum": 0},
+        "service_interval_h": {"type": "number", "minimum": 1},
+        "parts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["part_id", "qty"],
+            "properties": {
+              "part_id": {"type": "string", "pattern": "^PRT-[0-9]{2}$"},
+              "qty": {"type": "integer", "minimum": 1}
+            }
+          }
+        }
+      }
+    }
+  }
+}

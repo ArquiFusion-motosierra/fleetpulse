@@ -6,6 +6,7 @@ docs/superpowers/plans/2026-11-14-aws-core-pipeline.md (seccion "Data model lock
   REORDER + part.shortage. Escribe part.reserved / part.shortage en fp-outbox junto con su EV# (misma transaccion).
 - incident.closed -> consume lo reservado (RSV#<incident_id>) y descuenta lo usado; libera lo que no se uso.
 - kpi.daily -> KPI#<day>/<machine_id>.
+- maintenance.order.suggested -> ORDER#<machine_id>/<due_at> (GSI1 ORDERS) para la consola (T19).
 El META del incidente, sus EV# y los tecnicos los escribe incident-flow / la API de cierre (Benjamin), no esta Lambda.
 Idempotencia: fp-inbox con message_id = "registry:<event_id>" en la misma transaccion que los cambios.
 """
@@ -20,7 +21,7 @@ from fplib import clock, outbox
 from reg import store
 from reg.store import INBOX, OUTBOX, REGISTRY, dumps, key, ser, vals
 
-HANDLED = ("part.reserve.requested", "incident.closed", "kpi.daily")
+HANDLED = ("part.reserve.requested", "incident.closed", "kpi.daily", "maintenance.order.suggested")
 ZONE_COORDS = {"NORTE": (-13.9000, -71.5600), "CENTRO": (-13.9200, -71.5450), "SUR": (-13.9400, -71.5550)}
 
 
@@ -186,6 +187,13 @@ def apply(ddb, event: dict) -> dict:
         day = event["payload"]["day"]
         for row in event["payload"]["machines"]:  # PutItem por clave: idempotente
             ddb.put_item(TableName=REGISTRY, Item=ser({"PK": f"KPI#{day}", "SK": row["machine_id"], **row}))
+    elif etype == "maintenance.order.suggested":
+        p = event["payload"]
+        items.append({"Put": {"TableName": REGISTRY, "Item": ser({
+            "PK": f"ORDER#{event['machine_id']}", "SK": p["due_at"], "machine_id": event["machine_id"],
+            "order_id": event["aggregate_id"], "status": "suggested", "created_at": event["occurred_at"],
+            "incident_id": event.get("incident_id"), **p,
+            "GSI1PK": "ORDERS", "GSI1SK": f"{p['due_at']}#{event['machine_id']}"})}})
     try:
         _transact(ddb, items)
     except Duplicate:

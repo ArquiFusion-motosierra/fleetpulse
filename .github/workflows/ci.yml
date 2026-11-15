@@ -93,11 +93,13 @@ jobs:
       - name: Empaquetar cada servicio (compose no soporta package)
         if: steps.has.outputs.yes == 'true'
         run: |
+          failed=0
           for d in aws/shared aws/ingest aws/integrations/outbox-publisher aws/scoring aws/incidents aws/registry aws/integrations/gcp-exporter simulator; do
             echo "::group::package $d"
-            (cd "$d" && npx -y serverless@3 package --stage ci)
+            (cd "$d" && npx -y serverless@3 package --stage ci) || { echo "::error::package failed in $d"; failed=1; }
             echo "::endgroup::"
           done
+          exit $failed
 
   terraform-validate:
     runs-on: ubuntu-latest

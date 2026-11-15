@@ -22,8 +22,8 @@ cd aws && npx serverless@3 deploy --param="enabled=false"   # apaga (costo)
 ```
 
 ## Tests
-Con el venv del repo, por servicio:
+Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el job python de CI):
 ```bash
-.venv/bin/pytest -q aws/shared/tests aws/ingest/tests aws/scoring/tests aws/incidents/tests \
-  aws/integrations/outbox-publisher/tests
+.venv/bin/pytest -q $(find aws simulator -type d -name tests)
 ```
+Los servicios de otros pueden necesitar su propio `requirements-dev.txt`.

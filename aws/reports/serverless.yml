@@ -50,3 +50,13 @@ functions:
       - httpApi: {method: GET, path: "/reports/{report_id}", authorizer: "${self:custom.cognitoAuthorizer}"}
       - httpApi: {method: POST, path: "/reports/{report_id}/close", authorizer: "${self:custom.cognitoAuthorizer}"}
       - httpApi: {method: GET, path: /abnormality-types, authorizer: "${self:custom.cognitoAuthorizer}"}
+  admin:
+    handler: api/admin.handler
+    timeout: 10  # solo DynamoDB
+    events:
+      - httpApi: {method: GET, path: /admin/technicians, authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: GET, path: "/admin/technicians/{tech_id}", authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: PUT, path: "/admin/technicians/{tech_id}", authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: GET, path: /admin/abnormality-types, authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: POST, path: /admin/abnormality-types, authorizer: "${self:custom.cognitoAuthorizer}"}
+      - httpApi: {method: DELETE, path: "/admin/abnormality-types/{code}", authorizer: "${self:custom.cognitoAuthorizer}"}

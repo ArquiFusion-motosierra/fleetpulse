@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MapView from "./MapView.jsx";
 import PlanningView from "./Planning.jsx";
+import SupplyView from "./Supply.jsx";
 import { IncidentPanel, IncidentRow, MachinePanel, StockView, Sev } from "./Panels.jsx";
 import { AdminView, Login, ReportForm, ReportPanel, ReportsList } from "./Reports.jsx";
 import { api, SEVERITY, statusOf, MODE_LABEL, ROLE_LABEL, TENANT_LABEL, fmtTime, setTenant } from "./api.js";
@@ -9,15 +10,16 @@ import { completeLogin, loadConfig, logout, session } from "./auth.js";
 const REFRESH_MS = 15000;
 
 // Pestanas por rol (T34). La primera es la de inicio.
-const LABELS = { map: "Mapa", incidents: "Incidentes", myincidents: "Mis incidentes", stock: "Stock", planning: "Planificación",
+const LABELS = { map: "Mapa", incidents: "Incidentes", myincidents: "Mis incidentes", stock: "Stock", supply: "Abastecimiento", planning: "Planificación",
   report: "Reportar", myreports: "Mis reportes", assigned: "Reportes asignados", reports: "Reportes", admin: "Administración" };
 const ROLE_TABS = {
   operator: ["report", "myreports", "map"],
   technician: ["myincidents", "assigned", "map", "stock"],
-  supervisor: ["map", "incidents", "reports", "stock", "planning"],
+  // T41: Abastecimiento reemplaza a Stock para supervisor, admin y jefe; el tecnico sigue con Stock de su parque
+  supervisor: ["map", "incidents", "reports", "supply", "planning"],
   management: ["planning", "map", "incidents"],
-  admin: ["map", "incidents", "reports", "stock", "planning", "admin"],
-  maintenance_head: ["map", "incidents", "reports", "stock", "planning"],
+  admin: ["map", "incidents", "reports", "supply", "planning", "admin"],
+  maintenance_head: ["map", "incidents", "reports", "supply", "planning"],
 };
 const CAN_CLOSE_INCIDENT = ["technician", "supervisor", "admin", "maintenance_head"];
 
@@ -36,7 +38,8 @@ function Console({ user }) {
   const tabs = ROLE_TABS[user.role] || ["map"];
   // La pestana vive en la URL (#planning) para poder abrirla directo al grabar
   const fromHash = location.hash.slice(1);
-  const [tab, setTabState] = useState(() => (tabs.includes(fromHash) ? fromHash : fromHash.startsWith("incident:") && tabs.includes("incidents") ? "incidents" : tabs[0]));
+  const [tab, setTabState] = useState(() => (tabs.includes(fromHash) ? fromHash : fromHash.startsWith("incident:") && tabs.includes("incidents") ? "incidents"
+    : /^(po|trf):/.test(fromHash) && tabs.includes("supply") ? "supply" : tabs[0]));
   const setTab = (t) => { setTabState(t); history.replaceState(null, "", `#${t}`); };
   const [machines, setMachines] = useState([]);
   const [incidents, setIncidents] = useState([]);
@@ -185,6 +188,7 @@ function Console({ user }) {
         {tab === "incidents" && incidentTable(incidents, "Incidentes")}
         {tab === "myincidents" && incidentTable(mine, `Mis incidentes (${user.tech_id})`)}
         {tab === "stock" && <StockView key={park} />}
+        {tab === "supply" && <SupplyView key={park} user={{ ...user, tenant_id: parks.tenant_id }} onIncident={showIncident} />}
         {tab === "planning" && <PlanningView key={park} onMachine={showMachine} />}
         {tab === "report" && <ReportForm machines={machines} onCreated={refresh} />}
         {tab === "myreports" && <ReportsList title="Mis reportes" query="mine=1" onOpen={showReport} empty="Todavía no enviaste reportes." />}

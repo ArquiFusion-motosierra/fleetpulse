@@ -188,3 +188,31 @@ table.plan tr.due td { background: rgba(249, 115, 22, 0.08); }
 /* Multi-tenancy: parque del usuario y selector del jefe de mantenimiento */
 .park { background: var(--panel); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font: inherit; }
 .park-badge { text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* T41: abastecimiento */
+.supply .tiles span + span { margin-top: 2px; }
+.bad-text { color: var(--bad); }
+.suggestions { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.suggestion { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.suggestion.focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.suggestion header .eyebrow { display: block; margin-bottom: 2px; }
+.suggestion header b { font-size: 16px; }
+.suggestion p { margin: 0; }
+.suggestion tr.chosen td { color: var(--text); font-weight: 600; }
+.avoided { color: #86efac; font-weight: 600; }
+.actions { display: flex; gap: 8px; }
+.actions .primary { flex: 1; }
+.tag.ok-tag { color: #86efac; border-color: #14532d; }
+.scroll-x { overflow-x: auto; }
+table.matrix td, table.matrix th { white-space: nowrap; }
+table.grid td.st-stockout { background: rgba(239, 68, 68, 0.16); }
+table.grid td.st-stockout .big { color: #fca5a5; }
+table.grid td.st-low { background: rgba(249, 115, 22, 0.1); }
+table.grid td.st-ok .big { color: #86efac; }
+.tag.st-tag-in_transit, .tag.st-tag-ordered { color: #93c5fd; border-color: #1e3a8a; }
+.tag.st-tag-received { color: #86efac; border-color: #14532d; }
+.tag.st-tag-cancelled { color: var(--muted); }
+tr.clickable-row { cursor: pointer; }
+tr.clickable-row:hover { background: #16212c; }
+tr.detail td { background: var(--panel-2); }
+@media (max-width: 600px) { .suggestions { grid-template-columns: 1fr; } }

@@ -1,0 +1,41 @@
+# Servicio fp-gcp-exporter: exporta telemetria de S3 fp-raw a BigQuery (T11).
+# Depende del stack fp-core (bucket fp-raw, tabla fp-state) y de la infra GCP (T08).
+service: fp-gcp-exporter
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+
+custom:
+  suffix: ${opt:suffix, 'g19-2026'}
+  gcpProject: ${opt:gcpProject, 'fleetpulse-g19-2026'}
+
+package:
+  patterns:
+    - "!**"
+    - "exp/**"
+    - "!**/__pycache__/**"
+
+functions:
+  exporter:
+    handler: exp/handler.handler
+    memorySize: 512
+    timeout: 300
+    layers:
+      - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+    environment:
+      STATE_TABLE: fp-state
+      SRC_BUCKET: fp-raw-${aws:accountId}
+      DST_BUCKET: fp-landing-${self:custom.suffix}
+      GCP_PROJECT: ${self:custom.gcpProject}
+      DATASET: fleetpulse
+      SA_SECRET: fleetpulse/gcp/sa-exporter
+    events:
+      - schedule: rate(10 minutes)

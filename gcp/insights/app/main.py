@@ -1,5 +1,4 @@
 """Cloud Run `insights` (FastAPI). T08: /health. T16: POST /explain y GET /peers/{machine_id}.
-T28: /explain agrega `report`, el informe tecnico con la ficha del fabricante.
 
 Clientes externos (Gemini, BigQuery) detras de wrappers inyectables en app.state; en los tests se
 reemplazan por falsos (sin red ni credenciales).

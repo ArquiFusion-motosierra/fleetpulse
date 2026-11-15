@@ -41,6 +41,10 @@ resource "google_cloud_run_v2_service" "insights" {
         name  = "GEMINI_SECRET"
         value = google_secret_manager_secret.gemini.secret_id
       }
+      env {
+        name  = "GEMINI_MODEL"
+        value = "gemini-flash-lite-latest"
+      }
     }
   }
 

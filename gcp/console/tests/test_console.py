@@ -381,3 +381,95 @@ def test_aws_close_without_token_is_401_once_login_is_configured(monkeypatch):
     assert check["url"] == "https://reg.example/incidents/INC-EX-017-20261115T1430?tenant=mineria"
     assert close["url"] == "https://inc.example/incidents/INC-EX-017-20261115T1430/close"
     assert close["key"] == "secret-key" and close["body"]["closed_by"] == "TEC-01"
+
+
+# ---------- T41: abastecimiento (mock con la historia de la demo y reenvio a /supply/*) ----------
+
+def test_supply_json_in_sync_with_contracts():
+    yaml = pytest.importorskip("yaml")
+    path = os.path.join(ROOT, "contracts", "supply.yaml")
+    if not os.path.isfile(path):
+        pytest.skip("contracts/supply.yaml llega con T37 (PR #31)")
+    with open(path, encoding="utf-8") as f:
+        expected = yaml.safe_load(f)
+    with open(os.path.join(ROOT, "gcp", "console", "app", "supply.json"), encoding="utf-8") as f:
+        assert json.load(f) == expected, "regenerar gcp/console/app/supply.json desde contracts/supply.yaml"
+
+
+def _stock(c, role, part, zone, tenant=""):
+    q = f"?part={part}" + (f"&tenant={tenant}" if tenant else "")
+    return next(r for r in c.get(f"/api/supply/stock{q}", headers=H(role)).json()["stock"] if r["zone_id"] == zone)
+
+
+def test_supply_demo_story_transfer_from_agro(mock_client):
+    c = mock_client
+    assert _stock(c, "maintenance_head", "PRT-04", "NORTE")["status"] == "stockout"
+    assert _stock(c, "maintenance_head", "PRT-04", "FUNDO-A")["status"] == "ok"
+    sug = c.get("/api/supply/suggestions", headers=H("maintenance_head")).json()["suggestions"]
+    trf = next(s for s in sug if s["kind"] == "transfer")
+    assert (trf["from_zone"], trf["eta_h"], trf["cost_usd"], trf["downtime_avoided_h"], trf["downtime_avoided_usd"]) == (
+        "FUNDO-A", 16, 180, 152, 68400)
+    assert [o["source_kind"] for o in trf["options"]] == ["transfer", "purchase"]
+    # El admin de agro ve su stock y la transferencia saliente, pero no la aprueba (solo el jefe)
+    agro = c.get("/api/supply/stock", headers=H("admin_agro")).json()["stock"]
+    assert agro and {r["tenant_id"] for r in agro} == {"agro"}
+    assert [t["id"] for t in c.get("/api/supply/transfers", headers=H("admin_agro")).json()["transfers"]] == [trf["id"]]
+    assert c.get("/api/supply/stock?tenant=mineria", headers=H("admin_agro")).status_code == 403
+    assert c.post(f"/api/supply/transfers/{trf['id']}/approve", headers=H("admin_agro")).status_code == 403
+    r = c.post(f"/api/supply/transfers/{trf['id']}/approve", headers=H("maintenance_head"))
+    assert r.status_code == 200 and r.json()["status"] == "in_transit"
+    assert _stock(c, "maintenance_head", "PRT-04", "FUNDO-A")["on_hand"] == 2
+    assert _stock(c, "maintenance_head", "PRT-04", "NORTE")["in_transit"] == 1
+    # El admin de mineria confirma la recepcion: queda reservada para EX-017
+    assert c.post(f"/api/supply/transfers/{trf['id']}/receive", headers=H("admin_agro")).status_code == 403
+    r = c.post(f"/api/supply/transfers/{trf['id']}/receive", headers=H("admin"))
+    assert r.status_code == 200 and r.json()["status"] == "received"
+    assert r.json()["timeline"][-1]["type"] == "part.reserved"
+    norte = _stock(c, "admin", "PRT-04", "NORTE")
+    assert (norte["on_hand"], norte["reserved"], norte["in_transit"]) == (1, 1, 0)
+    assert c.post(f"/api/supply/transfers/{trf['id']}/receive", headers=H("admin")).status_code == 409
+    k = c.get("/api/supply/kpis", headers=H("maintenance_head")).json()
+    assert k["downtime_avoided_usd"] == 68400 and set(k["inventory_value_usd"]) == {"mineria", "agro", "industria"}
+
+
+def test_supply_roles_and_small_purchase_order(mock_client):
+    c = mock_client
+    assert c.get("/api/supply/stock", headers=H("operator")).status_code == 403
+    assert c.get("/api/supply/stock").status_code == 401
+    po = next(s for s in c.get("/api/supply/suggestions", headers=H("supervisor")).json()["suggestions"]
+              if s["kind"] == "purchase_order")
+    assert c.get(f"/api/supply/purchase-orders/{po['id']}", headers=H("admin_agro")).status_code == 404
+    r = c.post(f"/api/supply/purchase-orders/{po['id']}/approve", headers=H("supervisor"))
+    assert r.status_code == 200 and r.json()["status"] == "ordered"
+    assert _stock(c, "supervisor", po["part_id"], po["zone_id"])["on_order"] == po["qty"]
+    assert c.post(f"/api/supply/purchase-orders/{po['id']}/reject", headers=H("supervisor")).status_code == 409
+    sups = c.get("/api/supply/suppliers", headers=H("admin")).json()["suppliers"]
+    assert {s["supplier_id"] for s in sups} == {"SUP-HIDRA", "SUP-MOTOR", "SUP-FILTR"}
+    assert c.get("/api/supply/purchase-orders/BAD", headers=H("admin")).status_code == 400
+
+
+def test_supply_real_mode_forwards_token_and_tenant(monkeypatch):
+    monkeypatch.delenv("MOCK", raising=False)
+    monkeypatch.delenv("SUPPLY_MOCK", raising=False)
+    monkeypatch.setenv("STATIC_DIR", "/nonexistent")
+    monkeypatch.setenv("AWS_INCIDENTS_URL", "https://api.example")
+    import app.aws_api as aws_api
+    import app.main as main
+    importlib.reload(aws_api)
+    importlib.reload(main)
+    seen = []
+
+    def opener(req, timeout):
+        seen.append((req.get_method(), req.full_url, req.headers.get("Authorization"), req.headers.get("X-api-key")))
+        return Resp(json.dumps({"ok": True}).encode())
+
+    main.app.state.aws = aws_api.AwsApi(opener=opener, key_loader=lambda: "k")
+    c = TestClient(main.app)
+    auth = {"authorization": "Bearer eyJ.tok.en"}
+    assert c.get("/api/health").json()["supply_mode"] == "aws"
+    assert c.get("/api/supply/stock?tenant=agro", headers=auth).status_code == 200
+    assert seen[-1] == ("GET", "https://api.example/supply/stock?tenant=agro", "Bearer eyJ.tok.en", None)
+    trf = "TRF-FUNDO-A-NORTE-PRT-04-20261115T1430"
+    assert c.post(f"/api/supply/transfers/{trf}/approve", headers=auth).status_code == 200
+    assert seen[-1][:2] == ("POST", f"https://api.example/supply/transfers/{trf}/approve")
+    assert c.get("/api/supply/kpis").status_code == 401

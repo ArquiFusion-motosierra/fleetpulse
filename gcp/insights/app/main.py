@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app import analytics
+from app import analytics, supply
 from app.bq import BqClient, build_peers_response
 from app.explain import fallback_response, validate_explain
 from app.recommend import fallback_recommendation, validate_recommendation
@@ -215,6 +215,24 @@ def jobs_refresh():
         raise HTTPException(503, "BQ_UNAVAILABLE")
     log.info('{"msg": "jobs_refresh", "jobs": %d, "errors": %d}', len(jobs), len(errors))
     return {"jobs": jobs, "errors": errors}
+
+
+@app.get("/supply/analytics")
+def supply_analytics(tenant: str = "", days: int = Query(14, ge=1, le=90)):
+    """T42: resumen de abastecimiento (ordenes/transferencias y quiebres) para la consola.
+    `tenant` vacio = todos los parques (jefe de mantenimiento); un parque = solo lo suyo."""
+    import re
+
+    if tenant and not re.match(r"^(mineria|agro|industria)$", tenant):
+        raise HTTPException(400, "BAD_TENANT")
+    orders = _bq("supply_orders", supply.ORDERS_SQL, {"tenant": tenant})
+    stockouts = _bq("supply_stockouts", supply.STOCKOUTS_SQL, {"tenant": tenant, "days": days})
+    return {
+        "tenant": tenant or "all",
+        "days": days,
+        "orders": supply.orders_summary(orders),
+        "stockouts_daily": supply.stockouts_series(stockouts),
+    }
 
 
 @app.get("/jobs/status")

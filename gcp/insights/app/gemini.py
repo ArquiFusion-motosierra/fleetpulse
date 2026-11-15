@@ -18,8 +18,9 @@ from app.explain import build_prompt
 PROJECT = os.environ.get("GCP_PROJECT_ID", "")
 # ASUNCION: el secreto guarda la API key en texto plano; si fuera JSON {"api_key": ...} tambien se soporta.
 SECRET = os.environ.get("GEMINI_SECRET", "gemini-api-key")
-# ASUNCION: modelo Gemini Flash; configurable por si el nombre del endpoint cambia.
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+# ASUNCION: alias estable de Gemini Flash Lite; los modelos con version fija (gemini-2.0-flash,
+# gemini-2.5-flash-lite) salen del catalogo para cuentas nuevas y dan 404. El alias -latest sigue vigente.
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest")
 TIMEOUT_S = float(os.environ.get("GEMINI_TIMEOUT_S", "7"))  # < 8 s exigido por T16
 METADATA = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
 API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"

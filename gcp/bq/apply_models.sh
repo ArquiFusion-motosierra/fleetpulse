@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 PROJECT="${GCP_PROJECT_ID:-fleetpulse-g19-2026}"
-MAX_BYTES="${BQ_MAX_BYTES:-2000000000}"  # 2 GB tope por job
+MAX_BYTES="${BQ_MAX_BYTES:-20000000000}"  # 20 GB tope por job: ARIMA_PLUS (m_fuel_trend) escanea toda la telemetria
 
 # m_parts_demand (T20) sale de incident.closed en domain_events (v_parts_consumption_daily). Lo mismo, sin `bq`:
 # insights POST /jobs/refresh (copias en gcp/insights/app/sql/).

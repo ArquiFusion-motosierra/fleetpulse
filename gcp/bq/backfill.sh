@@ -16,7 +16,7 @@ SCHEMA="gcp/terraform/schemas/telemetry.json"
 [ -d "$OUT" ] || { echo "No existe $OUT; corre primero simulator/backfill.py" >&2; exit 1; }
 
 echo "subiendo $OUT a gs://$BUCKET/backfill/"
-gsutil -m -q cp -r "$OUT"/* "gs://$BUCKET/backfill/"
+gcloud storage cp -r "$OUT"/* "gs://$BUCKET/backfill/"
 
 echo "cargando a $PROJECT:fleetpulse.telemetry"
 bq load \
@@ -25,7 +25,7 @@ bq load \
   --ignore_unknown_values \
   --replace=false \
   "fleetpulse.telemetry" \
-  "gs://$BUCKET/backfill/**" \
+  "gs://$BUCKET/backfill/*" \
   "$SCHEMA"
 
 echo "filas en telemetry:"

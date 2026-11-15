@@ -263,7 +263,7 @@ export function StockView() {
     return () => clearInterval(t);
   }, []);
   const parts = [...new Map(rows.map((r) => [r.part_id, r])).values()].sort((a, b) => a.part_id.localeCompare(b.part_id));
-  const zones = ["NORTE", "CENTRO", "SUR"];
+  const zones = [...new Set(rows.map((r) => r.zone_id))];  // las del parque del usuario
   const cell = (p, z) => rows.find((r) => r.part_id === p && r.zone_id === z);
   return (
     <section className="page">

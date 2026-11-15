@@ -42,15 +42,15 @@ Modelo fijado en `docs/superpowers/plans/2026-11-14-aws-core-pipeline.md` ("Data
 |---|---|---|
 | Incidente | `INCIDENT#<id>` / `META` (GSI1 `MACHINE#<id>` / `INC#<opened_at>`, GSI2 `STATUS#<open\|closed>` / `<opened_at>`) | `incident-flow` (abre, asigna) y `POST /incidents/{id}/close` |
 | Evento del incidente | `INCIDENT#<id>` / `EV#<occurred_at>#<event_id>`: `event_type, source, payload` (sobre completo como JSON, igual que `fp-outbox`) | quien escribe el evento, en la misma transacción que el outbox |
-| Stock | `STOCK#<part_id>#<zone_id>` / `META`: `on_hand, reserved, available (= on_hand - reserved), reorder_point, sku, name` | seed y Lambda `registry` |
+| Stock | `STOCK#<part_id>#<zone_id>` / `META`: `on_hand, reserved, available (= on_hand - reserved), reorder_point, sku, name, tenant_id, on_order, in_transit, safety_stock, criticality` (los que falten se leen como 0 / C) | seed y Lambda `registry` |
 | Reserva | `RSV#<incident_id>` / `<part_id>#<zone_id>`: `reservation_id (<event_id>#<línea>), qty, status (reserved/consumed/released)` | Lambda `registry` |
-| Movimiento | `MOVE#<part_id>#<zone_id>` / `<closed_at>#<incident_id>` | Lambda `registry` |
+| Movimiento | `MOVE#<part_id>#<zone_id>` / `<ts>#<ref>`: `kind (consumption/receipt/transfer_out/transfer_in/adjustment), qty (con signo), ref, tenant_id` | Lambda `registry` |
 | Pedido sugerido | `REORDER#<part_id>#<zone_id>` / `<created_at>` (GSI1 `REORDERS` / `<created_at>#<part_id>#<zone_id>`) | Lambda `registry` (`source: shortage`) y `daily-planning` (`source: planning`, reclamo `planning:<día>:REORDER#<part>#<zone>` en `fp-inbox`) |
 | KPI diario | `KPI#<day>` / `<machine_id>` | Lambda `registry` |
 | Orden de mantenimiento | `ORDER#<machine_id>` / `<due_at>` (GSI1 `ORDERS` / `<due_at>#<machine_id>`) | Lambda `registry` (desde `maintenance.order.suggested`, que emite `daily-planning` con reclamo `planning:<día>:ORDER#<machine_id>`) |
 
-Lambda `registry` (cola `registry-q`, filtrada a `part.reserve.requested`, `incident.closed` y `kpi.daily`):
-- Reserva cada línea con `SET reserved += q, available -= q` y condición `available >= :q` (DynamoDB no admite aritmética en condiciones), probando primero la zona del incidente y luego la más cercana. Si no hay stock, escribe un `REORDER` y emite `part.shortage`.
+Lambda `registry` (cola `registry-q`, filtrada a `part.reserve.requested`, `incident.closed`, `kpi.daily` y `maintenance.order.suggested`):
+- Reserva cada línea con `SET reserved += q, available -= q` y condición `available >= :q` (DynamoDB no admite aritmética en condiciones), probando primero la zona del incidente y luego la más cercana. Solo usa zonas del mismo parque. Si no hay stock, escribe un `REORDER` y emite `part.shortage` con `zone_id` y `tenant_id`.
 - Escribe `part.reserved` / `part.shortage` (`source: aws.registry`) en `fp-outbox` junto con su `EV#`, en la misma transacción.
 - Con `incident.closed` consume lo reservado, descuenta lo usado (`parts_used`) y libera lo que sobró.
 - Idempotencia: `fp-inbox` con `message_id = registry:<event_id>`, en la misma transacción.

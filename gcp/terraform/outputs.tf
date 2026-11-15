@@ -21,3 +21,7 @@ output "service_accounts" {
     insights = google_service_account.insights.email
   }
 }
+
+output "tenant_datasets" {
+  value = { for t, d in google_bigquery_dataset.tenant : t => d.dataset_id }
+}

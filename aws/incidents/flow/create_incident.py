@@ -4,7 +4,8 @@ META + EV# + fp-outbox van en una sola `TransactWriteItems`; el META lleva `attr
 Idempotencia: el incident_id es el nombre de la ejecucion, asi que un reintento encuentra el META, la transaccion
 se cancela sin escribir nada y se devuelve el incidente ya creado.
 `zone_id` puede llegar vacio (META escasa en fp-state): se toma la zona de la maquina en ids.yaml o, si no esta,
-la zona cuyo centroide queda mas cerca.
+la zona del mismo parque cuyo centroide queda mas cerca. El META lleva `tenant_id` y el GSI3 del parque
+(`TENANT#<tenant>` / `INC#<opened_at>`), por el que la API de lectura lista los incidentes de un parque.
 `deviated_vars` puede llegar vacio (score >= 2.0 con todas las |z| < 1.0), pero `incident.opened` exige al menos
 una. Entonces se deriva una sola entrada del mapa `z` de la entrada: la variable con mayor |z| dominante (la de
 mayor modulo entre self y peer, igual que en aws/scoring). La entrada no trae medias, asi que `value` lleva la misma
@@ -25,7 +26,7 @@ RESULT_KEYS = ("incident_id", "opened_at", "recurrence_flag", "group_id", "zone_
 
 
 def _zone(zone_id: str | None, machine_id: str, lat: float, lon: float) -> str:
-    zones = ids.zones()
+    zones = ids.zones(ids.tenant_of_machine(machine_id))
     if zone_id in zones:
         return zone_id
     known = ids.machines().get(machine_id, {}).get("zone_id")
@@ -74,13 +75,16 @@ def handler(event, context=None, registry=None, outbox=None):
         "group_id": group_id, "recurrence_flag": recurrence, "opened_at": opened_at, "lat": lat, "lon": lon,
     }
     env = envelope.build("incident.opened", "aws.incident-flow", "incident", incident_id, payload,
-                         incident_id=incident_id, machine_id=machine_id, occurred_at=now)
+                         incident_id=incident_id, machine_id=machine_id, occurred_at=now,
+                         tenant_id=(event.get("classified") or {}).get("tenant_id"))
+    tenant = env["tenant_id"]
     item = {
-        **fp_registry.meta_key(incident_id), "incident_id": incident_id, "machine_id": machine_id,
+        **fp_registry.meta_key(incident_id), "incident_id": incident_id, "machine_id": machine_id, "tenant_id": tenant,
         "model": event.get("model"), "zone_id": zone, "lat": lat, "lon": lon, "status": "open",
         "severity": severity, "score": payload["score"], "failure_mode": mode, "opened_at": opened_at,
         "group_id": group_id, "recurrence_flag": recurrence, "deviated_vars": deviated,
         "GSI1PK": f"MACHINE#{machine_id}", "GSI1SK": f"INC#{opened_at}", "GSI2PK": "STATUS#open", "GSI2SK": opened_at,
+        "GSI3PK": f"TENANT#{tenant}", "GSI3SK": f"INC#{opened_at}",
     }
     try:
         fp_registry.put_incident_tx(registry.name, outbox.name, item, env, fp_registry.event_item(env),

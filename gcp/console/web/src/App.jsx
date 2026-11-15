@@ -3,7 +3,7 @@ import MapView from "./MapView.jsx";
 import PlanningView from "./Planning.jsx";
 import { IncidentPanel, IncidentRow, MachinePanel, StockView, Sev } from "./Panels.jsx";
 import { AdminView, Login, ReportForm, ReportPanel, ReportsList } from "./Reports.jsx";
-import { api, SEVERITY, statusOf, MODE_LABEL, ROLE_LABEL, fmtTime } from "./api.js";
+import { api, SEVERITY, statusOf, MODE_LABEL, ROLE_LABEL, TENANT_LABEL, fmtTime, setTenant } from "./api.js";
 import { completeLogin, loadConfig, logout, session } from "./auth.js";
 
 const REFRESH_MS = 15000;
@@ -17,8 +17,9 @@ const ROLE_TABS = {
   supervisor: ["map", "incidents", "reports", "stock", "planning"],
   management: ["planning", "map", "incidents"],
   admin: ["map", "incidents", "reports", "stock", "planning", "admin"],
+  maintenance_head: ["map", "incidents", "reports", "stock", "planning"],
 };
-const CAN_CLOSE_INCIDENT = ["technician", "supervisor", "admin"];
+const CAN_CLOSE_INCIDENT = ["technician", "supervisor", "admin", "maintenance_head"];
 
 export default function App() {
   const [user, setUser] = useState(() => session());
@@ -47,6 +48,10 @@ function Console({ user }) {
   const [updated, setUpdated] = useState(null);
   const [error, setError] = useState("");
   const [mode, setMode] = useState("");
+  // Multi-tenancy: parques del alcance del usuario (el BFF lo saca del token) y el elegido por el jefe de mantenimiento
+  const [parks, setParks] = useState({ tenants: [], zones: [], scope: [], global: false, tenant_id: null });
+  const [park, setPark] = useState("");
+  const choosePark = (t) => { setTenant(t); setPark(t); setDrawer(null); };
 
   const refresh = useCallback(async () => {
     try {
@@ -62,10 +67,18 @@ function Console({ user }) {
 
   useEffect(() => {
     api.health().then((h) => setMode(h.mode)).catch(() => {});
+    api.tenants().then(setParks).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     refresh();
     const t = setInterval(refresh, REFRESH_MS);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, park]);
+
+  const parkInfo = parks.tenants.find((t) => t.tenant_id === (park || parks.tenant_id));
+  const brandLine = parkInfo ? `${parkInfo.operation} · ${parkInfo.name}` : parks.global ? "Todos los parques" : "Operación Cerro Azul";
+  const zonesShown = parks.zones.filter((z) => !park || z.tenant_id === park);
 
   const open = incidents.filter((i) => i.status !== "closed");
   const mine = incidents.filter((i) => i.tech_id && i.tech_id === user.tech_id);
@@ -86,12 +99,13 @@ function Console({ user }) {
       {rows.length > 0 && (
         <table className="grid clickable">
           <thead>
-            <tr><th>Incidente</th><th>Máquina</th><th>Falla</th><th>Severidad</th><th>Estado</th><th>Técnico</th><th>Abierto</th><th>Detenida</th></tr>
+            <tr><th>Incidente</th>{parks.global && <th>Parque</th>}<th>Máquina</th><th>Falla</th><th>Severidad</th><th>Estado</th><th>Técnico</th><th>Abierto</th><th>Detenida</th></tr>
           </thead>
           <tbody>
             {rows.map((i) => (
               <tr key={i.incident_id} onClick={() => showIncident(i.incident_id)} className={drawer?.id === i.incident_id ? "active" : ""}>
                 <td className="mono small">{i.incident_id}{i.recurrence_flag && <span className="tag warn">reincidencia</span>}</td>
+                {parks.global && <td>{TENANT_LABEL[i.tenant_id] || i.tenant_id || "—"}</td>}
                 <td><b>{i.machine_id}</b></td>
                 <td>{MODE_LABEL[i.failure_mode] || i.failure_mode}</td>
                 <td><Sev s={i.severity} /></td>
@@ -114,8 +128,14 @@ function Console({ user }) {
           <span className="logo" />
           <div>
             <b>FleetPulse</b>
-            <span>Operación Cerro Azul · ArquiFusion</span>
+            <span>{brandLine} · ArquiFusion</span>
           </div>
+          {parks.global ? (
+            <select className="park" value={park} onChange={(e) => choosePark(e.target.value)} aria-label="Parque">
+              <option value="">Todos los parques</option>
+              {parks.tenants.map((t) => <option key={t.tenant_id} value={t.tenant_id}>{TENANT_LABEL[t.tenant_id] || t.name}</option>)}
+            </select>
+          ) : parks.tenant_id && <span className="tag park-badge">{TENANT_LABEL[parks.tenant_id] || parks.tenant_id}</span>}
         </div>
         <nav>
           {tabs.map((k) => (
@@ -146,7 +166,8 @@ function Console({ user }) {
       <main className={`body ${tab}`}>
         {tab === "map" && (
           <>
-            <MapView machines={machines} selected={drawer?.kind === "machine" ? drawer.id : null} onSelect={showMachine} />
+            <MapView machines={machines} selected={drawer?.kind === "machine" ? drawer.id : null} onSelect={showMachine}
+              zones={zonesShown} focusKey={park || "all"} />
             <aside className="side">
               <div className="legend">
                 {Object.entries(SEVERITY).map(([k, v]) => <span key={k} style={{ "--c": v.color }}><i />{v.label} <b>{counts[k]}</b></span>)}
@@ -163,12 +184,12 @@ function Console({ user }) {
         )}
         {tab === "incidents" && incidentTable(incidents, "Incidentes")}
         {tab === "myincidents" && incidentTable(mine, `Mis incidentes (${user.tech_id})`)}
-        {tab === "stock" && <StockView />}
-        {tab === "planning" && <PlanningView onMachine={showMachine} />}
+        {tab === "stock" && <StockView key={park} />}
+        {tab === "planning" && <PlanningView key={park} onMachine={showMachine} />}
         {tab === "report" && <ReportForm machines={machines} onCreated={refresh} />}
         {tab === "myreports" && <ReportsList title="Mis reportes" query="mine=1" onOpen={showReport} empty="Todavía no enviaste reportes." />}
         {tab === "assigned" && <ReportsList title="Reportes asignados" query="mine=1" onOpen={showReport} empty="No tienes reportes asignados." />}
-        {tab === "reports" && <ReportsList title="Reportes del operario" query="" onOpen={showReport} empty="Sin reportes." />}
+        {tab === "reports" && <ReportsList key={park} title="Reportes del operario" query="" onOpen={showReport} empty="Sin reportes." />}
         {tab === "admin" && <AdminView />}
 
         {drawer?.kind === "machine" && <MachinePanel id={drawer.id} onClose={() => setDrawer(null)} onOpenIncident={showIncident} />}

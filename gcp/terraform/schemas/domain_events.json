@@ -10,5 +10,6 @@
   {"name": "machine_id", "type": "STRING", "mode": "NULLABLE"},
   {"name": "trace_id", "type": "STRING", "mode": "NULLABLE"},
   {"name": "payload", "type": "JSON", "mode": "NULLABLE"},
-  {"name": "ingested_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+  {"name": "ingested_at", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "tenant_id", "type": "STRING", "mode": "NULLABLE", "description": "Parque (tenant): mineria, agro, industria. NULL = mineria (cargas anteriores al multi-tenancy)."}
 ]

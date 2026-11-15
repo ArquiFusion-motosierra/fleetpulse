@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
-from fpsim.live import build_batch, build_context
+from fpsim.live import build_batches, build_context
 from fpsim.scenarios import parse_active
 
 log = logging.getLogger()
@@ -85,16 +85,23 @@ def handler(event=None, context=None, now: datetime | None = None, ssm=None, sec
             opener=urllib.request.urlopen):
     now = now or datetime.now(timezone.utc)
     active = parse_active(load_scenarios(ssm))
-    batch = build_batch(now, active, TIME_WARP, live_anchor())
+    batches = build_batches(now, active, TIME_WARP, live_anchor())
     ctx = build_context(now, active, TIME_WARP, live_anchor())
     url, key = load_api(ssm, secrets)
 
-    status = post_json(f"{url}/telemetry", key, batch, opener)
+    sent = []
+    for batch in batches:  # un lote por parque
+        status = post_json(f"{url}/telemetry", key, batch, opener)
+        sent.append({"tenant_id": batch["tenant_id"], "batch_id": batch["batch_id"], "status": status,
+                     "readings": len(batch["readings"])})
     ctx_status = post_json(f"{url}/context", key, ctx, opener) if ctx else None
-    log.info(json.dumps({"msg": "batch_sent", "batch_id": batch["batch_id"], "readings": len(batch["readings"]),
-                         "status": status, "context": len(ctx), "context_status": ctx_status,
-                         "scenarios": sorted(active)}))
-    if status >= 500 or status == 429:
-        # El reintento asincrono de Lambda reenvia el mismo batch_id: ingest lo descarta si ya entro
-        raise RuntimeError(f"ingest respondio {status} para {batch['batch_id']}")
-    return {"batch_id": batch["batch_id"], "status": status, "readings": len(batch["readings"]), "context": len(ctx)}
+    for s in sent:
+        log.info(json.dumps({"msg": "batch_sent", **s, "context": len(ctx), "context_status": ctx_status,
+                             "scenarios": sorted(active)}))
+    failed = [s for s in sent if s["status"] >= 500 or s["status"] == 429]
+    if failed:
+        # El reintento asincrono de Lambda reenvia los mismos batch_id: ingest descarta los que ya entraron
+        raise RuntimeError(f"ingest respondio {failed[0]['status']} para {failed[0]['batch_id']}")
+    first = sent[0] if sent else {"batch_id": None, "status": None}
+    return {"batch_id": first["batch_id"], "status": first["status"], "readings": sum(s["readings"] for s in sent),
+            "context": len(ctx), "batches": sent}

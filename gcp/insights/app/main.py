@@ -20,7 +20,7 @@ from app.gemini import GeminiClient, GeminiError
 log = logging.getLogger("insights")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-MID_RE = r"^(EX|CF|VQ|MN|TO)-[0-9]{3}$"
+MID_RE = r"^(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$"
 
 app = FastAPI(title="FleetPulse insights")
 app.state.gemini = GeminiClient()

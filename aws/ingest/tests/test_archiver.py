@@ -88,3 +88,18 @@ def test_archiver_ignores_modify_events(s3):
     rec = reading("2026-11-15T14:35:00Z")
     rec["eventName"] = "MODIFY"
     assert archiver.handler({"Records": [rec]}, s3=s3) == {"objects": 0, "records": 0}
+
+
+def test_archiver_splits_objects_by_tenant_under_the_hour(s3):
+    event = {"Records": [reading("2026-11-15T14:35:00Z"), reading("2026-11-15T14:36:00Z", machine="CS-003")]}
+    assert archiver.handler(event, s3=s3) == {"objects": 2, "records": 2}
+    keys = sorted(o["Key"] for o in s3.list_objects_v2(Bucket=BUCKET)["Contents"])
+    assert keys[0].startswith("telemetry/dt=2026-11-15/hr=14/tenant=agro/")
+    assert keys[1].startswith("telemetry/dt=2026-11-15/hr=14/tenant=mineria/")
+    body = gzip.decompress(s3.get_object(Bucket=BUCKET, Key=keys[0])["Body"].read())
+    assert json.loads(body.splitlines()[0])["tenant_id"] == "agro"  # columna tenant_id de BigQuery
+
+
+def test_object_key_with_tenant():
+    key = storage.object_key("2026-11-15T14", "2026-11-15T14:35:00Z", "industria")
+    assert key.startswith("telemetry/dt=2026-11-15/hr=14/tenant=industria/20261115T143500Z-")

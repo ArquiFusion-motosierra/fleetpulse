@@ -43,12 +43,15 @@ def candidates(state_table, zone_hint: str) -> list[dict]:
 
     Sin tecnicos en la tabla: los de ids.yaml, cada uno en el centroide de su zona y disponible. Un tecnico sin
     lat/lon queda en el centroide de su zona (o de `zone_hint`).
+
+    Multi-tenancy: solo zonas y tecnicos del parque de `zone_hint` (las zonas pertenecen a un parque): un incidente de
+    agro nunca se asigna a un tecnico de mineria.
     """
-    zones = ids.zones()
+    zones = ids.zones(ids.tenant_of_zone(zone_hint))
     order = ([zone_hint] + [z for z in zones if z != zone_hint]) if zone_hint else list(zones)
     items = [it for z in order for it in _zone_items(state_table, z)]
     if not items:
-        items = [{**t, "available": True} for t in ids.technicians()]
+        items = [{**t, "available": True} for t in ids.technicians(ids.tenant_of_zone(zone_hint))]
     out = []
     for t in items:
         home = zones.get(t.get("zone_id")) or zones.get(zone_hint) or {}

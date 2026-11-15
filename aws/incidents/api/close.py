@@ -5,7 +5,8 @@
   (T34) desde su BFF con el ID token del usuario. API Gateway ya valido el token; aqui se leen las claims
   (fplib.authz): pueden cerrar `supervisor`, `admin` y el `technician` cuyo `custom:tech_id` es el `tech_id` del
   incidente (otro tecnico, un incidente sin tecnico o cualquier otro rol: 403, log `cierre_prohibido`; sin claims:
-  401). `closed_by` sale del token (email, o sub si no hay email, cortado a 64) y el del cuerpo se ignora. HTTP API
+  401). Multi-tenancy: solo incidentes del parque del usuario (otro parque: 404, log `cierre_otro_parque`); el jefe de
+  mantenimiento (`maintenance_head`) cierra en cualquier parque. `closed_by` sale del token (email, o sub si no hay email, cortado a 64) y el del cuerpo se ignora. HTTP API
   admite un solo authorizer por ruta, por eso la ruta con login es otra y la de API key sigue igual.
 
 Cuerpo: `{"closed_by", "parts_used": [{part_id, zone_id, qty}], "cause_summary"}` (`closed_by` obligatorio en la
@@ -41,9 +42,9 @@ from lib import technicians
 
 KEY_SECRETS = ("fleetpulse/api/console-key", "fleetpulse/api/ingest-key")
 USER_ROUTE = "POST /me/incidents/{incident_id}/close"
-USER_ROLES = ("technician", "supervisor", "admin")
+USER_ROLES = ("technician", "supervisor", "admin", authz.GLOBAL_ROLE)
 MAX_CLOSED_BY = 64  # incident.closed: closed_by maxLength
-INC_RE = re.compile(r"^INC-(?:EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
+INC_RE = re.compile(r"^INC-(?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
 AWS_CONFIG = Config(connect_timeout=3, read_timeout=5, retries={"max_attempts": 3})
 _sfn = None
 
@@ -137,6 +138,9 @@ def handler(event, context=None, state=None, registry=None, outbox=None, secrets
         log.event("cierre_incidente_inexistente", status=404, incident_id=incident_id[:64])
         return _resp(404, {"error": "incident not found", "incident_id": incident_id})
     ctx = {"incident_id": incident_id, "machine_id": meta.get("machine_id")}
+    if role and not authz.can_access(event, fp_registry.tenant_of(meta)):  # otro parque: como si no existiera
+        log.event("cierre_otro_parque", status=404, tenant=fp_registry.tenant_of(meta), **ctx)
+        return _resp(404, {"error": "incident not found", "incident_id": incident_id})
     if role == "technician" and (not authz.tech_id_of(event) or authz.tech_id_of(event) != meta.get("tech_id")):
         return _forbidden(event, incident_id, "el incidente no esta asignado a este tecnico")
     if meta.get("status") == "closed":

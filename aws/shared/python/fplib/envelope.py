@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fplib import clock, schema
+from fplib import clock, ids, schema
 
 
 def build(
@@ -18,7 +18,9 @@ def build(
     machine_id: str | None = None,
     occurred_at: datetime | None = None,
     trace_id: str | None = None,
+    tenant_id: str | None = None,
 ) -> dict:
+    """Sobre validado. `tenant_id` siempre sale: el explicito, el de la maquina segun el catalogo o el por defecto."""
     env = {
         "event_id": str(uuid.uuid4()),
         "event_type": event_type,
@@ -28,6 +30,7 @@ def build(
         "aggregate_id": aggregate_id,
         "occurred_at": clock.iso(occurred_at or clock.now()),
         "payload": payload,
+        "tenant_id": tenant_id or ids.tenant_of_machine(machine_id),
     }
     for key, val in (("incident_id", incident_id), ("machine_id", machine_id), ("trace_id", trace_id)):
         if val is not None:

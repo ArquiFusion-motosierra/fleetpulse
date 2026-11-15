@@ -185,3 +185,6 @@ table.plan tr.due td { background: rgba(249, 115, 22, 0.08); }
 .inline { display: flex; flex-wrap: wrap; gap: 8px; }
 .inline .primary { width: auto; padding: 8px 14px; }
 .toggle.on { border-color: var(--ok); color: var(--ok); }
+/* Multi-tenancy: parque del usuario y selector del jefe de mantenimiento */
+.park { background: var(--panel); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font: inherit; }
+.park-badge { text-transform: uppercase; letter-spacing: 0.06em; }

@@ -21,7 +21,7 @@ const STYLE = {
   ],
 };
 
-// Operacion Cerro Azul: 3 zonas a menos de 6 km
+// Operacion Cerro Azul (parque minero): 3 zonas a menos de 6 km. Los otros parques llegan por `zones` (/api/tenants).
 const CENTER = [-71.5525, -13.92];
 
 const ZONES = [
@@ -29,6 +29,11 @@ const ZONES = [
   { id: "CENTRO", name: "Centro · Carga y chancado", lon: -71.545, lat: -13.92 },
   { id: "SUR", name: "Sur · Botadero y vías", lon: -71.555, lat: -13.94 },
 ];
+
+const zonesGeoJSON = (zones) => ({
+  type: "FeatureCollection",
+  features: zones.map((z) => ({ type: "Feature", geometry: { type: "Point", coordinates: [z.lon, z.lat] }, properties: { name: z.name } })),
+});
 
 const sevColor = ["match", ["get", "severity"],
   "immediate", SEVERITY.immediate.color, "schedule", SEVERITY.schedule.color,
@@ -50,12 +55,16 @@ function toGeoJSON(machines) {
   };
 }
 
-export default function MapView({ machines, selected, onSelect }) {
+export default function MapView({ machines, selected, onSelect, zones, focusKey = "" }) {
   const box = useRef(null);
   const map = useRef(null);
   const ready = useRef(false);
   const latest = useRef(machines);
   latest.current = machines;
+  const zoneList = zones?.length ? zones.map((z) => ({ id: z.zone_id, name: z.name, lon: z.lon, lat: z.lat })) : ZONES;
+  const latestZones = useRef(zoneList);
+  latestZones.current = zoneList;
+  const focused = useRef(null);
 
   useEffect(() => {
     const m = new maplibregl.Map({ container: box.current, style: STYLE, center: CENTER, zoom: 12.85, attributionControl: { compact: true } });
@@ -67,7 +76,7 @@ export default function MapView({ machines, selected, onSelect }) {
     m.once("style.load", () => {
       m.addSource("zones", {
         type: "geojson",
-        data: { type: "FeatureCollection", features: ZONES.map((z) => ({ type: "Feature", geometry: { type: "Point", coordinates: [z.lon, z.lat] }, properties: { name: z.name } })) },
+        data: zonesGeoJSON(latestZones.current),
       });
       m.addLayer({ id: "zone-ring", type: "circle", source: "zones", paint: { "circle-radius": ["interpolate", ["exponential", 2], ["zoom"], 12, 40, 15, 320], "circle-color": "rgba(255,255,255,0.03)", "circle-stroke-color": "rgba(255,255,255,0.35)", "circle-stroke-width": 1 } });
       m.addLayer({ id: "zone-label", type: "symbol", source: "zones", layout: { "text-field": ["get", "name"], "text-font": ["Open Sans Semibold"], "text-size": 12, "text-offset": [0, -6], "text-letter-spacing": 0.08 }, paint: { "text-color": "#e5e7eb", "text-halo-color": "#0b0f14", "text-halo-width": 1.5 } });
@@ -91,7 +100,16 @@ export default function MapView({ machines, selected, onSelect }) {
   useEffect(() => {
     if (!ready.current) return;
     map.current.getSource("machines")?.setData(toGeoJSON(machines));
-  }, [machines]);
+    map.current.getSource("zones")?.setData(zonesGeoJSON(latestZones.current));
+    // Al cambiar de parque (selector del jefe de mantenimiento) se encuadran sus maquinas una vez
+    const pts = machines.filter((x) => x.lat != null && x.lon != null);
+    if (focused.current !== focusKey && pts.length) {
+      focused.current = focusKey;
+      const b = new maplibregl.LngLatBounds();
+      pts.forEach((x) => b.extend([x.lon, x.lat]));
+      map.current.fitBounds(b, { padding: 60, maxZoom: 13.5, duration: 600 });
+    }
+  }, [machines, focusKey]);
 
   useEffect(() => {
     if (!ready.current) return;

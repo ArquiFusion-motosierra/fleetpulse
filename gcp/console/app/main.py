@@ -4,10 +4,12 @@ MOCK=1 usa datos de prueba en memoria (desarrollo local o respaldo para grabar s
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
 import re
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, Request
@@ -22,14 +24,23 @@ log = logging.getLogger("console")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 STATIC = os.environ.get("STATIC_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "web", "dist"))
-INC_RE = re.compile(r"^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
-MID_RE = re.compile(r"^(EX|CF|VQ|MN|TO)-[0-9]{3}$")
+INC_RE = re.compile(r"^INC-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
+MID_RE = re.compile(r"^(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$")
 
 app = FastAPI(title="FleetPulse console", docs_url=None, redoc_url=None)
 app.state.mock = MockRegistry() if os.environ.get("MOCK") == "1" else None
 app.state.reports = mr.MockReports(app.state.mock) if app.state.mock else None
 app.state.aws = AwsApi()
-RID_RE = re.compile(r"^RPT-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
+FLEET_PATH = os.path.join(os.path.dirname(__file__), "fleet.json")
+with open(FLEET_PATH, encoding="utf-8") as _f:
+    _FLEET = json.load(_f)
+DEFAULT_TENANT = _FLEET.get("default_tenant", "mineria")
+TENANTS = {t["tenant_id"]: t for t in _FLEET.get("tenants") or [{"tenant_id": DEFAULT_TENANT}]}
+_TENANT_OF = {**{z["zone_id"]: z.get("tenant_id", DEFAULT_TENANT) for z in _FLEET["zones"]},
+              **{m["machine_id"]: m.get("tenant_id", DEFAULT_TENANT) for m in _FLEET["machines"]}}
+WHOAMI_TTL_S = 300
+_whoami_cache: dict[str, tuple[float, dict]] = {}
+RID_RE = re.compile(r"^RPT-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
 TECH_RE = re.compile(r"^TEC-[0-9]{2}$")
 CODE_RE = re.compile(r"^[a-z][a-z0-9_]{1,39}$")
 
@@ -44,65 +55,155 @@ def upstream(fn, *args):
         raise HTTPException(502, "AWS_UNAVAILABLE") from exc
 
 
+# ---------- multi-tenancy: alcance por parque ----------
+# El parque sale del token, nunca del navegador: en modo real el BFF llama `GET /whoami` en la HTTP API (API Gateway
+# valida la firma del ID token) y cachea la respuesta 5 min; en modo de prueba, del usuario mock. Solo el jefe de
+# mantenimiento (`global`) puede elegir parque con `?tenant=`. Sin token: el parque por defecto (consola anterior al
+# login). Ver docs/superpowers/plans/2026-11-15-multi-tenancy.md.
+
+def tenant_of_row(row: dict) -> str:
+    return row.get("tenant_id") or _TENANT_OF.get(row.get("machine_id") or "") or \
+        _TENANT_OF.get(row.get("zone_id") or "") or DEFAULT_TENANT
+
+
+def _identity(request: Request) -> dict | None:
+    """{tenant_id, tenants, global} del usuario, o None sin token."""
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return None
+    if app.state.mock:
+        try:
+            user = mr.user_of(auth)
+        except PermissionError:
+            return None
+        own = user.get("tenant_id")
+        return {"tenant_id": own, "tenants": [own] if own else list(TENANTS), "global": own is None,
+                "role": user["role"]}
+    key = hashlib.sha256(auth.encode()).hexdigest()
+    hit = _whoami_cache.get(key)
+    if hit and time.monotonic() - hit[0] < WHOAMI_TTL_S:
+        return hit[1]
+    try:
+        status, data = app.state.aws.as_user("GET", "/whoami", auth)
+    except UpstreamError as exc:
+        raise HTTPException(502, "AWS_UNAVAILABLE") from exc
+    if status == 401:
+        raise HTTPException(401, "UNAUTHORIZED")
+    if status != 200:
+        raise HTTPException(502, "AWS_UNAVAILABLE")
+    ident = {"tenant_id": data.get("tenant_id"), "tenants": data.get("tenants") or [DEFAULT_TENANT],
+             "global": bool(data.get("global")), "role": data.get("role")}
+    if len(_whoami_cache) > 1000:
+        _whoami_cache.clear()
+    _whoami_cache[key] = (time.monotonic(), ident)
+    return ident
+
+
+def scope(request: Request, tenant: str | None = None) -> list[str]:
+    """Parques que esta peticion puede leer. Un usuario de parque que pide otro: 403."""
+    wanted = [t for t in (tenant or "").split(",") if t]
+    if any(t not in TENANTS for t in wanted):
+        raise HTTPException(400, "BAD_TENANT")
+    ident = _identity(request)
+    if ident is None:
+        allowed = [DEFAULT_TENANT]
+    elif ident["global"]:
+        allowed = [t for t in TENANTS if t in ident["tenants"]] or list(TENANTS)
+    else:
+        allowed = [ident["tenant_id"] or DEFAULT_TENANT]
+    if wanted and not set(wanted) <= set(allowed):
+        raise HTTPException(403, "TENANT_FORBIDDEN")
+    return wanted or allowed
+
+
+def _q(scope_: list[str], query: str = "") -> str:
+    return "&".join(x for x in (query, "tenant=" + ",".join(scope_)) if x)
+
+
+def _only(rows: list[dict], scope_: list[str]) -> list[dict]:
+    return [r for r in rows if tenant_of_row(r) in scope_]
+
+
+@app.get("/api/tenants")
+def tenants(request: Request):
+    """Parques que la consola puede mostrar: todos (para el selector del jefe de mantenimiento) y el alcance."""
+    ident = _identity(request)
+    allowed = scope(request)
+    zones = [{k: z.get(k) for k in ("zone_id", "name", "lat", "lon", "tenant_id")} for z in _FLEET["zones"]]
+    return {"tenants": [{k: v for k, v in TENANTS[t].items() if k != "cognito_group"} for t in TENANTS],
+            "zones": [z for z in zones if (z["tenant_id"] or DEFAULT_TENANT) in allowed], "scope": allowed, "tenant_id": (ident or {}).get("tenant_id", DEFAULT_TENANT if ident is None else None),
+            "global": bool(ident and ident["global"])}
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "console", "mode": "mock" if app.state.mock else "aws"}
 
 
 @app.get("/api/machines")
-def machines():
+def machines(request: Request, tenant: str | None = None):
+    s = scope(request, tenant)
     m = app.state.mock
-    return m.list_machines() if m else upstream(app.state.aws.get, "/machines")
+    if m:
+        return {"machines": _only(m.list_machines()["machines"], s), "tenants": s}
+    return upstream(app.state.aws.get, "/machines", _q(s))
 
 
 @app.get("/api/machines/{machine_id}")
-def machine(machine_id: str):
+def machine(request: Request, machine_id: str, tenant: str | None = None):
     if not MID_RE.match(machine_id):
         raise HTTPException(400, "BAD_MACHINE_ID")
+    s = scope(request, tenant)
     m = app.state.mock
     if m:
         d = m.machine(machine_id)
-        if not d:
+        if not d or tenant_of_row(d) not in s:
             raise HTTPException(404, "MACHINE_NOT_FOUND")
         return d
-    return upstream(app.state.aws.get, f"/machines/{machine_id}")
+    return upstream(app.state.aws.get, f"/machines/{machine_id}", _q(s))
 
 
 @app.get("/api/incidents")
-def incidents(status: str | None = None, limit: int = 50):
+def incidents(request: Request, status: str | None = None, limit: int = 50, tenant: str | None = None):
     if status not in (None, "open", "assigned", "closed"):
         raise HTTPException(400, "BAD_STATUS")
     limit = max(1, min(limit, 200))
+    s = scope(request, tenant)
     m = app.state.mock
     if m:
-        return m.list_incidents(status, limit)
+        return {"incidents": _only(m.list_incidents(status, 200)["incidents"], s)[:limit]}
     q = f"limit={limit}" + (f"&status={status}" if status else "")
-    return upstream(app.state.aws.get, "/incidents", q)
+    return upstream(app.state.aws.get, "/incidents", _q(s, q))
 
 
 @app.get("/api/incidents/{incident_id}")
-def incident(incident_id: str):
+def incident(request: Request, incident_id: str, tenant: str | None = None):
     if not INC_RE.match(incident_id):
         raise HTTPException(400, "BAD_INCIDENT_ID")
+    s = scope(request, tenant)
     m = app.state.mock
     if m:
         d = m.incident(incident_id)
-        if not d:
+        if not d or tenant_of_row(d) not in s:
             raise HTTPException(404, "INCIDENT_NOT_FOUND")
         return d
-    return upstream(app.state.aws.get, f"/incidents/{incident_id}")
+    return upstream(app.state.aws.get, f"/incidents/{incident_id}", _q(s))
 
 
 @app.get("/api/stock")
-def stock():
+def stock(request: Request, tenant: str | None = None):
+    s = scope(request, tenant)
     m = app.state.mock
-    return m.list_stock() if m else upstream(app.state.aws.get, "/stock")
+    return {"stock": _only(m.list_stock()["stock"], s)} if m else upstream(app.state.aws.get, "/stock", _q(s))
 
 
 @app.get("/api/reorders")
-def reorders():
+def reorders(request: Request, tenant: str | None = None):
+    s = scope(request, tenant)
     m = app.state.mock
-    return m.list_reorders() if m else upstream(app.state.aws.get, "/reorders")
+    if m:
+        return {"reorders": _only(m.list_reorders()["reorders"], s)}
+    return upstream(app.state.aws.get, "/reorders", _q(s))
 
 
 OEM_PATH = os.path.join(os.path.dirname(__file__), "oem.json")
@@ -120,21 +221,24 @@ def oem(model_id: str):
 
 
 @app.get("/api/orders")
-def orders():
+def orders(request: Request, tenant: str | None = None):
+    s = scope(request, tenant)
     m = app.state.mock
-    return m.list_orders() if m else upstream(app.state.aws.get, "/orders")
+    return {"orders": _only(m.list_orders()["orders"], s)} if m else upstream(app.state.aws.get, "/orders", _q(s))
 
 
 @app.get("/api/kpis")
-def kpis():
+def kpis(request: Request, tenant: str | None = None):
     """KPIs del ultimo dia con datos (daily-planning corre a las 05:00 de Lima por el dia anterior)."""
+    s = scope(request, tenant)
     m = app.state.mock
     if m:
-        return m.kpis()
+        data = m.kpis()
+        return {**data, "machines": _only(data["machines"], s)}
     today = datetime.now(timezone.utc) - timedelta(hours=5)
     for back in range(1, 4):
         day = (today - timedelta(days=back)).strftime("%Y-%m-%d")
-        data = upstream(app.state.aws.get, f"/kpis/{day}")
+        data = upstream(app.state.aws.get, f"/kpis/{day}", _q(s))
         if data.get("machines"):
             return data
     return {"day": None, "machines": []}
@@ -156,12 +260,17 @@ async def close(incident_id: str, request: Request):
         payload["parts_used"] = [{"part_id": str(p["part_id"]), "zone_id": str(p["zone_id"]), "qty": int(p["qty"])}
                                  for p in parts if isinstance(p, dict) and {"part_id", "zone_id", "qty"} <= p.keys()]
     log.info(json.dumps({"msg": "close_requested", "incident_id": incident_id}))
+    s = scope(request)
     m = app.state.mock
     if m:
+        d = m.incident(incident_id)
+        if not d or tenant_of_row(d) not in s:  # otro parque: como si no existiera
+            raise HTTPException(404, "INCIDENT_NOT_FOUND")
         r = m.close(incident_id, payload)
         if r is None:
             raise HTTPException(404, "INCIDENT_NOT_FOUND")
         return r
+    upstream(app.state.aws.get, f"/incidents/{incident_id}", _q(s))  # 404 si es de otro parque
     return upstream(app.state.aws.close_incident, incident_id, payload)
 
 
@@ -229,14 +338,16 @@ async def create_report(request: Request):
 
 @app.get("/api/reports")
 def list_reports(request: Request, status: str | None = None, machine_id: str | None = None,
-                 incident_id: str | None = None, mine: int = 0):
+                 incident_id: str | None = None, mine: int = 0, tenant: str | None = None):
     bad = status not in (None, "open", "in_review", "closed")
     bad = bad or bool(machine_id and not MID_RE.match(machine_id)) or bool(incident_id and not INC_RE.match(incident_id))
     if bad:
         raise HTTPException(400, "BAD_FILTER")
     if app.state.reports:
-        return {"reports": _mock(request, app.state.reports.list, status, machine_id, incident_id, bool(mine))}
-    pairs = (("status", status), ("machine_id", machine_id), ("incident_id", incident_id), ("mine", 1 if mine else None))
+        rows = _mock(request, app.state.reports.list, status, machine_id, incident_id, bool(mine))
+        return {"reports": _only(rows, scope(request, tenant))}
+    pairs = (("status", status), ("machine_id", machine_id), ("incident_id", incident_id), ("mine", 1 if mine else None),
+             ("tenant", tenant))
     return _as_user(request, "GET", "/reports", query="&".join(f"{k}={v}" for k, v in pairs if v))
 
 

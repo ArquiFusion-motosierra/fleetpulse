@@ -29,7 +29,7 @@ from fplib import log
 from lib import registry as fp_registry
 
 TECH_RE = re.compile(r"^TEC-[0-9]{2}$")
-INC_RE = re.compile(r"^INC-((?:EX|CF|VQ|MN|TO)-[0-9]{3})-[0-9]{8}T[0-9]{4}$")
+INC_RE = re.compile(r"^INC-((?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3})-[0-9]{8}T[0-9]{4}$")
 DONE = "Esta aprobación ya fue procesada"
 SEVERITY = {"immediate": "inmediata", "schedule": "programada"}
 HEADERS = {"content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer",

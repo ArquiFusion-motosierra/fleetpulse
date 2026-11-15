@@ -34,8 +34,10 @@ from lib import registry
 
 
 def test_classify_schedule_needs_approval(ex017):
-    assert classify.handler(ex017) == {"severity": "schedule", "needs_approval": True}
-    assert classify.handler({**ex017, "score": 3.62}) == {"severity": "immediate", "needs_approval": False}
+    assert classify.handler(ex017) == {"severity": "schedule", "needs_approval": True, "tenant_id": "mineria"}
+    assert classify.handler({**ex017, "score": 3.62}) == {"severity": "immediate", "needs_approval": False,
+                                                          "tenant_id": "mineria"}
+    assert classify.handler({**ex017, "machine_id": "CS-003"})["tenant_id"] == "agro"
 
 
 def test_create_incident_writes_registry_and_outbox_atomically(ex017, ddb):

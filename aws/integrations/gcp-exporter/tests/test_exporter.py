@@ -109,3 +109,7 @@ def test_handler_noop_when_nothing_new():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def test_hour_of_reads_tenant_subpartitions():
+    assert handler.hour_of("telemetry/dt=2026-11-15/hr=14/tenant=agro/x.ndjson.gz") == "2026-11-15T14"

@@ -188,12 +188,13 @@ def test_list_technicians_merges_fp_state_with_ids_yaml(adm, techs):
     resp = adm(api_event(TECHS, ADMIN))
     assert resp["statusCode"] == 200
     rows = body_of(resp)["technicians"]
-    assert [r["tech_id"] for r in rows] == [t["tech_id"] for t in sorted(ids.technicians(), key=lambda t: t["tech_id"])]
+    assert [r["tech_id"] for r in rows] == [t["tech_id"] for t in sorted(ids.technicians("mineria"),
+                                                                           key=lambda t: t["tech_id"])]
     by_id = {r["tech_id"]: r for r in rows}
     assert by_id["TEC-01"]["seeded"] is True and by_id["TEC-01"]["available"] is True
     assert by_id["TEC-05"]["seeded"] is False and by_id["TEC-05"]["zone_id"] == "CENTRO"
     allowed = body_of(resp)["allowed"]
-    assert allowed["zone_id"] == sorted(ids.zones()) and "hydraulics" in allowed["specialty"]
+    assert allowed["zone_id"] == sorted(ids.zones("mineria")) and "hydraulics" in allowed["specialty"]
 
 
 # --- catalogo de tipos de anormalidad --------------------------------------------------------------------------------
@@ -283,3 +284,30 @@ def test_serverless_routes_match_the_handlers():
         assert {f"{e['method']} {e['path']}" for e in events} == set(mod.ROUTES)
         assert all(e["authorizer"] == "${self:custom.cognitoAuthorizer}" for e in events)
     assert fns["admin"]["handler"] == "api/admin.handler"
+
+
+# --- multi-tenancy: el admin de un parque solo administra su parque --------------------------------------------------
+
+ADMIN_AGRO = {**ADMIN, "email": "admin.agro@example.com", "cognito:groups": "[tenant-agro]"}
+
+
+def test_park_admin_lists_only_the_technicians_of_the_park(adm, techs):
+    seed_tech(techs.state, "TEC-11", "FUNDO-A", "hydraulics")
+    body = body_of(adm(api_event(TECHS, ADMIN_AGRO)))
+    assert {r["tech_id"] for r in body["technicians"]} == {"TEC-11", "TEC-12", "TEC-13", "TEC-14"}
+    assert body["tenant_id"] == "agro" and body["allowed"]["zone_id"] == ["FUNDO-A", "FUNDO-B", "PACKING"]
+    mineria = body_of(adm(api_event(TECHS, ADMIN)))["technicians"]
+    assert "TEC-11" not in {r["tech_id"] for r in mineria}
+
+
+def test_park_admin_cannot_touch_another_park(adm, techs):
+    assert _put(adm, {"available": False}, claims=ADMIN_AGRO, tech_id="TEC-01")["statusCode"] == 404
+    assert adm(api_event(TECH, ADMIN_AGRO, path={"tech_id": "TEC-01"}))["statusCode"] == 404
+    assert _tech(techs)["available"] is True
+
+
+def test_park_admin_cannot_move_a_technician_to_another_park(adm, techs):
+    seed_tech(techs.state, "TEC-11", "FUNDO-A", "hydraulics")
+    r = _put(adm, {"zone_id": "NORTE"}, claims=ADMIN_AGRO, tech_id="TEC-11")
+    assert r["statusCode"] == 400 and body_of(r)["allowed"] == ["FUNDO-A", "FUNDO-B", "PACKING"]
+    assert _put(adm, {"zone_id": "PACKING"}, claims=ADMIN_AGRO, tech_id="TEC-11")["statusCode"] == 200

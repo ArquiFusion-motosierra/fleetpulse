@@ -1,5 +1,6 @@
 """Datos de prueba para desarrollar la consola sin AWS (MOCK=1). Misma forma que la API de aws/registry
-(contracts/secrets.md). Sale del mismo catalogo que el simulador: fleet.json se genera de contracts/ids.yaml.
+(contracts/secrets.md). Sale del mismo catalogo que el simulador: fleet.json es la union de los parques de
+contracts/tenants.yaml (simulator/fpsim/sync_ids.py); cada maquina y zona lleva `tenant_id`.
 """
 from __future__ import annotations
 
@@ -75,13 +76,15 @@ class MockRegistry:
                 "severity": "ok", "score": round(rng.uniform(0.1, 0.9), 2), "hours_total": m["hours_total"],
                 "fuel_remaining_ratio": round(rng.uniform(0.2, 0.95), 2), "open_incident_id": None,
                 "updated_at": _iso(now), "serial": m["serial"], "commissioned_at": m["commissioned_at"],
+                "tenant_id": m.get("tenant_id", "mineria"),
             }
         parts = {p["part_id"]: p for p in self.ids["parts"]}
         self.stock = {}
         for s in self.ids["part_stock"]:
-            for z in self.ids["zones"]:
+            for z in (z for z in self.ids["zones"] if z.get("tenant_id") == s.get("tenant_id")):
                 self.stock[(s["part_id"], z["zone_id"])] = {
-                    "part_id": s["part_id"], "zone_id": z["zone_id"], "sku": parts[s["part_id"]]["sku"],
+                    "part_id": s["part_id"], "zone_id": z["zone_id"], "tenant_id": z.get("tenant_id", "mineria"),
+                    "sku": parts[s["part_id"]]["sku"],
                     "name": parts[s["part_id"]]["name"], "on_hand": s["on_hand_per_zone"], "reserved": 0,
                     "reorder_point": s["reorder_point"]}
         self.incidents: dict[str, dict] = {}
@@ -98,6 +101,10 @@ class MockRegistry:
                        reserve=[("PRT-13", 1)], score=2.6, distance_km=1.1, report=REPORT_VQ022)
         self._incident("EX-009", now - timedelta(minutes=25), "observe", "hydraulic_contamination", recurrence=True,
                        score=1.4)
+        # Parques agro e industria: un incidente cada uno para la demo multi-tenant
+        self._incident("CS-003", now - timedelta(minutes=9), "schedule", "engine_overheat", tech="TEC-14",
+                       reserve=[("PRT-11", 1)], score=2.4, distance_km=0.3)
+        self._incident("CP-002", now - timedelta(minutes=15), "observe", "final_drive", score=1.6)
         for mid in ("EX-003", "VQ-011", "VQ-014", "TO-002"):
             self._incident(mid, now - timedelta(minutes=12), "schedule", "fuel_contamination", tech="TEC-03",
                            group="GRP-6mc5ns-20261115T14", reserve=[("PRT-01", 1)], score=2.05)
@@ -109,7 +116,8 @@ class MockRegistry:
         inc_id = f"INC-{mid}-{window.strftime('%Y%m%dT%H%M')}"
         timeline = [{"type": "incident.opened", "source": "aws.incident-flow", "ts": _iso(opened),
                      "payload": {"severity": sev, "score": score, "failure_mode": mode}}]
-        inc = {"incident_id": inc_id, "machine_id": mid, "zone_id": m["zone_id"], "group_id": group or "-",
+        inc = {"incident_id": inc_id, "machine_id": mid, "zone_id": m["zone_id"], "tenant_id": m["tenant_id"],
+               "group_id": group or "-",
                "severity": sev, "status": "open", "score": score, "failure_mode": mode, "opened_at": _iso(opened),
                "recurrence_flag": recurrence, "lat": m["lat"], "lon": m["lon"], "timeline": timeline,
                "reservations": []}

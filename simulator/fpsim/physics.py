@@ -12,7 +12,7 @@ import random
 from datetime import datetime, timedelta, timezone
 
 from fpsim import oem
-from fpsim.fleet import MODEL_PARAMS, NOISE_SIGMA, STATIONS, Machine, unit_hash, zones
+from fpsim.fleet import AMBIENT_OFFSET, MODEL_PARAMS, NOISE_SIGMA, Machine, stations, unit_hash, zones
 from fpsim.scenarios import Effect
 
 ANCHOR = datetime(2026, 10, 1, tzinfo=timezone.utc)
@@ -59,7 +59,7 @@ def engine_status(m: Machine, t: datetime) -> str:
 
 def ambient_c(m: Machine, t: datetime, rng: random.Random) -> float:
     h = local_hour(t)
-    zone_off = {"NORTE": -1.5, "CENTRO": 0.0, "SUR": 0.8}[m.zone_id]
+    zone_off = {"NORTE": -1.5, "CENTRO": 0.0, "SUR": 0.8}.get(m.zone_id, 0.0) + AMBIENT_OFFSET.get(m.tenant_id, 0.0)
     return 6.0 + 7.0 * math.sin(2 * math.pi * (h - 9) / 24) + zone_off + rng.gauss(0, 0.4)
 
 
@@ -192,8 +192,8 @@ def refill_context(m: Machine, t: datetime, lot: str | None = None) -> dict:
         "ts": iso(t),
         "zone_id": zone,
         "machine_id": m.machine_id,
-        "station_id": STATIONS[zone],
-        "fuel_lot": lot or {"NORTE": "L-2311", "CENTRO": "L-2309", "SUR": "L-2307"}[zone],
+        "station_id": stations()[zone]["station_id"],
+        "fuel_lot": lot or stations()[zone]["lot"],
         "liters": round(0.8 * m.params["tank_l"], 1),
     }
 
@@ -201,7 +201,7 @@ def refill_context(m: Machine, t: datetime, lot: str | None = None) -> dict:
 def weather_context(zone_id: str, t: datetime) -> dict:
     slot = slot_of(t)
     u = unit_hash(zone_id, slot // 4, "wx")  # cambia cada hora
-    risk = {"NORTE": "dust", "CENTRO": "dust", "SUR": "rain"}[zone_id]
+    risk = {"heat": "dust", "humidity": "fog"}.get(zones()[zone_id]["weather_risk"], zones()[zone_id]["weather_risk"])
     condition = risk if u > 0.6 else "clear"
     return {
         "context_id": f"CTX-{t.strftime('%Y%m%dT%H%M%SZ')}-{int(unit_hash(zone_id, iso(t)) * 0xFFFFFF):06x}",

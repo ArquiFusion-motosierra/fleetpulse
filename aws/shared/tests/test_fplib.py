@@ -108,7 +108,7 @@ def test_bom_and_specialty():
     assert ids.bom_for("EX", "hydraulic_pump") == [{"part_id": "PRT-04", "qty": 1}, {"part_id": "PRT-03", "qty": 2}]
     assert ids.specialty_for("hydraulic_pump") == "hydraulics"
     assert ids.machines()["EX-017"]["zone_id"] == "NORTE"
-    assert len(ids.technicians()) == 6 and set(ids.zones()) == {"NORTE", "CENTRO", "SUR"}
+    assert len(ids.technicians("mineria")) == 6 and set(ids.zones("mineria")) == {"NORTE", "CENTRO", "SUR"}
 
 
 def test_check_api_key_constant_time_and_case_insensitive():
@@ -269,3 +269,42 @@ def test_envelope_builds_report_events_against_their_contract():
     bad = {k: v for k, v in _report_example("created-event.json")["payload"].items() if k != "urgency"}
     with pytest.raises(schema.ContractError):
         envelope.build("report.created", "aws.reports-api", "report", bad["report_id"], bad, machine_id="EX-017")
+
+
+# ---------- catalogo multi-tenant ----------
+
+def test_catalog_every_entity_belongs_to_exactly_one_tenant():
+    cat = ids.load()
+    assert set(ids.tenants()) == {"mineria", "agro", "industria"} and ids.default_tenant() == "mineria"
+    for key, pk in (("machines", "machine_id"), ("zones", "zone_id"), ("technicians", "tech_id"),
+                    ("fuel_stations", "station_id")):
+        rows = cat[key]
+        assert len({r[pk] for r in rows}) == len(rows), f"{key}: ids repetidos entre parques"
+        assert all(r["tenant_id"] in ids.tenants() for r in rows)
+    for m in cat["machines"]:  # la zona de cada maquina es de su mismo parque
+        assert ids.tenant_of_zone(m["zone_id"]) == m["tenant_id"]
+    for t in cat["technicians"]:
+        assert ids.tenant_of_zone(t["zone_id"]) == t["tenant_id"]
+    parts = {p["part_id"] for p in cat["parts"]}
+    assert {b["part_id"] for b in cat["bom"]} <= parts and {s["part_id"] for s in cat["part_stock"]} <= parts
+    assert set(cat["specialty_by_failure_mode"]) >= {b["failure_mode"] for b in cat["bom"]}
+
+
+def test_catalog_per_tenant_views():
+    assert len(ids.machines("mineria")) == 100 and len(ids.machines("agro")) == 12
+    assert set(ids.zones("industria")) == {"PLANTA-1", "PLANTA-2", "ALMACEN"}
+    assert {t["tech_id"] for t in ids.technicians("agro")} == {"TEC-11", "TEC-12", "TEC-13", "TEC-14"}
+    assert ids.tenant_of_machine("CS-003") == "agro" and ids.tenant_of_machine("GE-001") == "industria"
+    assert ids.tenant_of_machine("EX-017") == "mineria" and ids.tenant_of_machine("XX-999") == "mineria"
+    assert ids.tenant_of_item({"zone_id": "PACKING"}) == "agro"
+    assert ids.tenant_of_item({"tenant_id": "industria", "machine_id": "EX-001"}) == "industria"
+    assert ids.bom_for("CS", "final_drive") == [{"part_id": "PRT-17", "qty": 2}, {"part_id": "PRT-16", "qty": 1}]
+
+
+def test_envelope_always_carries_the_tenant():
+    env = envelope.build("fuel.anomaly", "aws.daily-planning", "machine", "CS-003", {}, machine_id="CS-003")
+    assert env["tenant_id"] == "agro"
+    assert envelope.build("fuel.anomaly", "aws.daily-planning", "machine", "CS-003", {}, machine_id="CS-003",
+                          tenant_id="industria")["tenant_id"] == "industria"
+    assert envelope.build("kpi.daily", "aws.daily-planning", "fleet", "KPI-2026-11-15",
+                          {"day": "2026-11-15"})["tenant_id"] == "mineria"

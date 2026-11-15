@@ -37,7 +37,8 @@ def _inbox_put(event: dict) -> dict:
 def _ev_put(e: dict) -> dict:
     return {"Put": {"TableName": REGISTRY, "Item": ser({
         "PK": f"INCIDENT#{e['incident_id']}", "SK": f"EV#{e['occurred_at']}#{e['event_id']}",
-        "type": e["event_type"], "source": e["source"], "payload": dumps(e["payload"])})}}
+        # Misma forma que incident-flow (comentario de Benjamin en #9): payload = sobre completo, como en fp-outbox
+        "event_type": e["event_type"], "source": e["source"], "payload": dumps(e)})}}
 
 
 def _stock_update(part: str, zone: str, expr: str, cond: str | None = None, **values) -> dict:

@@ -101,6 +101,17 @@ def list_incidents(client, status: str | None, limit: int) -> list[dict]:
     return [incident_brief(r) for r in rows[:limit]]
 
 
+def timeline_entry(item: dict) -> dict:
+    """EV# guarda el sobre completo en payload (JSON string) y event_type; se toleran items viejos (type + payload)."""
+    raw = item.get("payload")
+    body = json.loads(raw) if isinstance(raw, str) else (raw or {})
+    envelope = body if isinstance(body, dict) and "event_type" in body and "payload" in body else None
+    return {"type": item.get("event_type") or item.get("type") or (envelope or {}).get("event_type"),
+            "source": item.get("source") or (envelope or {}).get("source"),
+            "ts": item["SK"].split("#")[1],
+            "payload": envelope["payload"] if envelope else body}
+
+
 def incident_detail(client, inc: str) -> dict | None:
     items = store.query_all(client, TableName=REGISTRY, KeyConditionExpression="PK = :p",
                             ExpressionAttributeValues=vals(p=f"INCIDENT#{inc}"))
@@ -108,10 +119,7 @@ def incident_detail(client, inc: str) -> dict | None:
     if not meta:
         return None
     out = incident_brief(meta)
-    out["timeline"] = sorted(
-        ({"type": i["type"], "source": i.get("source"), "ts": i["SK"].split("#")[1],
-          "payload": json.loads(i["payload"]) if isinstance(i.get("payload"), str) else i.get("payload")}
-         for i in items if i["SK"].startswith("EV#")), key=lambda t: t["ts"])
+    out["timeline"] = sorted((timeline_entry(i) for i in items if i["SK"].startswith("EV#")), key=lambda t: t["ts"])
     rsv = store.query_all(client, TableName=REGISTRY, KeyConditionExpression="PK = :p",
                           ExpressionAttributeValues=vals(p=f"RSV#{inc}"))
     out["reservations"] = [{"reservation_id": r.get("reservation_id"), "part_id": r["part_id"],

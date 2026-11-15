@@ -66,7 +66,7 @@ def benjamin_opens_incident(c, e=OPENED):
         "GSI2PK": "STATUS#open", "GSI2SK": p["opened_at"]}))
     c.put_item(TableName="fp-registry", Item=store.ser({
         "PK": f"INCIDENT#{e['incident_id']}", "SK": f"EV#{e['occurred_at']}#{e['event_id']}",
-        "type": e["event_type"], "source": e["source"], "payload": json.dumps(p)}))
+        "event_type": e["event_type"], "source": e["source"], "payload": json.dumps(e)}))
 
 
 def stock(c, part, zone):
@@ -132,6 +132,11 @@ def test_follow_ups_go_to_outbox_with_ev_item_and_match_contract(ddb):
     jsonschema.validate(json.loads(items[0]["payload"]), load("contracts/part.schema.json"))
     timeline = api.incident_detail(ddb, INC)["timeline"]
     assert {t["type"] for t in timeline} == {"incident.opened", "part.reserved"}  # EV# de ambos escritores
+    ev = next(i for i in store.query_all(ddb, TableName="fp-registry", KeyConditionExpression="PK = :p",
+                                         ExpressionAttributeValues=store.vals(p=f"INCIDENT#{INC}"))
+              if i.get("event_type") == "part.reserved")
+    jsonschema.validate(json.loads(ev["payload"]), load("contracts/part.schema.json"))  # sobre completo
+    assert next(t for t in timeline if t["type"] == "part.reserved")["payload"]["reservations"]
 
 
 def test_close_consumes_reserved_parts(ddb):

@@ -33,7 +33,8 @@ app.state.mock = MockRegistry() if os.environ.get("MOCK") == "1" else None
 app.state.reports = mr.MockReports(app.state.mock) if app.state.mock else None
 app.state.aws = AwsApi()
 # T41: abastecimiento de prueba con MOCK=1, o con SUPPLY_MOCK=1 en modo AWS mientras /supply (T40) no este desplegada
-app.state.supply = MockSupply() if app.state.mock or os.environ.get("SUPPLY_MOCK") == "1" else None
+app.state.supply = (MockSupply(app.state.mock.machine("EX-017")["open_incident_id"]) if app.state.mock
+                    else MockSupply() if os.environ.get("SUPPLY_MOCK") == "1" else None)
 FLEET_PATH = os.path.join(os.path.dirname(__file__), "fleet.json")
 with open(FLEET_PATH, encoding="utf-8") as _f:
     _FLEET = json.load(_f)
@@ -447,7 +448,7 @@ def admin_delete_type(request: Request, code: str):
 DOC_RE = re.compile(r"^(PO|TRF)-[A-Z0-9-]{4,80}$")
 ZONE_RE = re.compile(r"^[A-Z0-9-]{2,20}$")
 PART_RE = re.compile(r"^PRT-[0-9]{2}$")
-SUPPLY_STATUS = (None, "suggested", "approved", "ordered", "in_transit", "received", "cancelled")
+SUPPLY_STATUS = (None, "suggested", "approved", "rejected", "ordered", "in_transit", "received", "cancelled")
 
 
 def _supply_user(request: Request) -> dict:

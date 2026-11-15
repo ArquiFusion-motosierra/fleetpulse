@@ -211,7 +211,7 @@ table.grid td.st-low { background: rgba(249, 115, 22, 0.1); }
 table.grid td.st-ok .big { color: #86efac; }
 .tag.st-tag-in_transit, .tag.st-tag-ordered { color: #93c5fd; border-color: #1e3a8a; }
 .tag.st-tag-received { color: #86efac; border-color: #14532d; }
-.tag.st-tag-cancelled { color: var(--muted); }
+.tag.st-tag-cancelled, .tag.st-tag-rejected { color: var(--muted); }
 tr.clickable-row { cursor: pointer; }
 tr.clickable-row:hover { background: #16212c; }
 tr.detail td { background: var(--panel-2); }

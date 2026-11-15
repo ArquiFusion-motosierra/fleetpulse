@@ -6,7 +6,12 @@ import { api, fmtTime, TENANT_LABEL } from "./api.js";
 const REFRESH_MS = 15000;
 const RECEIVE_ROLES = ["admin", "technician", "maintenance_head"];
 const DOC_STATUS = { suggested: "Sugerida", approved: "Aprobada", ordered: "Pedida", in_transit: "En tránsito",
-  received: "Recibida", cancelled: "Cancelada" };
+  received: "Recibida", cancelled: "Cancelada", rejected: "Rechazada" };
+// Errores 409/502 de aws/supply (T40) en palabras del usuario
+const ERR = { SOURCE_BELOW_SAFETY: "el almacén de origen quedaría bajo su stock de seguridad",
+  INVALID_STATE: "la orden ya cambió de estado; se actualiza la vista", TASK_EXPIRED: "la espera de esta orden venció",
+  FLOW_UNAVAILABLE: "Step Functions no respondió; vuelve a intentar", TENANT_FORBIDDEN: "es de otro parque",
+  FORBIDDEN: "tu rol no puede hacer esto" };
 const STOCK_STATUS = { ok: "OK", low: "Bajo", stockout: "Quiebre" };
 const EV_LABEL = { "supply.suggested": "Sugerida", "supply.approved": "Aprobada", "supply.ordered": "Orden enviada al proveedor",
   "supply.in_transit": "Despachada", "supply.received": "Recepción confirmada", "supply.cancelled": "Cancelada",
@@ -70,12 +75,15 @@ export default function SupplyView({ user, onIncident }) {
     setMsg("");
     try {
       const out = await api.supplyAct(d.kind === "transfer" ? "transfers" : "purchase-orders", d.id, action);
-      setMsg(`${d.id}: ${DOC_STATUS[out.status] || out.status}`);
+      setMsg(`${d.id}: ${DOC_STATUS[out.status] || out.status}${out.flow_pending ? " · supply-flow procesando…" : ""}`);
       setFocus(d.id);
       history.replaceState(null, "", `#${d.kind === "transfer" ? "trf" : "po"}:${d.id}`);
       await load();
+      // En AWS el flujo es asincrono (flow_pending): refrescar pronto en vez de esperar los 15 s
+      if (out.flow_pending) [2000, 5000, 10000].forEach((ms) => setTimeout(load, ms));
     } catch (e) {
-      setMsg(`No se pudo: ${e.message}`);
+      setMsg(`No se pudo: ${ERR[e.message] || e.message}`);
+      if (e.message === "INVALID_STATE") load();
     } finally {
       setBusy("");
     }

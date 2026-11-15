@@ -121,19 +121,38 @@ def _close(ddb, keys, incident_id=INC, key=CONSOLE_KEY, body=BODY, sfn=None):
                          sfn=sfn or FakeSfn())
 
 
-@pytest.mark.parametrize("key", [None, "wrong-key"])
-def test_close_requires_console_key(ddb, keys, open_incident, key):
+@pytest.mark.parametrize("key,reason", [(None, "missing_header"), ("wrong-key", "mismatch")])
+def test_close_requires_console_key(ddb, keys, open_incident, key, reason, caplog):
     sfn = FakeSfn()
-    resp = _close(ddb, keys, key=key, sfn=sfn)
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close(ddb, keys, key=key, sfn=sfn)
     assert resp["statusCode"] == 401 and sfn.stops == []
     assert get_meta(ddb.registry, INC)["status"] == "open" and get_tech(ddb.state, "TEC-01")["available"] is False
     assert outbox_events(ddb.outbox, "incident.closed") == []
+    # una sola linea con el motivo por secreto, sin valores
+    (line,) = log_lines(caplog, "cierre_no_autorizado")
+    assert line["level"] == "ERROR" and line["incident_id"] == INC and line["status"] == 401
+    assert line["reasons"] == {"fleetpulse/api/console-key": reason, "fleetpulse/api/ingest-key": reason}
+    assert "wrong-key" not in caplog.text and CONSOLE_KEY not in caplog.text and INGEST_KEY not in caplog.text
+
+
+def test_close_401_names_an_unreadable_secret(ddb, open_incident, caplog):
+    sm = boto3.client("secretsmanager", region_name="us-east-1")
+    sm.create_secret(Name="fleetpulse/api/console-key", SecretString="raw-string-not-json")
+    with caplog.at_level("INFO", logger="fplib"):
+        assert _close(ddb, sm)["statusCode"] == 401
+    (line,) = log_lines(caplog, "cierre_no_autorizado")
+    assert line["reasons"] == {"fleetpulse/api/console-key": "secret_unavailable:JSONDecodeError",
+                               "fleetpulse/api/ingest-key": "secret_unavailable:ResourceNotFoundException"}
+    assert "raw-string-not-json" not in caplog.text
 
 
 @pytest.mark.parametrize("key", [CONSOLE_KEY, INGEST_KEY])
-def test_close_accepts_either_key_and_the_console_body(ddb, keys, open_incident, key):
-    resp = _close(ddb, keys, key=key, body={"closed_by": "console", "cause_summary": ""})  # cuerpo de la consola
+def test_close_accepts_either_key_and_the_console_body(ddb, keys, open_incident, key, caplog):
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close(ddb, keys, key=key, body={"closed_by": "console", "cause_summary": ""})  # cuerpo de la consola
     assert resp["statusCode"] == 200
+    assert [r for r in caplog.records if r.levelname == "ERROR"] == []  # la ingest-key no deja un "mismatch" falso
     (env,) = outbox_events(ddb.outbox, "incident.closed")
     assert env["payload"]["parts_used"] == [] and env["payload"]["closed_by"] == "console"
 
@@ -239,9 +258,12 @@ def test_close_while_waiting_for_approval_keeps_the_incident_closed(ex017, ddb, 
 
 
 @pytest.mark.parametrize("incident_id", ["INC-EX-017-20261115T1500", "no-es-un-id"])
-def test_close_unknown_incident_is_404(ddb, keys, open_incident, incident_id):
-    assert _close(ddb, keys, incident_id=incident_id)["statusCode"] == 404
+def test_close_unknown_incident_is_404(ddb, keys, open_incident, incident_id, caplog):
+    with caplog.at_level("INFO", logger="fplib"):
+        assert _close(ddb, keys, incident_id=incident_id)["statusCode"] == 404
     assert outbox_events(ddb.outbox, "incident.closed") == []
+    (line,) = log_lines(caplog, "cierre_incidente_inexistente")
+    assert line["incident_id"] == incident_id and line["status"] == 404
 
 
 def test_close_does_not_free_a_tech_working_another_incident(ex017, ddb, keys):

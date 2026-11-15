@@ -2,10 +2,11 @@
 `fleetpulse/api/console-key`; el simulador o un script pueden usar `fleetpulse/api/ingest-key`.
 
 Cuerpo: `{"closed_by", "parts_used": [{part_id, zone_id, qty}], "cause_summary"}` (`closed_by` obligatorio,
-`parts_used` por defecto [], `cause_summary` por defecto ""). Respuestas: 401 sin una de las dos API keys, 404
-incidente desconocido, 409 ya cerrado, 400 cuerpo invalido (incluye `incident.closed` fuera de contrato), 500 si
-el tecnico cambio de incidente durante el cierre (no se escribe nada; reintentar), 200 `{"incident_id",
-"downtime_h"}`.
+`parts_used` por defecto [], `cause_summary` por defecto ""). Respuestas: 401 sin una de las dos API keys (log
+`cierre_no_autorizado` con el motivo por secreto, nunca la llave), 404 incidente desconocido (log
+`cierre_incidente_inexistente`), 409 ya cerrado, 400 cuerpo invalido (incluye `incident.closed` fuera de
+contrato), 500 si el tecnico cambio de incidente durante el cierre (no se escribe nada; reintentar), 200
+`{"incident_id", "downtime_h"}`.
 Efectos en una sola transaccion: META (`status` closed, `closed_at`, `downtime_h` = horas desde `opened_at`
 redondeadas a 2, `closed_by`, `cause_summary`, `parts_used`, `GSI2PK` STATUS#closed; la recurrencia de
 CreateIncident filtra por `closed_at`) + EV# + `incident.closed` en fp-outbox (lo consume `registry` para descontar
@@ -82,14 +83,29 @@ def _stop_execution(sfn, incident_id: str, ctx: dict) -> None:
     log.event("ejecucion_detenida", **ctx)
 
 
+def _unauthorized(headers: dict, secrets) -> dict[str, str] | None:
+    """None si alguna de las llaves sirve; si no, el motivo por secreto (sin valores). Prueba en orden y para en la
+    primera valida, asi que la ingest-key no deja un `mismatch` falso de la console-key."""
+    reasons = {}
+    for name in KEY_SECRETS:
+        reason = auth.rejection(headers, name, client=secrets)
+        if reason is None:
+            return None
+        reasons[name] = reason
+    return reasons
+
+
 def handler(event, context=None, state=None, registry=None, outbox=None, secrets=None, sfn=None):
     incident_id = (event.get("pathParameters") or {}).get("incident_id") or ""
     headers = event.get("headers") or {}
-    if not any(auth.check_api_key(headers, name, client=secrets) for name in KEY_SECRETS):
+    reasons = _unauthorized(headers, secrets)
+    if reasons:
+        log.error("cierre_no_autorizado", status=401, incident_id=incident_id[:64], reasons=reasons)
         return _resp(401, {"error": "unauthorized"})
     registry = registry or fp_registry.table_from_env("REGISTRY_TABLE")
     meta = fp_registry.get_incident(registry, incident_id) if INC_RE.match(incident_id) else None
     if meta is None:
+        log.event("cierre_incidente_inexistente", status=404, incident_id=incident_id[:64])
         return _resp(404, {"error": "incident not found", "incident_id": incident_id})
     ctx = {"incident_id": incident_id, "machine_id": meta.get("machine_id")}
     if meta.get("status") == "closed":

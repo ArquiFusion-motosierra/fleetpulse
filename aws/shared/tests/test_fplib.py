@@ -119,6 +119,35 @@ def test_check_api_key_constant_time_and_case_insensitive():
     assert auth.check_api_key({"x-api-key": "k"}, "missing", client=fake) is False
 
 
+def test_check_api_key_logs_the_rejection_reason_without_values(caplog):
+    fake = FakeSecrets({"fleetpulse/api/ingest-key": '{"api_key":"k-secret"}', "raw": "not-json", "nokey": '{"x":1}'})
+    with caplog.at_level("INFO", logger="fplib"):
+        assert auth.check_api_key({}, "fleetpulse/api/ingest-key", client=fake) is False
+        assert auth.check_api_key({"x-api-key": "given-value"}, "missing", client=fake) is False
+        assert auth.check_api_key({"x-api-key": "given-value"}, "fleetpulse/api/ingest-key", client=fake) is False
+        assert auth.check_api_key({"x-api-key": "given-value"}, "raw", client=fake) is False
+        assert auth.check_api_key({"x-api-key": "given-value"}, "nokey", client=fake) is False
+        assert auth.check_api_key({"x-api-key": "k-secret"}, "fleetpulse/api/ingest-key", client=fake) is True
+    lines = [json.loads(r.getMessage()) for r in caplog.records]
+    assert [(x["level"], x["msg"], x["reason"], x["secret"]) for x in lines] == [
+        ("ERROR", "api_key_rechazada", "missing_header", "fleetpulse/api/ingest-key"),
+        ("ERROR", "api_key_rechazada", "secret_unavailable:KeyError", "missing"),
+        ("ERROR", "api_key_rechazada", "mismatch", "fleetpulse/api/ingest-key"),
+        ("ERROR", "api_key_rechazada", "secret_unavailable:JSONDecodeError", "raw"),
+        ("ERROR", "api_key_rechazada", "secret_unavailable:MissingApiKey", "nokey"),
+    ]  # aceptar no loguea nada
+    assert "given-value" not in caplog.text and "k-secret" not in caplog.text
+
+
+def test_rejection_returns_the_reason_and_does_not_log(caplog):
+    fake = FakeSecrets({"fleetpulse/api/ingest-key": '{"api_key":"k"}'})
+    with caplog.at_level("INFO", logger="fplib"):
+        assert auth.rejection({"X-API-KEY": "k"}, "fleetpulse/api/ingest-key", client=fake) is None
+        assert auth.rejection({"x-api-key": "nope"}, "fleetpulse/api/ingest-key", client=fake) == "mismatch"
+        assert auth.rejection({"x-api-key": ""}, "fleetpulse/api/ingest-key", client=fake) == "missing_header"
+    assert caplog.records == []
+
+
 def test_secrets_cached():
     fake = FakeSecrets({"fleetpulse/api/ingest-key": '{"api_key":"k"}'})
     assert secrets.get_json("fleetpulse/api/ingest-key", client=fake)["api_key"] == "k"

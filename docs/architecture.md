@@ -92,7 +92,7 @@ Ambas: reintento con backoff exponencial (3 intentos, base 2 s) en cada Lambda, 
 | Consola (Cloud Run, backend) → AWS | HTTPS a API Gateway | API key (`fleetpulse/api/console-key`), copia en GCP Secret Manager `aws-console-api-key`; nunca llega al navegador | `fleetpulse/api/console-key` | La consola muestra el último estado leído y avisa que está desactualizado |
 | Correo → AWS | HTTPS a API Gateway | Task token de un solo uso en la URL | — | Token expira con el paso (30 min) |
 
-Los secretos se leen en el arranque en frío con caché de 5 minutos. Nunca van en variables de entorno, en el repo ni en los logs. `scripts/push-secrets.sh` los carga desde las salidas de Terraform.
+Los secretos se leen en el arranque en frío con caché de 5 minutos. Nunca van en variables de entorno, en el repo ni en los logs. Las API keys `fleetpulse/api/*` las genera el stack fp-core (un solo dueño); `scripts/push-secrets.sh` carga las llaves de GCP desde las salidas de Terraform. Un rechazo de API key se loguea con su motivo (`missing_header`, `secret_unavailable:<tipo>`, `mismatch`), nunca con la llave.
 
 ## Modelo de datos: un dueño por dato
 

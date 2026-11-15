@@ -1,13 +1,10 @@
 """Pruebas de incident-flow T14: CorrelateZone, ExplainCause (Cloud Run + plantilla), WaitForApproval, ReserveParts
 y la aprobacion en AssignTechnician. Moto DynamoDB; Cloud Run, SNS, SSM y Secrets Manager con dobles (sin red)."""
-import base64
 import json
 import re
-import time
-from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
-from urllib.parse import parse_qs, quote
+from urllib.parse import quote
 
 import pytest
 from incidents_support import (
@@ -16,7 +13,6 @@ from incidents_support import (
     KM_LAT,
     LAT,
     LON,
-    NOW,
     NOW_ISO,
     FakeHttp,
     FakeSecrets,
@@ -35,8 +31,8 @@ from incidents_support import (
 )
 
 from flow import correlate_zone, explain_cause, reserve_parts, wait_for_approval
-from fplib import geohash
-from lib import gcp_auth, technicians, templates
+from fplib import gcp_auth, geohash
+from lib import technicians, templates
 
 GH = geohash.encode(LAT, LON, 6)
 AUDIENCE = "https://insights-abc123-ue.a.run.app"
@@ -119,7 +115,7 @@ def test_correlate_collects_fuel_lot_context(ex017, ddb, zone_id):
 
 @pytest.fixture
 def invoker(monkeypatch):
-    """Secreto fleetpulse/gcp/sa-invoker y un ID token fijo (lib.gcp_auth tiene su propia prueba)."""
+    """Secreto fleetpulse/gcp/sa-invoker y un ID token fijo (fplib.gcp_auth tiene su propia prueba en aws/shared)."""
     calls = []
 
     def fake_id_token(sa_key, audience, now=None):
@@ -203,63 +199,6 @@ def test_explain_falls_back_when_the_token_cannot_be_obtained(ex017, ddb, caplog
     assert out["source"] == "template" and http.calls == []
     (line,) = log_lines(caplog, "explain_fallback")
     assert line["reason"] and "PRIVATE KEY" not in caplog.text and "NO-ES-UNA-LLAVE" not in caplog.text
-
-
-# --- lib.gcp_auth --------------------------------------------------------------------------------------------------
-
-def test_gcp_auth_caches_the_id_token_for_50_minutes(monkeypatch):
-    fetched = []
-    monkeypatch.setattr(gcp_auth, "_fetch", lambda key, aud: fetched.append(aud) or f"tok-{len(fetched)}")
-    assert gcp_auth.id_token(SA_KEY, AUDIENCE, now=NOW) == "tok-1"
-    assert gcp_auth.id_token(SA_KEY, AUDIENCE, now=NOW + timedelta(minutes=49)) == "tok-1"
-    assert gcp_auth.id_token(SA_KEY, AUDIENCE, now=NOW + timedelta(minutes=51)) == "tok-2"
-    assert gcp_auth.id_token(SA_KEY, "https://otra.run.app", now=NOW + timedelta(minutes=51)) == "tok-3"
-
-
-def test_gcp_auth_accepts_the_key_as_a_json_string(monkeypatch):
-    seen = []
-    monkeypatch.setattr(gcp_auth, "_fetch", lambda key, aud: seen.append(key) or "tok")
-    assert gcp_auth.id_token(json.dumps(SA_KEY), AUDIENCE, now=NOW) == "tok"
-    assert gcp_auth.id_token(SA_KEY, AUDIENCE, now=NOW) == "tok"  # misma entrada de cache
-    assert seen == [SA_KEY]
-
-
-def _b64(obj) -> str:
-    raw = obj if isinstance(obj, bytes) else json.dumps(obj).encode()
-    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
-
-
-def _claims(jwt: str) -> dict:
-    part = jwt.split(".")[1]
-    return json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
-
-
-@pytest.mark.filterwarnings("ignore:datetime.datetime.utcfromtimestamp:DeprecationWarning")  # dentro de google-auth
-def test_gcp_auth_signs_with_the_service_account_and_bounds_the_token_call(monkeypatch):
-    """IDTokenCredentials real (firma con una llave RSA generada) contra un endpoint de tokens falso."""
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from google.auth.transport import requests as google_requests
-
-    pem = rsa.generate_private_key(public_exponent=65537, key_size=2048).private_bytes(
-        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
-    key = {**SA_KEY, "private_key": pem, "private_key_id": "k1", "token_uri": "https://oauth2.googleapis.com/token"}
-    google_jwt = ".".join([_b64({"alg": "RS256", "typ": "JWT"}),
-                           _b64({"aud": AUDIENCE, "exp": int(time.time()) + 3600}), _b64(b"firma")])
-    calls = []
-
-    def endpoint(url, method="GET", body=None, headers=None, timeout=None, **kwargs):
-        calls.append({"url": url, "method": method, "body": body, "timeout": timeout})
-        return SimpleNamespace(status=200, headers={}, data=json.dumps({"id_token": google_jwt}).encode())
-
-    monkeypatch.setattr(google_requests, "Request", lambda *a, **kw: endpoint)
-    assert gcp_auth.id_token(key, AUDIENCE) == google_jwt
-    (call,) = calls
-    assert call["url"] == "https://oauth2.googleapis.com/token" and call["method"] == "POST"
-    assert call["timeout"] == gcp_auth.TOKEN_TIMEOUT_S
-    assertion = parse_qs(call["body"].decode())["assertion"][0]
-    claims = _claims(assertion)
-    assert claims["target_audience"] == AUDIENCE and claims["iss"] == SA_KEY["client_email"]
 
 
 # --- WaitForApproval -----------------------------------------------------------------------------------------------

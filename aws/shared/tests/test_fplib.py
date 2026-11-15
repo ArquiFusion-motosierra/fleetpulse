@@ -176,3 +176,66 @@ def test_envelope_rejects_malformed_occurred_at(bad):
     env["occurred_at"] = bad
     with pytest.raises(schema.ContractError):
         schema.validate("envelope", env)
+
+
+# --- ids.oem_specs (ficha del fabricante, T26) ---------------------------------------------------------------------
+
+OEM_YAML = """
+illustrative: true
+version: 1
+models:
+  EX:
+    limits:
+      coolant_temp_c: {normal: [65, 96], warning: 102, critical: 108}
+    service_schedule:
+      - {every_h: 500, task: "Filtros", parts: [{part_id: PRT-01, qty: 1}]}
+    typical_failures:
+      - {failure_mode: head_gasket, name: "Junta de culata"}
+"""
+
+
+@pytest.fixture
+def oem_dirs(tmp_path, monkeypatch):
+    """Paquete y contracts/ aislados en tmp: `pkg/data/oem_specs.json` (layer) y `contracts/oem_specs.yaml` (dev)."""
+    pkg, contracts = tmp_path / "pkg", tmp_path / "contracts"
+    (pkg / "data").mkdir(parents=True)
+    contracts.mkdir()
+    monkeypatch.setattr(ids, "HERE", pkg)
+    monkeypatch.setattr(schema, "contracts_dir", lambda: contracts)
+    ids.oem_catalog.cache_clear()
+    yield pkg, contracts
+    ids.oem_catalog.cache_clear()
+
+
+def test_oem_specs_empty_when_the_sheet_does_not_exist(oem_dirs):
+    assert ids.oem_specs("EX") == {} and ids.oem_catalog() == {}
+
+
+def test_oem_specs_reads_the_yaml_in_development(oem_dirs):
+    _, contracts = oem_dirs
+    (contracts / "oem_specs.yaml").write_text(OEM_YAML)
+    ex = ids.oem_specs("EX")
+    assert ex["limits"]["coolant_temp_c"]["normal"] == [65, 96]
+    assert ex["typical_failures"][0]["failure_mode"] == "head_gasket"
+    assert ids.oem_specs("VQ") == {}
+    ex["limits"].clear()  # copia: no ensucia la cache
+    assert ids.oem_specs("EX")["limits"]
+
+
+def test_oem_specs_prefers_the_bundled_json_of_the_layer(oem_dirs):
+    pkg, contracts = oem_dirs
+    (contracts / "oem_specs.yaml").write_text(OEM_YAML)
+    (pkg / "data" / "oem_specs.json").write_text(json.dumps({"models": {"EX": {"limits": {}, "from": "layer"}}}))
+    assert ids.oem_specs("EX") == {"limits": {}, "from": "layer"}
+
+
+def test_oem_specs_without_contracts_dir(monkeypatch, tmp_path):
+    def missing():
+        raise FileNotFoundError("contracts/")
+    monkeypatch.setattr(ids, "HERE", tmp_path)
+    monkeypatch.setattr(schema, "contracts_dir", missing)
+    ids.oem_catalog.cache_clear()
+    try:
+        assert ids.oem_specs("EX") == {}
+    finally:
+        ids.oem_catalog.cache_clear()

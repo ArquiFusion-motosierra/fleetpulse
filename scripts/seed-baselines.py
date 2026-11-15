@@ -53,7 +53,9 @@ def machine_baselines(end: datetime, hours: int = 24, step_min: int = 1,
         if machine_ids and m.machine_id not in machine_ids:
             continue
         ids = {m.machine_id}
-        rows = [r for t in times for r in build_batch(t, {}, 5, None, ids)["readings"]
+        # tenant: build_batch arma el lote de un parque (minería por defecto) y salta las máquinas de otros; sin
+        # pasarlo, agro e industria quedaban sin lecturas y sin línea base (T47, backlog #51)
+        rows = [r for t in times for r in build_batch(t, {}, 5, None, ids, tenant=m.tenant_id)["readings"]
                 if r["engine_status"] == "operating"]
         out[m.machine_id] = (baselines.from_readings(rows), len(rows))
     return out

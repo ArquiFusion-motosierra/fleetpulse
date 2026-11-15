@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fpsim import oem  # noqa: E402
+from fpsim.fleet import by_id  # noqa: E402
 from fpsim.live import build_batch  # noqa: E402
 from fpsim.scenarios import S7_MACHINE, parse_active  # noqa: E402
 
@@ -25,7 +26,7 @@ def series(scenario: str, machine: str, minutes: int, on_at: int = 2):
     for k in range(minutes):
         now = START + timedelta(minutes=k + 1)
         active = parse_active({scenario: {"since": since.strftime("%Y-%m-%dT%H:%M:%SZ")}}) if now > since else {}
-        rows += build_batch(now, active, machine_ids={machine})["readings"]
+        rows += build_batch(now, active, machine_ids={machine}, tenant=by_id()[machine].tenant_id)["readings"]
     return [r for r in rows if r["engine_status"] == "operating"]
 
 

@@ -1,8 +1,12 @@
-// Todo pasa por el BFF (/api/*): la API key de AWS nunca llega al navegador.
+import { session } from "./auth.js";
+
+// Todo pasa por el BFF (/api/*): la API key de AWS nunca llega al navegador. El ID token del usuario si viaja:
+// el BFF lo reenvia a las rutas con Cognito (/reports, /admin).
 async function req(path, opts = {}) {
+  const token = session()?.token;
   const r = await fetch(`/api${path}`, {
-    headers: { "content-type": "application/json" },
     ...opts,
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
   });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
@@ -17,6 +21,15 @@ export const api = {
   incident: (id) => req(`/incidents/${id}`),
   stock: () => req("/stock").then((b) => b.stock),
   oem: (model) => req(`/oem/${model}`),
+  reports: (q = "") => req(`/reports${q ? `?${q}` : ""}`).then((b) => b.reports),
+  report: (id) => req(`/reports/${id}`),
+  createReport: (body) => req("/reports", { method: "POST", body: JSON.stringify(body) }).then((b) => b.report),
+  closeReport: (id, body) => req(`/reports/${id}/close`, { method: "POST", body: JSON.stringify(body) }),
+  abnormalityTypes: () => req("/abnormality-types").then((b) => b.abnormality_types),
+  technicians: () => req("/admin/technicians").then((b) => b.technicians),
+  putTechnician: (id, body) => req(`/admin/technicians/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  addType: (body) => req("/admin/abnormality-types", { method: "POST", body: JSON.stringify(body) }),
+  deleteType: (code) => req(`/admin/abnormality-types/${code}`, { method: "DELETE" }),
   kpis: () => req("/kpis"),
   orders: () => req("/orders").then((b) => b.orders),
   reorders: () => req("/reorders").then((b) => b.reorders),
@@ -51,6 +64,10 @@ export const PARAM_LABEL = {
   vibration_mm_s: "Vibración RMS", engine_rpm: "Velocidad del motor", fuel_rate_lph: "Consumo", speed_kmh: "Velocidad",
   vibration_spectrum: "Espectro de vibración",
 };
+export const ROLE_LABEL = { operator: "Operario", technician: "Técnico", supervisor: "Supervisor", management: "Dirección", admin: "Administrador" };
+export const REPORT_STATUS = { open: "Abierto", in_review: "En revisión", closed: "Cerrado" };
+export const URGENCY = { observe: "Observar", schedule: "Programar", immediate: "Inmediato" };
+export const PERCEIVED = { low: "Baja", medium: "Media", high: "Alta" };
 export const FINDING_LABEL = { normal: "Normal", warning: "Advertencia", critical: "Crítico" };
 MODE_LABEL.head_gasket = "Junta de culata";
 export const EVENT_LABEL = {

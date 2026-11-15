@@ -2,22 +2,48 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import MapView from "./MapView.jsx";
 import PlanningView from "./Planning.jsx";
 import { IncidentPanel, IncidentRow, MachinePanel, StockView, Sev } from "./Panels.jsx";
-import { api, SEVERITY, statusOf, MODE_LABEL, fmtTime } from "./api.js";
+import { AdminView, Login, ReportForm, ReportPanel, ReportsList } from "./Reports.jsx";
+import { api, SEVERITY, statusOf, MODE_LABEL, ROLE_LABEL, fmtTime } from "./api.js";
+import { completeLogin, loadConfig, logout, session } from "./auth.js";
 
 const REFRESH_MS = 15000;
 
+// Pestanas por rol (T34). La primera es la de inicio.
+const LABELS = { map: "Mapa", incidents: "Incidentes", myincidents: "Mis incidentes", stock: "Stock", planning: "Planificación",
+  report: "Reportar", myreports: "Mis reportes", assigned: "Reportes asignados", reports: "Reportes", admin: "Administración" };
+const ROLE_TABS = {
+  operator: ["report", "myreports", "map"],
+  technician: ["myincidents", "assigned", "map", "stock"],
+  supervisor: ["map", "incidents", "reports", "stock", "planning"],
+  management: ["planning", "map", "incidents"],
+  admin: ["map", "incidents", "reports", "stock", "planning", "admin"],
+};
+const CAN_CLOSE_INCIDENT = ["technician", "supervisor", "admin"];
+
 export default function App() {
-  const TABS = ["map", "incidents", "stock", "planning"];
+  const [user, setUser] = useState(() => session());
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    loadConfig().then(completeLogin).then((s) => setUser(s || session())).catch(() => {}).finally(() => setReady(true));
+  }, []);
+  if (!ready) return <div className="login"><p className="muted">Cargando…</p></div>;
+  if (!user?.role) return <Login onLogged={setUser} />;
+  return <Console user={user} />;
+}
+
+function Console({ user }) {
+  const tabs = ROLE_TABS[user.role] || ["map"];
   // La pestana vive en la URL (#planning) para poder abrirla directo al grabar
-  const [tab, setTabState] = useState(() => (TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : location.hash.startsWith("#incident:") ? "incidents" : "map"));
+  const fromHash = location.hash.slice(1);
+  const [tab, setTabState] = useState(() => (tabs.includes(fromHash) ? fromHash : fromHash.startsWith("incident:") && tabs.includes("incidents") ? "incidents" : tabs[0]));
   const setTab = (t) => { setTabState(t); history.replaceState(null, "", `#${t}`); };
   const [machines, setMachines] = useState([]);
   const [incidents, setIncidents] = useState([]);
-  // Enlace directo para grabar: #machine:VQ-022 o #incident:INC-VQ-022-20261115T1500
+  // Enlace directo para grabar: #machine:VQ-022, #incident:INC-..., #report:RPT-...
   const [drawer, setDrawer] = useState(() => {
-    const m = location.hash.match(/^#(machine|incident):([A-Z0-9-]+)$/);
+    const m = location.hash.match(/^#(machine|incident|report):([A-Z0-9-]+)$/);
     return m ? { kind: m[1], id: m[2] } : null;
-  }); // {kind: "machine"|"incident", id}
+  });
   const [updated, setUpdated] = useState(null);
   const [error, setError] = useState("");
   const [mode, setMode] = useState("");
@@ -42,6 +68,7 @@ export default function App() {
   }, [refresh]);
 
   const open = incidents.filter((i) => i.status !== "closed");
+  const mine = incidents.filter((i) => i.tech_id && i.tech_id === user.tech_id);
   const counts = useMemo(() => {
     const c = { operating: 0, ok: 0, observe: 0, schedule: 0, immediate: 0 };
     machines.forEach((m) => { c[m.severity || "ok"]++; if (m.status === "operating") c.operating++; });
@@ -50,6 +77,35 @@ export default function App() {
 
   const showMachine = (id) => setDrawer({ kind: "machine", id });
   const showIncident = (id) => setDrawer({ kind: "incident", id });
+  const showReport = (id) => setDrawer({ kind: "report", id });
+
+  const incidentTable = (rows, title) => (
+    <section className="page">
+      <h2>{title}</h2>
+      {rows.length === 0 && <p className="muted">Sin incidentes.</p>}
+      {rows.length > 0 && (
+        <table className="grid clickable">
+          <thead>
+            <tr><th>Incidente</th><th>Máquina</th><th>Falla</th><th>Severidad</th><th>Estado</th><th>Técnico</th><th>Abierto</th><th>Detenida</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((i) => (
+              <tr key={i.incident_id} onClick={() => showIncident(i.incident_id)} className={drawer?.id === i.incident_id ? "active" : ""}>
+                <td className="mono small">{i.incident_id}{i.recurrence_flag && <span className="tag warn">reincidencia</span>}</td>
+                <td><b>{i.machine_id}</b></td>
+                <td>{MODE_LABEL[i.failure_mode] || i.failure_mode}</td>
+                <td><Sev s={i.severity} /></td>
+                <td>{statusOf(i)}</td>
+                <td>{i.tech_id || "—"}</td>
+                <td>{fmtTime(i.opened_at)}</td>
+                <td>{i.downtime_h != null ? `${i.downtime_h} h` : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
 
   return (
     <div className="app">
@@ -62,9 +118,10 @@ export default function App() {
           </div>
         </div>
         <nav>
-          {[["map", "Mapa"], ["incidents", "Incidentes"], ["stock", "Stock"], ["planning", "Planificación"]].map(([k, l]) => (
+          {tabs.map((k) => (
             <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
-              {l}{k === "incidents" && open.length > 0 && <em>{open.length}</em>}
+              {LABELS[k]}{k === "incidents" && open.length > 0 && <em>{open.length}</em>}
+              {k === "myincidents" && mine.filter((i) => i.status !== "closed").length > 0 && <em>{mine.filter((i) => i.status !== "closed").length}</em>}
             </button>
           ))}
         </nav>
@@ -77,6 +134,10 @@ export default function App() {
         <div className={`live ${error ? "down" : ""}`}>
           <i />{error ? "sin conexión" : updated ? `actualizado ${updated.toLocaleTimeString("es-PE", { timeZone: "America/Lima" })}` : "conectando"}
           {mode === "mock" && <span className="tag">datos de prueba</span>}
+        </div>
+        <div className="who">
+          <span><b>{ROLE_LABEL[user.role]}</b><span className="muted small">{user.email}{user.tech_id ? ` · ${user.tech_id}` : ""}</span></span>
+          <button className="toggle" onClick={logout}>Salir</button>
         </div>
       </header>
 
@@ -100,35 +161,20 @@ export default function App() {
             </aside>
           </>
         )}
-        {tab === "incidents" && (
-          <section className="page">
-            <h2>Incidentes</h2>
-            <table className="grid clickable">
-              <thead>
-                <tr><th>Incidente</th><th>Máquina</th><th>Falla</th><th>Severidad</th><th>Estado</th><th>Técnico</th><th>Abierto</th><th>Detenida</th></tr>
-              </thead>
-              <tbody>
-                {incidents.map((i) => (
-                  <tr key={i.incident_id} onClick={() => showIncident(i.incident_id)} className={drawer?.id === i.incident_id ? "active" : ""}>
-                    <td className="mono small">{i.incident_id}{i.recurrence_flag && <span className="tag warn">reincidencia</span>}</td>
-                    <td><b>{i.machine_id}</b></td>
-                    <td>{MODE_LABEL[i.failure_mode] || i.failure_mode}</td>
-                    <td><Sev s={i.severity} /></td>
-                    <td>{statusOf(i)}</td>
-                    <td>{i.tech_id || "—"}</td>
-                    <td>{fmtTime(i.opened_at)}</td>
-                    <td>{i.downtime_h != null ? `${i.downtime_h} h` : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        )}
+        {tab === "incidents" && incidentTable(incidents, "Incidentes")}
+        {tab === "myincidents" && incidentTable(mine, `Mis incidentes (${user.tech_id})`)}
         {tab === "stock" && <StockView />}
         {tab === "planning" && <PlanningView onMachine={showMachine} />}
+        {tab === "report" && <ReportForm machines={machines} onCreated={refresh} />}
+        {tab === "myreports" && <ReportsList title="Mis reportes" query="mine=1" onOpen={showReport} empty="Todavía no enviaste reportes." />}
+        {tab === "assigned" && <ReportsList title="Reportes asignados" query="mine=1" onOpen={showReport} empty="No tienes reportes asignados." />}
+        {tab === "reports" && <ReportsList title="Reportes del operario" query="" onOpen={showReport} empty="Sin reportes." />}
+        {tab === "admin" && <AdminView />}
 
         {drawer?.kind === "machine" && <MachinePanel id={drawer.id} onClose={() => setDrawer(null)} onOpenIncident={showIncident} />}
-        {drawer?.kind === "incident" && <IncidentPanel id={drawer.id} onClose={() => setDrawer(null)} onChanged={refresh} onMachine={showMachine} />}
+        {drawer?.kind === "incident" && <IncidentPanel id={drawer.id} onClose={() => setDrawer(null)} onChanged={refresh} onMachine={showMachine}
+          onReport={showReport} canClose={CAN_CLOSE_INCIDENT.includes(user.role)} />}
+        {drawer?.kind === "report" && <ReportPanel id={drawer.id} user={user} onClose={() => setDrawer(null)} onIncident={showIncident} onChanged={refresh} />}
       </main>
     </div>
   );

@@ -264,3 +264,48 @@ def test_escalation_texts_render_from_check_existing_output(ex017, ddb):
     assert message == (f"El incidente {old} de la maquina EX-017 (zona NORTE) subio de severidad schedule a "
                        "immediate con score 3.62. Si aun espera aprobacion, el supervisor puede aprobarlo ya desde "
                        "el correo anterior; revisar asignacion y repuestos en la consola.")
+
+
+def _scopes(defn):
+    """Cada bloque `States` con su StartAt: el de primer nivel y el de cada rama de un Parallel."""
+    yield defn["StartAt"], defn["States"]
+    for st in defn["States"].values():
+        for branch in st.get("Branches", []):
+            yield from _scopes(branch)
+
+
+def _targets(st):
+    out = [st["Next"]] if "Next" in st else []
+    out += [c["Next"] for c in st.get("Choices", [])] + ([st["Default"]] if "Default" in st else [])
+    return out + [c["Next"] for c in st.get("Catch", [])]
+
+
+def test_every_transition_lands_on_a_state_of_its_scope_and_every_state_is_reachable():
+    """Step Functions rechaza la definicion al desplegar si un Next apunta afuera; un estado inalcanzable es codigo
+    muerto que nadie prueba. Las ramas de un Parallel no pueden saltar a estados del nivel superior."""
+    for start, states in _scopes(ASL):
+        assert start in states
+        for name, st in states.items():
+            for target in _targets(st):
+                assert target in states, f"{name} -> {target}"
+            if st["Type"] in ("Choice", "Succeed", "Fail"):
+                assert "End" not in st and ("Next" not in st), name
+            else:
+                assert ("Next" in st) != bool(st.get("End")), f"{name}: Next o End, uno solo"
+        seen, todo = set(), [start]
+        while todo:
+            name = todo.pop()
+            if name not in seen:
+                seen.add(name)
+                todo += _targets(states[name])
+        assert seen == set(states), f"inalcanzables: {set(states) - seen}"
+
+
+def test_every_sns_publish_retries_and_only_fp_alerts_ends_in_fail():
+    for name, st in _states(ASL):
+        if st.get("Resource") == "arn:aws:states:::sns:publish":
+            assert st["Retry"] == RETRY, name
+    fails = [n for n, st in _states(ASL) if st["Type"] == "Fail"]
+    assert fails == ["Failed"]
+    into_fail = [n for n, st in ASL["States"].items() if "Failed" in _targets(st)]
+    assert into_fail == ["PublishAlert"]  # toda falla avisa en fp-alerts antes de terminar

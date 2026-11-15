@@ -1,0 +1,155 @@
+# Stack fp-supply (T39 + T40): modulo de repuestos y abastecimiento. Diseno:
+# docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md (secciones 4 a 6). Se despliega desde
+# aws/serverless-compose.yml:
+#   supply:
+#     path: supply
+#     dependsOn: [shared, core, auth]
+# - T39: cola supply-q (+ DLQ, alarma) suscrita a fp-domain-events con filtro event_type = part.shortage, Lambda
+#   `sourcing` (supply-sourcing) y la maquina de estados Standard supply-flow con sus Lambdas (functions-flow.yml).
+# - T40: API /supply/* en la HTTP API fp-api de fp-core con el autorizador `cognito` por id (functions-api.yml).
+# Tablas fp-registry / fp-outbox y los topics fp-domain-events, fp-notify y fp-alerts: fp-core (aws/ingest).
+# SUPPLY_FLOW_ARN va como string en el entorno (no !Ref) para no crear un ciclo maquina <-> Lambdas.
+service: fp-supply
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 10
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+  layers:
+    - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+  httpApi:
+    id: ${cf:fp-core-${sls:stage}.HttpApiId, 'offline-default-id'}
+  environment:
+    REGISTRY_TABLE: fp-registry
+    OUTBOX_TABLE: fp-outbox
+    NOTIFY_TOPIC_ARN: arn:aws:sns:${aws:region}:${aws:accountId}:fp-notify
+    SUPPLY_FLOW_ARN: arn:aws:states:${aws:region}:${aws:accountId}:stateMachine:supply-flow
+    DEMO_WARP: "1"  # > 1 acorta la espera de recepcion (2 x eta / DEMO_WARP) para la demo
+
+custom:
+  domainTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-domain-events
+  # Con provider.httpApi.id Serverless v3 no deja nombrar el authorizer `cognito` de fp-core: se referencia por id
+  # (salida HttpApiAuthorizerCognitoId de fp-core, igual que fp-reports). El valor por defecto solo sirve offline.
+  cognitoAuthorizer:
+    type: jwt
+    id: ${cf:fp-core-${sls:stage}.HttpApiAuthorizerCognitoId, 'offline-authorizer-id'}
+
+package:
+  patterns:
+    - "!**"
+    - "supply/**"
+    - "api/**"
+    - "!**/__pycache__/**"
+
+# Lista de archivos: cada tarea escribe el suyo sin pisar al otro (T39 flow, T40 api).
+functions:
+  - ${file(./functions-flow.yml)}
+  - ${file(./functions-api.yml)}
+
+resources:
+  Resources:
+    SupplyDlq:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: supply-dlq
+        MessageRetentionPeriod: 1209600
+    SupplyQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: supply-q
+        VisibilityTimeout: 180          # >= 6 x timeout de la Lambda sourcing
+        MessageRetentionPeriod: 345600
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt SupplyDlq.Arn
+          maxReceiveCount: 5
+    SupplyQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues: [!Ref SupplyQueue]
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: {Service: sns.amazonaws.com}
+              Action: sqs:SendMessage
+              Resource: !GetAtt SupplyQueue.Arn
+              Condition:
+                ArnEquals: {aws:SourceArn: "${self:custom.domainTopicArn}"}
+    SupplySubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: ${self:custom.domainTopicArn}
+        Protocol: sqs
+        Endpoint: !GetAtt SupplyQueue.Arn
+        RawMessageDelivery: true
+        # outbox-publisher pone event_type como MessageAttribute: solo llegan los faltantes
+        FilterPolicy:
+          event_type: [part.shortage]
+    SupplyDlqAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: fp-supply-dlq-not-empty
+        Namespace: AWS/SQS
+        MetricName: ApproximateNumberOfMessagesVisible
+        Dimensions: [{Name: QueueName, Value: supply-dlq}]
+        Statistic: Maximum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 0
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+        AlarmActions: ["arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts"]
+
+    SupplyFlowLogs:
+      Type: AWS::Logs::LogGroup
+      Properties:
+        LogGroupName: /aws/states/supply-flow
+        RetentionInDays: 14
+
+    SupplyFlow:
+      Type: AWS::StepFunctions::StateMachine
+      Properties:
+        StateMachineName: supply-flow
+        StateMachineType: STANDARD
+        RoleArn: arn:aws:iam::${aws:accountId}:role/LabRole
+        Definition: ${file(statemachine/supply-flow.asl.json)}
+        DefinitionSubstitutions:
+          LoadArn: !GetAtt FlowLoadLambdaFunction.Arn
+          WaitApprovalArn: !GetAtt FlowWaitApprovalLambdaFunction.Arn
+          ApproveArn: !GetAtt FlowApproveLambdaFunction.Arn
+          CancelArn: !GetAtt FlowCancelLambdaFunction.Arn
+          PlaceOrderArn: !GetAtt FlowPlaceOrderLambdaFunction.Arn
+          ShipArn: !GetAtt FlowShipLambdaFunction.Arn
+          WaitReceiptArn: !GetAtt FlowWaitReceiptLambdaFunction.Arn
+          ReceiveArn: !GetAtt FlowReceiveLambdaFunction.Arn
+          AllocateBackordersArn: !GetAtt FlowAllocateBackordersLambdaFunction.Arn
+          NotifyTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-notify
+          AlertsTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts
+        LoggingConfiguration:
+          Level: ALL
+          IncludeExecutionData: true
+          Destinations:
+            - CloudWatchLogsLogGroup:
+                LogGroupArn: !GetAtt SupplyFlowLogs.Arn
+
+    SupplyFlowArnParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/supply/flow-arn
+        Type: String
+        Value: !Ref SupplyFlow
+
+  Outputs:
+    SupplyFlowArn:
+      Value: !Ref SupplyFlow
+      Export: {Name: "${self:service}-SupplyFlowArn"}
+    SupplyQueueUrl:
+      Value: !Ref SupplyQueue

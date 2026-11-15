@@ -2,7 +2,8 @@
 
 Servicios (cada uno con su `serverless.yml`), en el orden de `serverless-compose.yml`:
 `shared` (layer) -> `core` (ingest: tablas, bucket, topics, API) -> `outbox-publisher`, `registry`,
-`gcp-exporter`, `incidents` -> `scoring`, `reports`, `planning` (regla diaria apagada) -> `simulator` (apagado).
+`gcp-exporter`, `incidents` -> `scoring`, `reports`, `planning` (regla diaria apagada), `supply` -> `simulator`
+(apagado).
 `oci-writer` no existe (plan B).
 
 ## Desplegar
@@ -76,6 +77,16 @@ scripts/planning.sh on|off|status   # regla diaria de las 05:00 Lima (el deploy 
 Repetir `run` el mismo dia no duplica (reclamos `planning:<dia>:...` en fp-inbox). Las ordenes llegan a
 `ORDER#` por outbox -> registry y los pedidos se escriben en `REORDER#`: `GET /orders` y `GET /reorders` de la
 API de registry. Diseno: `docs/superpowers/plans/2026-11-15-t18-daily-planning.md`.
+
+## Abastecimiento (T39, stack `fp-supply`)
+`part.shortage` llega por SNS a `supply-q` (+ `supply-dlq`, alarma) -> Lambda `sourcing` compara transferir desde
+otro parque contra comprar, escribe `PO#<id>` o `TRF#<id>` (`status: suggested`), el `BACKORDER#` del incidente y
+`supply.suggested`, e inicia la maquina Standard `supply-flow` con nombre = id. La ejecucion espera la aprobacion
+(token en `META.task_token`, `waiting_for: approval`, 24 h), despacha (PO `ordered` / TRF `in_transit`), espera la
+recepcion (`waiting_for: receipt`, 2 x eta / `DEMO_WARP`) y al recibir reserva el repuesto para los incidentes en
+`BACKORDER#` (`part.reserved`). La API `/supply/*` (T40) responde con `SendTaskSuccess` / `SendTaskFailure`
+(`SupplyRejected`). ARN: salida `SupplyFlowArn`, SSM `/fleetpulse/supply/flow-arn`, env `SUPPLY_FLOW_ARN`.
+Diseno: `docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md`.
 
 ## Tests
 Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el job python de CI):

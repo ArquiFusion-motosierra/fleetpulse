@@ -227,7 +227,7 @@
           "Next": "WaitForReceipt"
         }
       ],
-      "ResultPath": null,
+      "ResultPath": "$.notified",
       "Next": "WaitForReceipt"
     },
     "Ship": {
@@ -308,7 +308,7 @@
           "Next": "WaitForReceipt"
         }
       ],
-      "ResultPath": null,
+      "ResultPath": "$.notified",
       "Next": "WaitForReceipt"
     },
     "WaitForReceipt": {
@@ -461,7 +461,7 @@
     },
     "NotifyReceived": {
       "Type": "Parallel",
-      "ResultPath": null,
+      "ResultPath": "$.notified",
       "Next": "Received",
       "Catch": [
         {
@@ -504,7 +504,7 @@
                   "BackoffRate": 2
                 }
               ],
-              "ResultPath": null,
+              "ResultPath": "$.notified",
               "End": true
             }
           }
@@ -540,7 +540,7 @@
                   "BackoffRate": 2
                 }
               ],
-              "ResultPath": null,
+              "ResultPath": "$.notified",
               "End": true
             }
           }
@@ -622,7 +622,7 @@
           "Next": "Cancelled"
         }
       ],
-      "ResultPath": null,
+      "ResultPath": "$.notified",
       "Next": "Cancelled"
     },
     "Cancelled": {

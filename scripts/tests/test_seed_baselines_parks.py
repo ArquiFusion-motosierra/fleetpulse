@@ -16,7 +16,9 @@ END = datetime(2026, 11, 15, 20, 0, tzinfo=timezone.utc)  # 15:00 Lima, turno pl
 
 def test_every_park_gets_a_baseline():
     ids = {"EX-017", "TA-001", "CS-001", "MC-001", "CP-001", "GE-001"}  # mineria, agro e industria
-    out = seed_baselines.machine_baselines(END, hours=6, step_min=5, machine_ids=ids)
+    # 24 h como el seed real (paso de 5 min para que sea rapido): con turnos por parque (#56) el grupo electrogeno
+    # trabaja de respaldo (~20 %) y en 6 h puede no juntar lecturas suficientes
+    out = seed_baselines.machine_baselines(END, hours=24, step_min=5, machine_ids=ids)
     assert set(out) == ids
     for machine_id, (baseline, n) in out.items():
         assert n > 0 and baseline is not None, machine_id

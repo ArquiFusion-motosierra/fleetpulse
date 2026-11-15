@@ -1,0 +1,8 @@
+web/node_modules
+web/dist
+tests
+__pycache__
+**/__pycache__
+.pytest_cache
+conftest.py
+requirements-dev.txt

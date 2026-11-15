@@ -9,7 +9,7 @@ Solo nombres y formas. **Nunca valores.** Los valores los sube `scripts/push-sec
 | `fleetpulse/gcp/sa-exporter` | Llave JSON de la SA `fp-exporter` tal cual | Fabricio (Terraform) | `gcp-exporter`, `gcp-events` |
 | `fleetpulse/gcp/sa-invoker` | `{"key": <llave JSON de fp-invoker>, "audience": "https://insights-<hash>-ue.a.run.app"}` | Fabricio (Terraform) | `incident-flow` ExplainCause, `daily-planning` |
 | `fleetpulse/api/ingest-key` | `{"api_key": "..."}` | Benjamin | `simulator` (`POST /telemetry`, `POST /context`) |
-| `fleetpulse/api/console-key` | `{"api_key": "..."}` | Alex | API de lectura de `registry` y `POST /incidents/{id}/close`; la consola la guarda en GCP Secret Manager `aws-console-key` |
+| `fleetpulse/api/console-key` | `{"api_key": "..."}` | Alex | API de lectura de `registry` y `POST /incidents/{id}/close`; la consola la guarda en GCP Secret Manager `aws-console-api-key` |
 
 Caché de 5 minutos en cada Lambda.
 
@@ -73,6 +73,6 @@ Idempotencia: cada evento se aplica en una `TransactWriteItems` que incluye `fp-
 | Bucket | `fp-landing-<sufijo>` (lifecycle 3 días) |
 | Dataset BigQuery (US) | `fleetpulse`: `telemetry`, `domain_events` |
 | Service accounts | `fp-exporter`, `fp-invoker`, `fp-insights`, `fp-console` |
-| Secret Manager | `gemini-api-key`, `aws-console-key` |
+| Secret Manager | `gemini-api-key`, `aws-console-api-key` |
 | Cloud Run `insights` | `GET /health`, `POST /explain`, `GET /peers/{machine_id}`, `POST /jobs/refresh`, `GET /jobs/status`, `POST /forecast/parts`, `POST /kpis/daily`, `POST /anomalies/fuel`, `GET /baselines` |
 | Cloud Run `console` | estáticos de React + BFF `GET /api/machines`, `/api/machines/{id}`, `/api/incidents`, `/api/incidents/{id}`, `/api/stock`, `POST /api/incidents/{id}/close` |

@@ -192,6 +192,11 @@ table.plan tr.due td { background: rgba(249, 115, 22, 0.08); }
 .acc-group .users { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 .acc-group .users button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acc-group .users button:hover { border-color: var(--park); }
+
+/* Login: foto tematica (maquinaria pesada) detras de un scrim azul-noche, sobre la paleta oscura de la consola. */
+.login { background: linear-gradient(180deg, rgba(11, 15, 20, 0.80), rgba(11, 15, 20, 0.93)), url("/login-bg.jpg") center / cover no-repeat; }
+.login-card { background: rgba(17, 24, 33, 0.82); backdrop-filter: blur(6px); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); }
+
 .page.narrow { max-width: 720px; }
 .form { display: grid; gap: 8px; max-width: 560px; }
 .form label, .form legend, .close-box label { font-size: 12px; color: var(--muted); }

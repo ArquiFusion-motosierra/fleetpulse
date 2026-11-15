@@ -1,7 +1,8 @@
 """Lambda `publisher`: consume el stream de fp-outbox y publica cada evento en SNS `fp-domain-events`.
 
 El mensaje SNS es el campo `payload` (envelope JSON) tal cual; los atributos permiten filtrar por
-`event_type`, `aggregate_type` e `incident_id`. Idempotencia: SNS publica al menos una vez, un reintento
+`event_type`, `aggregate_type`, `incident_id` y `tenant_id` (parque; un sobre anterior al multi-tenancy sale con el
+parque de su maquina segun el catalogo, o el por defecto). Idempotencia: SNS publica al menos una vez, un reintento
 de lote repite eventos y los consumidores deduplican por `event_id`. Un registro malo o un fallo de SNS no
 tumba el lote: se devuelve en `batchItemFailures` y solo ese registro se reintenta.
 """
@@ -12,7 +13,7 @@ import os
 
 from boto3.dynamodb.types import TypeDeserializer
 
-from fplib import log
+from fplib import ids, log
 
 _DESER = TypeDeserializer()
 _sns = None
@@ -36,6 +37,7 @@ def _publish(sns, topic_arn: str, item: dict) -> None:
     attrs = {
         "event_type": _attr(str(item["type"])),
         "aggregate_type": _attr(str(envelope["aggregate_type"])),
+        "tenant_id": _attr(str(envelope.get("tenant_id") or ids.tenant_of_machine(envelope.get("machine_id")))),
     }
     if item.get("incident_id"):
         attrs["incident_id"] = _attr(str(item["incident_id"]))

@@ -33,9 +33,9 @@ from lib import link_incident, recommend, snapshot, store, web
 ROLES = ("operator", "technician", "supervisor", "management", "admin")
 CREATE_ROLES = ("operator", "supervisor", "admin")
 CLOSE_ROLES = ("technician", "supervisor", "admin")
-RPT_RE = re.compile(r"^RPT-(?:EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
-MACHINE_RE = re.compile(r"^(?:EX|CF|VQ|MN|TO)-[0-9]{3}$")
-INC_RE = re.compile(r"^INC-((?:EX|CF|VQ|MN|TO)-[0-9]{3})-[0-9]{8}T[0-9]{4}$")
+RPT_RE = re.compile(r"^RPT-(?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
+MACHINE_RE = re.compile(r"^(?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$")
+INC_RE = re.compile(r"^INC-((?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3})-[0-9]{8}T[0-9]{4}$")
 MAX_USER = 128
 
 

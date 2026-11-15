@@ -22,14 +22,14 @@ log = logging.getLogger("console")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 STATIC = os.environ.get("STATIC_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "web", "dist"))
-INC_RE = re.compile(r"^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
-MID_RE = re.compile(r"^(EX|CF|VQ|MN|TO)-[0-9]{3}$")
+INC_RE = re.compile(r"^INC-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
+MID_RE = re.compile(r"^(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$")
 
 app = FastAPI(title="FleetPulse console", docs_url=None, redoc_url=None)
 app.state.mock = MockRegistry() if os.environ.get("MOCK") == "1" else None
 app.state.reports = mr.MockReports(app.state.mock) if app.state.mock else None
 app.state.aws = AwsApi()
-RID_RE = re.compile(r"^RPT-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
+RID_RE = re.compile(r"^RPT-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
 TECH_RE = re.compile(r"^TEC-[0-9]{2}$")
 CODE_RE = re.compile(r"^[a-z][a-z0-9_]{1,39}$")
 

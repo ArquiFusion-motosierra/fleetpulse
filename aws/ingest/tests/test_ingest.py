@@ -201,3 +201,37 @@ def test_malformed_json_is_logged(deps, caplog):
     ev["body"] = "{nope"
     handler(ev, **deps)
     assert any("body no es JSON" in r.message for r in caplog.records)
+
+
+# ---------- multi-tenancy ----------
+
+def _as_machine(batch, machine_id, model, zone_id):
+    b = copy.deepcopy(batch)
+    for r in b["readings"]:
+        r.update(machine_id=machine_id, model=model, zone_id=zone_id)
+    return b
+
+
+def test_readings_and_meta_carry_the_tenant_of_the_catalog(deps):
+    live = _as_machine(load("telemetry-batch/live.json"), "CS-003", "CS", "PACKING")
+    assert handler(api_event("/telemetry", live), **deps)["statusCode"] == 202
+    items = query(deps["state"], "MACHINE#CS-003")
+    assert {i["tenant_id"] for i in items} == {"agro"}
+    assert get(deps["state"], "MACHINE#CS-003", "META")["GSI1PK"] == "ZONE#PACKING"
+
+
+def test_legacy_batch_without_tenant_is_mineria(deps):
+    assert handler(api_event("/telemetry", load("telemetry-batch/live.json")), **deps)["statusCode"] == 202
+    assert get(deps["state"], "MACHINE#EX-017", "META")["tenant_id"] == "mineria"
+
+
+@pytest.mark.parametrize("where", ["batch", "reading"])
+def test_batch_cannot_inject_readings_into_another_park(deps, where):
+    live = load("telemetry-batch/live.json")  # EX-017, parque mineria
+    if where == "batch":
+        live["tenant_id"] = "agro"
+    else:
+        live["readings"][3]["tenant_id"] = "industria"
+    r = handler(api_event("/telemetry", live), **deps)
+    assert r["statusCode"] == 400 and json.loads(r["body"])["error"] == "TENANT_MISMATCH"
+    assert count_readings(deps["state"], "EX-017") == 0

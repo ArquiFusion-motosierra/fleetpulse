@@ -11,7 +11,7 @@ from collections import defaultdict
 
 from boto3.dynamodb.types import TypeDeserializer
 
-from fplib import log
+from fplib import ids, log
 from lib import storage
 
 _DESER = TypeDeserializer()
@@ -43,14 +43,15 @@ def _readings(event: dict) -> list[dict]:
 
 def handler(event, context=None, s3=None):
     records = _readings(event)
-    by_hour: dict[str, list[dict]] = defaultdict(list)
+    by_hour: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for r in records:
-        by_hour[r["ts"][:13]].append(r)
+        r.setdefault("tenant_id", ids.tenant_of_machine(r.get("machine_id")))  # lecturas previas al multi-tenancy
+        by_hour[(r["ts"][:13], r["tenant_id"])].append(r)
     s3 = s3 or _client()
     bucket = os.environ["BUCKET"]
-    for hour, group in by_hour.items():
+    for (hour, tenant), group in by_hour.items():
         group.sort(key=lambda r: r["ts"])
-        key = storage.object_key(hour, group[0]["ts"])
+        key = storage.object_key(hour, group[0]["ts"], tenant)
         s3.put_object(Bucket=bucket, Key=key, Body=storage.ndjson_gz(group), ContentEncoding="gzip",
                       ContentType="application/x-ndjson")
     log.event("archivado", objects=len(by_hour), records=len(records))

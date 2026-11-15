@@ -13,10 +13,12 @@
     "models": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["EX", "CF", "VQ", "MN", "TO"],
+      "required": ["EX", "CF", "VQ", "MN", "TO", "TA", "CS", "MC", "CP", "GE"],
       "properties": {
         "EX": {"$ref": "#/$defs/model"}, "CF": {"$ref": "#/$defs/model"}, "VQ": {"$ref": "#/$defs/model"},
-        "MN": {"$ref": "#/$defs/model"}, "TO": {"$ref": "#/$defs/model"}
+        "MN": {"$ref": "#/$defs/model"}, "TO": {"$ref": "#/$defs/model"},
+        "TA": {"$ref": "#/$defs/model"}, "CS": {"$ref": "#/$defs/model"}, "MC": {"$ref": "#/$defs/model"},
+        "CP": {"$ref": "#/$defs/model"}, "GE": {"$ref": "#/$defs/model"}
       }
     }
   },

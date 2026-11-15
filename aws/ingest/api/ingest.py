@@ -42,13 +42,18 @@ def _parse(event: dict):
 def _telemetry(batch, state, inbox_table) -> dict:
     validate("telemetry-batch", batch)
     batch_id = batch["batch_id"]
+    try:
+        tenants = fp_state.assign_tenants(batch)
+    except fp_state.TenantMismatch as e:
+        log.event("lote con maquinas de otro parque", batch_id=batch_id, tenant=batch.get("tenant_id"), error=str(e))
+        return _resp(400, {"error": "TENANT_MISMATCH", "detail": str(e)})
     now = clock.now()
     n = fp_state.put_readings(state, batch, now)
     fp_state.update_meta(state, fp_state.latest_by_machine(batch), now)
     if not fp_inbox.claim(inbox_table, f"batch:{batch_id}", "ingest"):
         log.event("batch duplicado", batch_id=batch_id)
         return _resp(200, {"status": "duplicate", "batch_id": batch_id})
-    log.event("batch aceptado", batch_id=batch_id, readings=n)
+    log.event("batch aceptado", batch_id=batch_id, readings=n, tenants=tenants)
     return _resp(202, {"status": "accepted", "batch_id": batch_id, "readings": n})
 
 

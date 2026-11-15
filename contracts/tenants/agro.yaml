@@ -1,0 +1,78 @@
+# FleetPulse - Catalogo del parque agricola (tenant `agro`). Misma forma que contracts/ids.yaml.
+# IDs unicos entre parques: modelos TA/CS, zonas FUNDO-A/FUNDO-B/PACKING, tecnicos TEC-11..14, repuestos PRT-14..19.
+# Ver docs/superpowers/plans/2026-11-15-multi-tenancy.md.
+tenant_id: agro
+operation: Fundo Valle Sur
+timezone: America/Lima
+
+zones:
+  - {zone_id: FUNDO-A, name: "Fundo A - Vinedos", lat: -14.07, lon: -75.735, altitude_m: 410, weather_risk: dust}
+  - {zone_id: FUNDO-B, name: "Fundo B - Esparragos", lat: -14.09, lon: -75.72, altitude_m: 395, weather_risk: dust}
+  - {zone_id: PACKING, name: "Planta de empaque", lat: -14.08, lon: -75.705, altitude_m: 400, weather_risk: heat}
+
+fuel_stations:
+  - {station_id: EST-FUNDO-A, zone_id: FUNDO-A, lot: L-3101}
+  - {station_id: EST-FUNDO-B, zone_id: FUNDO-B, lot: L-3102}
+  - {station_id: EST-PACKING, zone_id: PACKING, lot: L-3103}
+
+models:
+  - {model_id: TA, name: "Tractor agricola", count: 8, service_interval_h: 250, fuel_lph_base: 14}
+  - {model_id: CS, name: "Cosechadora", count: 4, service_interval_h: 250, fuel_lph_base: 30}
+
+machines:
+  - {machine_id: TA-001, model_id: TA, serial: AFCTA00121, zone_id: FUNDO-A, commissioned_at: '2021-09-15', hours_total: 13599, hours_since_service: 258}
+  - {machine_id: TA-002, model_id: TA, serial: AFCTA00221, zone_id: FUNDO-B, commissioned_at: '2021-09-15', hours_total: 10423, hours_since_service: 117}
+  - {machine_id: TA-003, model_id: TA, serial: AFCTA00319, zone_id: PACKING, commissioned_at: '2019-09-15', hours_total: 8594, hours_since_service: 342}
+  - {machine_id: TA-004, model_id: TA, serial: AFCTA00422, zone_id: FUNDO-A, commissioned_at: '2022-03-15', hours_total: 2342, hours_since_service: 248}
+  - {machine_id: TA-005, model_id: TA, serial: AFCTA00520, zone_id: FUNDO-B, commissioned_at: '2020-03-15', hours_total: 2285, hours_since_service: 295}
+  - {machine_id: TA-006, model_id: TA, serial: AFCTA00624, zone_id: PACKING, commissioned_at: '2024-01-15', hours_total: 10555, hours_since_service: 222}
+  - {machine_id: TA-007, model_id: TA, serial: AFCTA00721, zone_id: FUNDO-A, commissioned_at: '2021-03-15', hours_total: 11009, hours_since_service: 27}
+  - {machine_id: TA-008, model_id: TA, serial: AFCTA00824, zone_id: FUNDO-B, commissioned_at: '2024-09-15', hours_total: 1834, hours_since_service: 50}
+  - {machine_id: CS-001, model_id: CS, serial: AFCCS00118, zone_id: FUNDO-A, commissioned_at: '2018-04-15', hours_total: 4763, hours_since_service: 327}
+  - {machine_id: CS-002, model_id: CS, serial: AFCCS00218, zone_id: FUNDO-B, commissioned_at: '2018-08-15', hours_total: 6145, hours_since_service: 245}
+  - {machine_id: CS-003, model_id: CS, serial: AFCCS00322, zone_id: PACKING, commissioned_at: '2022-04-15', hours_total: 9305, hours_since_service: 139}
+  - {machine_id: CS-004, model_id: CS, serial: AFCCS00423, zone_id: FUNDO-A, commissioned_at: '2023-05-15', hours_total: 8988, hours_since_service: 22}
+
+technicians:
+  - {tech_id: TEC-11, name: "Milagros Yupanqui", specialty: hydraulics, zone_id: FUNDO-A}
+  - {tech_id: TEC-12, name: "Raul Huaraca", specialty: engine, zone_id: FUNDO-B}
+  - {tech_id: TEC-13, name: "Elena Pariona", specialty: transmission, zone_id: FUNDO-A}
+  - {tech_id: TEC-14, name: "Victor Tasayco", specialty: electrical, zone_id: PACKING}
+
+parts:
+  - {part_id: PRT-01, sku: FLT-FUEL-01, name: "Filtro de combustible", unit_cost_usd: 45}
+  - {part_id: PRT-02, sku: FLT-HYD-01, name: "Filtro hidraulico", unit_cost_usd: 60}
+  - {part_id: PRT-11, sku: FLT-AIR-01, name: "Filtro de aire", unit_cost_usd: 55}
+  - {part_id: PRT-14, sku: PTO-SHAFT-01, name: "Eje de toma de fuerza (PTO)", unit_cost_usd: 640}
+  - {part_id: PRT-15, sku: RAD-AGR-01, name: "Radiador de tractor", unit_cost_usd: 820}
+  - {part_id: PRT-16, sku: BELT-ROT-01, name: "Correa del rotor de trilla", unit_cost_usd: 260}
+  - {part_id: PRT-17, sku: BRG-ROT-01, name: "Rodamiento del rotor de trilla", unit_cost_usd: 410}
+  - {part_id: PRT-18, sku: PUMP-HYD-AG, name: "Bomba hidraulica de levante", unit_cost_usd: 1900}
+  - {part_id: PRT-19, sku: INJ-AG-01, name: "Inyector (motor agricola)", unit_cost_usd: 310}
+
+bom:
+  - {model_id: TA, part_id: PRT-18, qty: 1, replace_every_h: 6000, failure_mode: hydraulic_pump}
+  - {model_id: TA, part_id: PRT-02, qty: 1, replace_every_h: 500, failure_mode: hydraulic_contamination}
+  - {model_id: TA, part_id: PRT-01, qty: 1, replace_every_h: 500, failure_mode: fuel_contamination}
+  - {model_id: TA, part_id: PRT-19, qty: 1, replace_every_h: 5000, failure_mode: fuel_contamination}
+  - {model_id: TA, part_id: PRT-15, qty: 1, replace_every_h: 8000, failure_mode: engine_overheat}
+  - {model_id: TA, part_id: PRT-11, qty: 1, replace_every_h: 250, failure_mode: engine_overheat}
+  - {model_id: TA, part_id: PRT-14, qty: 1, replace_every_h: 7000, failure_mode: final_drive}
+  - {model_id: CS, part_id: PRT-17, qty: 2, replace_every_h: 3000, failure_mode: final_drive}
+  - {model_id: CS, part_id: PRT-16, qty: 1, replace_every_h: 1500, failure_mode: final_drive}
+  - {model_id: CS, part_id: PRT-11, qty: 1, replace_every_h: 250, failure_mode: engine_overheat}
+  - {model_id: CS, part_id: PRT-15, qty: 1, replace_every_h: 8000, failure_mode: engine_overheat}
+  - {model_id: CS, part_id: PRT-01, qty: 1, replace_every_h: 500, failure_mode: fuel_contamination}
+  - {model_id: CS, part_id: PRT-02, qty: 1, replace_every_h: 500, failure_mode: hydraulic_contamination}
+
+# Stock inicial: mismo on_hand en las 3 zonas del parque, reserved = 0.
+part_stock:
+  - {part_id: PRT-01, on_hand_per_zone: 8, reorder_point: 3}
+  - {part_id: PRT-02, on_hand_per_zone: 6, reorder_point: 2}
+  - {part_id: PRT-11, on_hand_per_zone: 8, reorder_point: 3}
+  - {part_id: PRT-14, on_hand_per_zone: 1, reorder_point: 1}
+  - {part_id: PRT-15, on_hand_per_zone: 1, reorder_point: 1}
+  - {part_id: PRT-16, on_hand_per_zone: 2, reorder_point: 1}
+  - {part_id: PRT-17, on_hand_per_zone: 2, reorder_point: 1}
+  - {part_id: PRT-18, on_hand_per_zone: 1, reorder_point: 1}
+  - {part_id: PRT-19, on_hand_per_zone: 3, reorder_point: 1}

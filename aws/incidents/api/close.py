@@ -43,7 +43,7 @@ KEY_SECRETS = ("fleetpulse/api/console-key", "fleetpulse/api/ingest-key")
 USER_ROUTE = "POST /me/incidents/{incident_id}/close"
 USER_ROLES = ("technician", "supervisor", "admin")
 MAX_CLOSED_BY = 64  # incident.closed: closed_by maxLength
-INC_RE = re.compile(r"^INC-(?:EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
+INC_RE = re.compile(r"^INC-(?:EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
 AWS_CONFIG = Config(connect_timeout=3, read_timeout=5, retries={"max_attempts": 3})
 _sfn = None
 

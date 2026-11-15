@@ -29,7 +29,7 @@
             "additionalProperties": false,
             "required": ["machine_id", "operating_h", "idle_ratio", "utilization", "fuel_lph", "cost_per_h", "quadrant"],
             "properties": {
-              "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+              "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$"},
               "operating_h": {"type": "number", "minimum": 0, "maximum": 24},
               "idle_ratio": {"type": "number", "minimum": 0, "maximum": 1},
               "utilization": {"type": "number", "minimum": 0, "maximum": 1, "description": "operating_h / 24."},

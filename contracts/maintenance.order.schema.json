@@ -11,10 +11,10 @@
     "schema_version": {"const": 1},
     "source": {"enum": ["aws.daily-planning", "simulator.backfill"]},
     "aggregate_type": {"const": "machine"},
-    "aggregate_id": {"type": "string", "pattern": "^ORD-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}$", "description": "ORD-<machine_id>-<dia de due_at>: una orden por maquina y dia."},
+    "aggregate_id": {"type": "string", "pattern": "^ORD-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}$", "description": "ORD-<machine_id>-<dia de due_at>: una orden por maquina y dia."},
     "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
-    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
-    "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$"},
+    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}$"},
+    "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO|TA|CS|MC|CP|GE)-[0-9]{3}-[0-9]{8}T[0-9]{4}$"},
     "trace_id": {"type": "string", "maxLength": 64},
     "payload": {
       "type": "object",

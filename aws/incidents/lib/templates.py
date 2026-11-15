@@ -30,6 +30,11 @@ def model_of(machine_id: str) -> str:
     return machine_id.split("-", 1)[0]  # EX-017 -> EX (el prefijo del id es el modelo, ver ids.yaml)
 
 
+def operator_message(machine_id: str, severity: str) -> str:
+    """Instruccion al operador para la severidad: la usan RenderMessages y el aviso de escalamiento."""
+    return f"{machine_id}: {OPERATOR.get(severity, OPERATOR['schedule'])}."
+
+
 def _part_names() -> dict[str, str]:
     return {p["part_id"]: p["name"] for p in ids.load()["parts"]}
 
@@ -96,7 +101,7 @@ def messages(incident: dict, explanation: dict, ranking_top: dict | None, approv
     management = (f"{mid} en riesgo de parada no programada por {mode} (severidad {sev}, zona {incident['zone_id']})"
                   + (f"; incidente agrupado {group}, posible causa comun" if group else "")
                   + f"; tecnico {ranking_top['tech_id'] if ranking_top else 'por asignar'}.")
-    operator = f"{mid}: {OPERATOR.get(sev, OPERATOR['schedule'])}."
+    operator = operator_message(mid, sev)
     return {"technician": technician, "supervisor": "\n".join(supervisor_lines), "management": management,
             "operator": operator, "subject": f"[FleetPulse] {sev} {mid} {incident['incident_id']}"}
 

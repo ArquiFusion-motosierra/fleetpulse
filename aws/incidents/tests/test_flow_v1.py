@@ -30,7 +30,7 @@ from incidents_support import (
     seed_tech,
 )
 
-from flow import correlate_zone, explain_cause, reserve_parts, wait_for_approval
+from flow import correlate_zone, explain_cause, render_messages, reserve_parts, wait_for_approval
 from fplib import gcp_auth, geohash
 from lib import technicians, templates
 
@@ -239,7 +239,8 @@ def test_assign_uses_approved_tech_and_approval_flag(ex017, ddb):
     ev = ranked(ex017, ddb)
     assert ev["ranking"]["top"][0]["tech_id"] == "TEC-01"
     out = assign({**ev, "approval": {"approval": "approved", "tech_id": "TEC-02"}}, ddb)
-    assert out == {"tech_id": "TEC-02", "assigned_at": NOW_ISO, "approval": "approved", "tech_busy": False}
+    assert out == {"tech_id": "TEC-02", "assigned_at": NOW_ISO, "approval": "approved", "tech_busy": False,
+                   "severity": "schedule"}
     meta = get_meta(ddb.registry, INC)
     assert meta["tech_id"] == "TEC-02" and meta["approval"] == "approved"
     assert get_tech(ddb.state, "TEC-02")["current_incident"] == INC and get_tech(ddb.state, "TEC-01")["available"]
@@ -253,6 +254,21 @@ def test_assign_after_approval_timeout_takes_the_ranking(ex017, ddb):
     assert out["tech_id"] == "TEC-01" and out["approval"] == "timeout" and out["tech_busy"] is False
     (env,) = outbox_events(ddb.outbox, "incident.assigned")
     assert env["payload"]["approval"] == "timeout"
+
+
+def test_assign_and_render_use_the_severity_escalated_while_waiting(ex017, ddb):
+    """S1: el incidente se clasifica schedule y espera la aprobacion; otra ejecucion lo escala a immediate. Al
+    reanudar, los avisos dicen immediate y el operador recibe la orden de detener la maquina."""
+    _two_hydraulic_techs(ddb)
+    ev = ranked(ex017, ddb)
+    ddb.registry.update_item(Key={"PK": f"INCIDENT#{INC}", "SK": "META"}, UpdateExpression="SET severity = :s",
+                             ExpressionAttributeValues={":s": "immediate"})  # lo que hace CheckExisting
+    ev = {**ev, "approval": {"approval": "approved", "tech_id": "TEC-01"}}
+    ev["assignment"] = assign(ev, ddb)
+    assert ev["assignment"]["severity"] == "immediate" and ev["classified"]["severity"] == "schedule"
+    msgs = render_messages.handler(ev)
+    assert msgs["subject"] == f"[FleetPulse] immediate EX-017 {INC}"
+    assert msgs["operator"] == templates.operator_message("EX-017", "immediate")
 
 
 def test_assign_approved_tech_already_busy_takes_next_free_and_stays_approved(ex017, ddb, caplog):

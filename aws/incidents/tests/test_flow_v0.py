@@ -125,9 +125,11 @@ def test_check_existing_escalates_open_incident(ex017, ddb):
     seed_incident(ddb.registry, old, "2026-11-15T14:05:00Z", severity="schedule", score=Decimal("2.2"))
     ev = classified({**ex017, "score": 3.62})
     out = check_existing.handler(ev, registry=ddb.registry, outbox=ddb.outbox)
-    # from/to/score: los usa el aviso de escalamiento de la maquina de estados (Escalated? -> NotifyEscalation)
+    # from/to/score: los usa el aviso de escalamiento de la maquina de estados (Escalated? -> NotifyEscalation);
+    # operator_message: la instruccion de la nueva severidad para el operador, el mismo texto de RenderMessages
     assert out == {"found": True, "incident_id": old, "escalated": True, "from_severity": "schedule",
-                   "to_severity": "immediate", "score": 3.62}
+                   "to_severity": "immediate", "score": 3.62,
+                   "operator_message": "EX-017: detenga la maquina en un lugar seguro y espere al tecnico."}
     assert get_meta(ddb.registry, old)["severity"] == "immediate"
     (env,) = outbox_events(ddb.outbox, "incident.escalated")
     assert env["incident_id"] == old and env["aggregate_id"] == old
@@ -185,7 +187,8 @@ def test_assign_marks_tech_busy_and_emits_assigned(ex017, ddb):
     seed_tech(ddb.state, "TEC-01", "hydraulics", LAT + 0.4 * KM_LAT, LON)
     ev = ranked(ex017, ddb)
     out = assign_technician.handler(ev, state=ddb.state, registry=ddb.registry, outbox=ddb.outbox)
-    assert out == {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto", "tech_busy": False}
+    assert out == {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto", "tech_busy": False,
+                   "severity": "schedule"}
     tech = ddb.state.get_item(Key={"PK": "TECH#TEC-01", "SK": "META"})["Item"]
     assert tech["available"] is False and tech["current_incident"] == INC
     meta = get_meta(ddb.registry, INC)
@@ -239,7 +242,8 @@ def test_assign_all_busy_keeps_tech_link_and_flags_incident(ex017, ddb):
     ev = ranked(ex017, ddb)
     assert ev["ranking"]["top"][0]["tech_id"] == "TEC-01" and ev["ranking"]["top"][0]["score"] == 0
     out = assign(ev, ddb)
-    assert out == {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto", "tech_busy": True}
+    assert out == {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto", "tech_busy": True,
+                   "severity": "schedule"}
     msgs = render_messages.handler({**ev, "assignment": out})
     assert "ocupado" in msgs["supervisor"] and "ocupado" in msgs["technician"]
     tech = get_tech(ddb.state, "TEC-01")

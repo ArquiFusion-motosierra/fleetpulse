@@ -1,10 +1,14 @@
-# Cada frente aprueba los cambios de su carpeta.
-*                 @btoroled
-/contracts/       @btoroled @AIexander-lx @cruz-eng
-/aws/             @btoroled
-/scripts/         @btoroled
-/.github/         @btoroled
-/oci/             @AIexander-lx
-/simulator/       @AIexander-lx
-/gcp/             @cruz-eng
-/docs/            @cruz-eng
+# Un dueño por carpeta. La ultima regla que coincide gana.
+/aws/                     @btoroled
+/aws/shared/              @btoroled @AIexander-lx @cruz-eng
+/aws/integrations/oci-*   @AIexander-lx
+/aws/integrations/gcp-*   @cruz-eng
+/oci/                     @AIexander-lx
+/simulator/               @AIexander-lx
+/gcp/                     @cruz-eng
+/README.md                @cruz-eng
+/docs/                    @cruz-eng
+/contracts/               @btoroled @AIexander-lx @cruz-eng
+/scripts/                 @btoroled
+/.github/                 @btoroled
+/CLAUDE.md                @btoroled @AIexander-lx @cruz-eng

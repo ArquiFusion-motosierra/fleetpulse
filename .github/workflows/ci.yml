@@ -1,0 +1,101 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Buscar secretos en todo el historial
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.21.2 \
+            git /repo --no-banner --redact --exit-code 1
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install check-jsonschema==0.29.4
+      - name: Cada contrato es un JSON Schema valido
+        run: |
+          shopt -s nullglob
+          files=(contracts/*.schema.json)
+          if [ ${#files[@]} -eq 0 ]; then echo "sin contratos aun"; exit 0; fi
+          check-jsonschema --check-metaschema "${files[@]}"
+      - name: Cada ejemplo cumple su contrato (contracts/examples/<nombre>/*.json)
+        run: |
+          shopt -s nullglob
+          rc=0
+          for dir in contracts/examples/*/; do
+            name=$(basename "$dir")
+            schema="contracts/$name.schema.json"
+            if [ ! -f "$schema" ]; then echo "::error::$dir no tiene $schema"; rc=1; continue; fi
+            ex=("$dir"*.json)
+            [ ${#ex[@]} -eq 0 ] && continue
+            check-jsonschema --schemafile "$schema" "${ex[@]}" || rc=1
+          done
+          exit $rc
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.7.4 pytest==8.3.3
+      - name: Lint
+        run: |
+          shopt -s nullglob globstar
+          files=(aws/**/*.py simulator/**/*.py scripts/**/*.py gcp/insights/**/*.py)
+          if [ ${#files[@]} -eq 0 ]; then echo "sin python aun"; exit 0; fi
+          ruff check "${files[@]}"
+      - name: Tests
+        run: |
+          dirs=$(find aws simulator gcp/insights scripts -type d -name tests 2>/dev/null || true)
+          if [ -z "$dirs" ]; then echo "sin tests aun"; exit 0; fi
+          for d in $dirs; do
+            req="$(dirname "$d")/requirements.txt"; [ -f "$req" ] && pip install -r "$req"
+            dev="$(dirname "$d")/requirements-dev.txt"; [ -f "$dev" ] && pip install -r "$dev"
+          done
+          pytest -q $dirs
+
+  serverless-package:
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('aws/serverless-compose.yml') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - working-directory: aws
+        run: |
+          if [ -f package.json ]; then npm ci; fi
+          npx serverless@3 package --stage ci
+
+  terraform-validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dir: [gcp/terraform, oci/terraform]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+      - name: Validate ${{ matrix.dir }}
+        run: |
+          shopt -s nullglob
+          files=(${{ matrix.dir }}/*.tf)
+          if [ ${#files[@]} -eq 0 ]; then echo "sin terraform aun en ${{ matrix.dir }}"; exit 0; fi
+          terraform -chdir=${{ matrix.dir }} init -backend=false -input=false
+          terraform -chdir=${{ matrix.dir }} validate

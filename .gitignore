@@ -21,3 +21,8 @@ __pycache__/
 # Datos generados por el simulador
 simulator/out/
 *.ndjson
+# Grabaciones del video (fuera del repo por tamano)
+recordings/
+# Llaves JSON de service accounts de GCP
+*-sa.json
+sa-*.json

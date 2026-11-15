@@ -33,7 +33,8 @@ app.state.mock = MockRegistry() if os.environ.get("MOCK") == "1" else None
 app.state.reports = mr.MockReports(app.state.mock) if app.state.mock else None
 app.state.aws = AwsApi()
 # T41: abastecimiento de prueba con MOCK=1, o con SUPPLY_MOCK=1 en modo AWS mientras /supply (T40) no este desplegada
-app.state.supply = MockSupply() if app.state.mock or os.environ.get("SUPPLY_MOCK") == "1" else None
+app.state.supply = (MockSupply(app.state.mock.machine("EX-017")["open_incident_id"]) if app.state.mock
+                    else MockSupply() if os.environ.get("SUPPLY_MOCK") == "1" else None)
 FLEET_PATH = os.path.join(os.path.dirname(__file__), "fleet.json")
 with open(FLEET_PATH, encoding="utf-8") as _f:
     _FLEET = json.load(_f)

@@ -49,7 +49,8 @@ def _require(user: dict, roles: tuple[str, ...]) -> None:
 
 
 class MockSupply:
-    def __init__(self):
+    def __init__(self, incident_id: str = INCIDENT):
+        """`incident_id`: el incidente abierto de EX-017 en el mock de incidentes (MOCK=1), para que el enlace abra."""
         self.zone_tenant = {z["zone_id"]: z["tenant_id"] for z in FLEET["zones"]}
         self.parts = {p["part_id"]: p for p in FLEET["parts"]}
         policy = {p["part_id"]: p for p in SUPPLY["part_policy"]}
@@ -81,7 +82,7 @@ class MockSupply:
         self._add({"kind": "transfer", "id": f"TRF-FUNDO-A-NORTE-PRT-04-{stamp}", "from_zone": "FUNDO-A",
                    "from_tenant": "agro", "zone_id": "NORTE", "tenant_id": "mineria", "part_id": "PRT-04", "qty": 1,
                    "eta_h": transit["hours"], "cost_usd": transit["freight_usd"], "source": "shortage",
-                   "incident_id": INCIDENT, "machine_id": "EX-017", "options": options,
+                   "incident_id": incident_id, "machine_id": "EX-017", "options": options,
                    "reason": "La bomba esta en 0 en los 3 almacenes de mina; agro FUNDO-A tiene 3 y queda sobre su stock de seguridad.",
                    "approver_roles": ["maintenance_head"], "downtime_avoided_h": avoided,
                    "downtime_avoided_usd": avoided * DEMO_DOWNTIME_USD_H}, t0)

@@ -16,6 +16,7 @@ export const api = {
   incidents: (status) => req(`/incidents?limit=100${status ? `&status=${status}` : ""}`).then((b) => b.incidents),
   incident: (id) => req(`/incidents/${id}`),
   stock: () => req("/stock").then((b) => b.stock),
+  oem: (model) => req(`/oem/${model}`),
   kpis: () => req("/kpis"),
   orders: () => req("/orders").then((b) => b.orders),
   reorders: () => req("/reorders").then((b) => b.reorders),
@@ -45,6 +46,13 @@ export const MODE_LABEL = {
   electrical_fault: "Falla eléctrica",
   sensor_fault: "Falla de sensor",
 };
+export const PARAM_LABEL = {
+  coolant_temp_c: "Refrigerante", hydraulic_oil_temp_c: "Aceite hidráulico", hydraulic_pressure_bar: "Presión hidráulica",
+  vibration_mm_s: "Vibración RMS", engine_rpm: "Velocidad del motor", fuel_rate_lph: "Consumo", speed_kmh: "Velocidad",
+  vibration_spectrum: "Espectro de vibración",
+};
+export const FINDING_LABEL = { normal: "Normal", warning: "Advertencia", critical: "Crítico" };
+MODE_LABEL.head_gasket = "Junta de culata";
 export const EVENT_LABEL = {
   "incident.opened": "Incidente abierto",
   "incident.escalated": "Severidad escalada",

@@ -176,3 +176,96 @@ def test_envelope_rejects_malformed_occurred_at(bad):
     env["occurred_at"] = bad
     with pytest.raises(schema.ContractError):
         schema.validate("envelope", env)
+
+
+# --- ids.oem_specs (ficha del fabricante, T26) ---------------------------------------------------------------------
+
+OEM_YAML = """
+illustrative: true
+version: 1
+models:
+  EX:
+    limits:
+      coolant_temp_c: {normal: [65, 96], warning: 102, critical: 108}
+    service_schedule:
+      - {every_h: 500, task: "Filtros", parts: [{part_id: PRT-01, qty: 1}]}
+    typical_failures:
+      - {failure_mode: head_gasket, name: "Junta de culata"}
+"""
+
+
+@pytest.fixture
+def oem_dirs(tmp_path, monkeypatch):
+    """Paquete y contracts/ aislados en tmp: `pkg/data/oem_specs.json` (layer) y `contracts/oem_specs.yaml` (dev)."""
+    pkg, contracts = tmp_path / "pkg", tmp_path / "contracts"
+    (pkg / "data").mkdir(parents=True)
+    contracts.mkdir()
+    monkeypatch.setattr(ids, "HERE", pkg)
+    monkeypatch.setattr(schema, "contracts_dir", lambda: contracts)
+    ids.oem_catalog.cache_clear()
+    yield pkg, contracts
+    ids.oem_catalog.cache_clear()
+
+
+def test_oem_specs_empty_when_the_sheet_does_not_exist(oem_dirs):
+    assert ids.oem_specs("EX") == {} and ids.oem_catalog() == {}
+
+
+def test_oem_specs_reads_the_yaml_in_development(oem_dirs):
+    _, contracts = oem_dirs
+    (contracts / "oem_specs.yaml").write_text(OEM_YAML)
+    ex = ids.oem_specs("EX")
+    assert ex["limits"]["coolant_temp_c"]["normal"] == [65, 96]
+    assert ex["typical_failures"][0]["failure_mode"] == "head_gasket"
+    assert ids.oem_specs("VQ") == {}
+    ex["limits"].clear()  # copia: no ensucia la cache
+    assert ids.oem_specs("EX")["limits"]
+
+
+def test_oem_specs_prefers_the_bundled_json_of_the_layer(oem_dirs):
+    pkg, contracts = oem_dirs
+    (contracts / "oem_specs.yaml").write_text(OEM_YAML)
+    (pkg / "data" / "oem_specs.json").write_text(json.dumps({"models": {"EX": {"limits": {}, "from": "layer"}}}))
+    assert ids.oem_specs("EX") == {"limits": {}, "from": "layer"}
+
+
+def test_oem_specs_without_contracts_dir(monkeypatch, tmp_path):
+    def missing():
+        raise FileNotFoundError("contracts/")
+    monkeypatch.setattr(ids, "HERE", tmp_path)
+    monkeypatch.setattr(schema, "contracts_dir", missing)
+    ids.oem_catalog.cache_clear()
+    try:
+        assert ids.oem_specs("EX") == {}
+    finally:
+        ids.oem_catalog.cache_clear()
+
+
+# --- schema.validate(ref=...) y eventos report.* -------------------------------------------------------------------
+
+def _report_example(name):
+    return json.loads((REPO / "contracts/examples/report" / name).read_text())
+
+
+def test_schema_validate_ref_targets_one_def():
+    schema.validate("report", _report_example("create.json"), ref="create")
+    schema.validate("report", _report_example("close.json"), ref="close")
+    with pytest.raises(schema.ContractError) as e:
+        schema.validate("report", _report_example("close.json"), ref="create")
+    assert str(e.value).startswith("report#create:")
+    with pytest.raises(schema.ContractError) as e:
+        schema.validate("report", {**_report_example("create.json"), "description": ""}, ref="create")
+    assert e.value.path == ["description"]
+    with pytest.raises(KeyError):
+        schema.validate("report", {}, ref="nope")
+
+
+def test_envelope_builds_report_events_against_their_contract():
+    for name, event_type in (("created-event.json", "report.created"), ("closed-event.json", "report.closed")):
+        ex = _report_example(name)
+        env = envelope.build(event_type, "aws.reports-api", "report", ex["aggregate_id"], ex["payload"],
+                             incident_id=ex["incident_id"], machine_id="EX-017")
+        assert env["aggregate_type"] == "report" and env["payload"] == ex["payload"]
+    bad = {k: v for k, v in _report_example("created-event.json")["payload"].items() if k != "urgency"}
+    with pytest.raises(schema.ContractError):
+        envelope.build("report.created", "aws.reports-api", "report", bad["report_id"], bad, machine_id="EX-017")

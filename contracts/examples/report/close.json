@@ -1,0 +1,11 @@
+{
+  "findings": "Refrigerante con aceite y burbujas en el radiador; prueba de presion no sostiene 1,2 bar. Junta de culata con fuga.",
+  "parts_used": [
+    {
+      "part_id": "PRT-11",
+      "zone_id": "NORTE",
+      "qty": 1
+    }
+  ],
+  "confirmed_cause": "Junta de culata danada"
+}

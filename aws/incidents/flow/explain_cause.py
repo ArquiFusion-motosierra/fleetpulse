@@ -2,7 +2,7 @@
 (Gemini), o la plantilla si Cloud Run no responde bien.
 
 Llamada: secreto `INVOKER_SECRET` (`fleetpulse/gcp/sa-invoker` = `{key, audience}`), ID token de la service
-account con lib.gcp_auth (cache 50 min) y `POST <audience>/explain` con timeout `EXPLAIN_TIMEOUT_S`. Cuerpo:
+account con fplib.gcp_auth (cache 50 min) y `POST <audience>/explain` con timeout `EXPLAIN_TIMEOUT_S`. Cuerpo:
 incident_id, machine_id, model, severity, deviated_vars, failure_mode, group_id, context (de CorrelateZone) y
 recent_incidents. Respuesta esperada: hypotheses (texto o `{text}`, la mas probable primero), probable_component,
 suggested_parts, confidence, common_cause, role_messages.
@@ -22,9 +22,9 @@ import os
 import urllib.error
 import urllib.request
 
-from fplib import ids, log
+from fplib import gcp_auth, ids, log
 from fplib import secrets as fp_secrets
-from lib import gcp_auth, templates
+from lib import templates
 
 EXPLAIN_TIMEOUT_S = 8
 REQUIRED = ("hypotheses", "probable_component", "suggested_parts")

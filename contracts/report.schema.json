@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fleetpulse.arquifusion/contracts/report.schema.json",
+  "title": "Abnormality reports",
+  "description": "Reportes de anormalidad del operario (T32): cuerpo de POST /reports ($defs/create), cuerpo de POST /reports/{report_id}/close ($defs/close) y los eventos de dominio report.created / report.closed completos con su sobre (ver envelope.schema.json). Productor: Lambda reports (aws/reports, source aws.reports-api). Consumidores: BigQuery domain_events (via gcp-events); registry no los consume. abnormality_type es un codigo del catalogo fp-registry CATALOG#abnormality_type (lo administra el rol admin); la semilla es $defs/abnormality_type_seed.",
+  "oneOf": [
+    {"$ref": "#/$defs/create"},
+    {"$ref": "#/$defs/close"},
+    {"$ref": "#/$defs/created"},
+    {"$ref": "#/$defs/closed"}
+  ],
+  "$defs": {
+    "report_id": {"type": "string", "pattern": "^RPT-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{6}$", "description": "RPT-<machine_id>-<reported_at UTC como YYYYMMDDTHHMMSS>."},
+    "machine_id": {"type": "string", "pattern": "^(EX|CF|VQ|MN|TO)-[0-9]{3}$"},
+    "model": {"enum": ["EX", "CF", "VQ", "MN", "TO"]},
+    "incident_id": {"type": "string", "pattern": "^INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$"},
+    "zone_id": {"enum": ["NORTE", "CENTRO", "SUR"]},
+    "part_id": {"type": "string", "pattern": "^PRT-[0-9]{2}$"},
+    "abnormality_type": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,39}$", "description": "Codigo del catalogo CATALOG#abnormality_type. POST /reports rechaza codigos que no esten en el catalogo."},
+    "abnormality_type_seed": {
+      "enum": ["high_engine_temp", "high_hydraulic_temp", "abnormal_vibration", "low_hydraulic_pressure", "smoke", "leak", "noise", "warning_light", "power_loss", "other"],
+      "description": "Catalogo inicial: se siembra en fp-registry la primera vez que se lee el catalogo."
+    },
+    "severity_perceived": {"enum": ["low", "medium", "high"], "description": "Severidad que percibe el operario (no es la del score)."},
+    "urgency": {"enum": ["observe", "schedule", "immediate"], "description": "Urgencia de la recomendacion (/recommend-checks o plantilla)."},
+    "parts_used": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["part_id", "zone_id", "qty"],
+        "properties": {
+          "part_id": {"$ref": "#/$defs/part_id"},
+          "zone_id": {"$ref": "#/$defs/zone_id"},
+          "qty": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "create": {
+      "title": "POST /reports",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["machine_id", "abnormality_type", "description", "severity_perceived"],
+      "properties": {
+        "machine_id": {"$ref": "#/$defs/machine_id"},
+        "abnormality_type": {"$ref": "#/$defs/abnormality_type"},
+        "description": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "severity_perceived": {"$ref": "#/$defs/severity_perceived"}
+      }
+    },
+    "close": {
+      "title": "POST /reports/{report_id}/close",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings"],
+      "properties": {
+        "findings": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "parts_used": {"$ref": "#/$defs/parts_used", "description": "Por defecto []. Informativo: el stock se descuenta al cerrar el incidente (incident.closed)."},
+        "confirmed_cause": {"type": "string", "maxLength": 200}
+      }
+    },
+    "event": {
+      "type": "object",
+      "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "machine_id", "payload"],
+      "properties": {
+        "event_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+        "schema_version": {"const": 1},
+        "source": {"const": "aws.reports-api"},
+        "aggregate_type": {"const": "report"},
+        "aggregate_id": {"$ref": "#/$defs/report_id"},
+        "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+        "incident_id": {"$ref": "#/$defs/incident_id", "description": "Incidente vinculado o iniciado, si hay."},
+        "machine_id": {"$ref": "#/$defs/machine_id"},
+        "trace_id": {"type": "string", "maxLength": 64}
+      }
+    },
+    "created": {
+      "title": "report.created",
+      "allOf": [{"$ref": "#/$defs/event"}],
+      "properties": {
+        "event_type": {"const": "report.created"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["report_id", "model", "zone_id", "abnormality_type", "description", "severity_perceived", "reported_by", "reported_at", "urgency", "recommendation_source", "incident_id", "incident_link"],
+          "properties": {
+            "report_id": {"$ref": "#/$defs/report_id"},
+            "model": {"$ref": "#/$defs/model"},
+            "zone_id": {"$ref": "#/$defs/zone_id"},
+            "abnormality_type": {"$ref": "#/$defs/abnormality_type"},
+            "description": {"type": "string", "minLength": 1, "maxLength": 1000},
+            "severity_perceived": {"$ref": "#/$defs/severity_perceived"},
+            "reported_by": {"type": "string", "minLength": 1, "maxLength": 128, "description": "email (o sub) del JWT de Cognito."},
+            "reported_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+            "urgency": {"$ref": "#/$defs/urgency"},
+            "recommendation_source": {"enum": ["gemini", "template"]},
+            "suggested_parts": {"type": "array", "items": {"$ref": "#/$defs/part_id"}},
+            "incident_id": {"oneOf": [{"$ref": "#/$defs/incident_id"}, {"type": "null"}]},
+            "incident_link": {"enum": ["linked", "started", "none"], "description": "linked = incidente abierto de la maquina; started = se inicio incident-flow (source operator_report); none = urgencia observe sin incidente abierto."}
+          }
+        }
+      }
+    },
+    "closed": {
+      "title": "report.closed",
+      "allOf": [{"$ref": "#/$defs/event"}],
+      "properties": {
+        "event_type": {"const": "report.closed"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["report_id", "closed_at", "closed_by", "findings", "parts_used", "incident_id"],
+          "properties": {
+            "report_id": {"$ref": "#/$defs/report_id"},
+            "closed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+            "closed_by": {"type": "string", "minLength": 1, "maxLength": 128, "description": "tech_id del tecnico, o email del supervisor/admin."},
+            "findings": {"type": "string", "minLength": 1, "maxLength": 1000},
+            "parts_used": {"$ref": "#/$defs/parts_used"},
+            "confirmed_cause": {"type": "string", "maxLength": 200},
+            "incident_id": {"oneOf": [{"$ref": "#/$defs/incident_id"}, {"type": "null"}]}
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,6 @@
-# Servicio fp-gcp-exporter: exporta telemetria de S3 fp-raw a BigQuery (T11).
-# Depende del stack fp-core (bucket fp-raw, tabla fp-state) y de la infra GCP (T08).
+# Servicio fp-gcp-exporter: exporta telemetria de S3 fp-raw a BigQuery (T11) y, con `events`, los eventos de dominio
+# de SNS fp-domain-events a BigQuery domain_events (cola gcp-events-q + DLQ, creadas aca). Ambas solo con load jobs.
+# Depende del stack fp-core (bucket fp-raw, tablas fp-state y fp-inbox, topic fp-domain-events) y de la infra GCP (T08).
 service: fp-gcp-exporter
 frameworkVersion: "3"
 
@@ -16,6 +17,7 @@ provider:
 custom:
   suffix: ${opt:suffix, 'g19-2026'}
   gcpProject: ${opt:gcpProject, 'fleetpulse-g19-2026'}
+  domainTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-domain-events
 
 package:
   patterns:
@@ -39,3 +41,74 @@ functions:
       SA_SECRET: fleetpulse/gcp/sa-exporter
     events:
       - schedule: rate(10 minutes)
+  gcpEvents:
+    handler: exp/events.handler
+    description: Eventos de dominio (gcp-events-q) a BigQuery domain_events, un load job por lote (idempotente por event_id)
+    memorySize: 256
+    timeout: 180                       # el load job espera hasta 120 s
+    layers:
+      - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+    environment:
+      INBOX_TABLE: fp-inbox
+      DST_BUCKET: fp-landing-${self:custom.suffix}
+      GCP_PROJECT: ${self:custom.gcpProject}
+      DATASET: fleetpulse
+      SA_SECRET: fleetpulse/gcp/sa-exporter
+    events:
+      - sqs:
+          arn: !GetAtt GcpEventsQueue.Arn
+          batchSize: 100                 # lotes grandes y ventana de 60 s: pocos load jobs (cuota 1500/tabla/dia)
+          maximumBatchingWindow: 60
+          functionResponseType: ReportBatchItemFailures
+
+resources:
+  Resources:
+    GcpEventsDlq:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: gcp-events-dlq
+        MessageRetentionPeriod: 1209600
+    GcpEventsQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: gcp-events-q
+        VisibilityTimeout: 1080         # 6 x timeout de la Lambda (recomendacion de AWS para SQS con ventana)
+        MessageRetentionPeriod: 345600
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt GcpEventsDlq.Arn
+          maxReceiveCount: 5
+    GcpEventsQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues: [!Ref GcpEventsQueue]
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: {Service: sns.amazonaws.com}
+              Action: sqs:SendMessage
+              Resource: !GetAtt GcpEventsQueue.Arn
+              Condition:
+                ArnEquals: {aws:SourceArn: "${self:custom.domainTopicArn}"}
+    GcpEventsSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: ${self:custom.domainTopicArn}
+        Protocol: sqs
+        Endpoint: !GetAtt GcpEventsQueue.Arn
+        RawMessageDelivery: true
+        # sin FilterPolicy: BigQuery recibe todos los eventos de dominio
+    GcpEventsDlqAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: fp-gcp-events-dlq-not-empty
+        Namespace: AWS/SQS
+        MetricName: ApproximateNumberOfMessagesVisible
+        Dimensions: [{Name: QueueName, Value: gcp-events-dlq}]
+        Statistic: Maximum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 0
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+        AlarmActions: ["arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts"]

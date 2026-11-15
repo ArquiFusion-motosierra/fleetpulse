@@ -21,7 +21,7 @@ Caché de 5 minutos en cada Lambda. `scripts/push-secrets.sh` solo maneja las ll
 | Bucket S3 | `fp-raw-<accountId>` (prefijos `telemetry/dt=YYYY-MM-DD/hr=HH/`, `events/dt=YYYY-MM-DD/`, `backfill/`) |
 | SNS | `fp-domain-events` (atributos `event_type`, `tenant_id`), `fp-notify` (atributos `role`: technician, supervisor, management, operator, y `tenant_id`), `fp-alerts` |
 | Cognito | pool `fleetpulse-users`; grupos `tenant-mineria`, `tenant-agro`, `tenant-industria`, `maintenance-head` |
-| SQS | `registry-q` + `registry-dlq` (pila `aws/registry`), `gcp-events-q` + `gcp-events-dlq` |
+| SQS | `registry-q` + `registry-dlq` (pila `aws/registry`), `gcp-events-q` + `gcp-events-dlq` (pila `aws/integrations/gcp-exporter`, Lambda `gcpEvents`, sin filtro, inbox `gcp-events:<event_id>`) |
 | Step Functions | `incident-flow`, `daily-planning` |
 | SSM | `/fleetpulse/tenants`, `/fleetpulse/tenants/<parque>`, `/fleetpulse/sim/scenarios` (escenarios activos), `/fleetpulse/api/url` (HTTP API de ingest), `/fleetpulse/registry/url` (API de lectura) |
 

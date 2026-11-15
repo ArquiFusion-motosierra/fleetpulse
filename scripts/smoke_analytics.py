@@ -25,6 +25,7 @@ import urllib.request
 from statistics import median
 
 BASE = "https://insights-qgbfzxdq2a-ue.a.run.app"
+PROJECT = "fleetpulse-g19-2026"  # GCP_PROJECT_ID de insights; insights-00008 tenia "yes" y todo daba 503
 SUPPLY_SLO_S = 3.0  # backlog#39: /supply/analytics?tenant=mineria en < 3 s
 # contracts/kpi.daily.schema.json (payload.machines[])
 QUADRANTS = {"star", "workhorse", "underused", "inefficient"}
@@ -109,6 +110,8 @@ class Smoke:
         body, dt = self.get("/health")
         if body.get("status") != "ok":
             raise Fail(f"/health -> {body}")
+        if body.get("project") != PROJECT:
+            raise Fail(f"/health project={body.get('project')!r} (esperado {PROJECT!r}: revisar GCP_PROJECT_ID)")
         return f"ok ({body.get('project')}) en {dt:.2f}s (puede incluir arranque en frio)"
 
     def s_supply(self):

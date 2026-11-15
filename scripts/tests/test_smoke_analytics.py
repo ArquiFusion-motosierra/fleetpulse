@@ -69,6 +69,12 @@ def test_all_green_with_every_option():
     assert any("9 /jobs/refresh" in x for x in lines)
 
 
+def test_wrong_project_in_health_fails():
+    # insights-00008 respondia "project": "yes" y todos los endpoints daban 503: el smoke debe marcarlo en health
+    rc, lines = run(fake({"/health": (200, {"status": "ok", "project": "yes"}, 0.1)}))
+    assert rc == 1 and any("[FAIL" in x and "project='yes'" in x for x in lines), lines
+
+
 def test_supply_over_slo_fails():
     rc, lines = run(fake(slow=3.2))
     assert rc == 1 and any("[FAIL" in x and "/supply/analytics?tenant=mineria" in x for x in lines)

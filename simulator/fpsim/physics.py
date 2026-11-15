@@ -19,6 +19,7 @@ ANCHOR = datetime(2026, 10, 1, tzinfo=timezone.utc)
 LIMA = timedelta(hours=-5)
 NOMINAL_ON_H = 14.0  # 12 h de turno pleno + 4 h a media carga
 ZONE_ORDER = ("NORTE", "CENTRO", "SUR")
+PIN_JITTER = 0.0004  # grados (~45 m de lado): muy por debajo de una celda geohash6 (~0,0055 x 0,011 grados)
 RESONANCE_GAIN = 1.6  # el RMS de vibracion sube cuando un armonico de las rpm cruza una frecuencia natural
 
 
@@ -77,8 +78,15 @@ def fuel_cycle(m: Machine, e_h: float) -> tuple[float, int]:
     return round(0.95 - (total % usable) / p["tank_l"], 3), int(total // usable)
 
 
-def position(m: Machine, t: datetime, status: str) -> tuple[float, float, str]:
+def position(m: Machine, t: datetime, status: str, pin: str | None = None) -> tuple[float, float, str]:
+    """`pin` = zona: la maquina queda junto a la estacion de esa zona (S2), en la misma celda geohash6 que las otras
+    fijadas, con un temblor de unos 20 m."""
     slot = slot_of(t)
+    if pin is not None:
+        z = zones()[pin]
+        lat = z["lat"] + (unit_hash(m.machine_id, slot, "jy") - 0.5) * PIN_JITTER
+        lon = z["lon"] + (unit_hash(m.machine_id, slot, "jx") - 0.5) * PIN_JITTER
+        return round(lat, 6), round(lon, 6), pin
     zone = m.zone_id
     lat, lon = m.zone_lat, m.zone_lon
     if m.model == "VQ" and status == "operating":
@@ -91,7 +99,8 @@ def position(m: Machine, t: datetime, status: str) -> tuple[float, float, str]:
     return round(lat, 6), round(lon, 6), zone
 
 
-def reading(m: Machine, t: datetime, effect: Effect | None = None, warp_extra_h: float = 0.0) -> dict:
+def reading(m: Machine, t: datetime, effect: Effect | None = None, warp_extra_h: float = 0.0,
+            pin: str | None = None) -> dict:
     eff = effect or Effect()
     p = MODEL_PARAMS[m.model]
     rng = random.Random(f"{m.machine_id}|{iso(t)}")
@@ -143,7 +152,7 @@ def reading(m: Machine, t: datetime, effect: Effect | None = None, warp_extra_h:
     idle_h = m.hours_total * m.idle_ratio + idle_rate * e_h
     fuel_ratio, _ = fuel_cycle(m, e_h)
     loads = int(op_h * p["cycles_h"])
-    lat, lon, zone = position(m, t, status)
+    lat, lon, zone = position(m, t, status, pin)
 
     return {
         "machine_id": m.machine_id,

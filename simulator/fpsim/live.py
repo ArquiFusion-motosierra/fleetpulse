@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from fpsim.fleet import fleet, zones
 from fpsim.physics import fuel_cycle, elapsed_hours, iso, reading, refill_context, weather_context
-from fpsim.scenarios import S2_LOT, S2_MACHINES, batches_since, live_effect
+from fpsim.scenarios import S2_LOT, S2_MACHINES, batches_since, live_effect, live_pin
 
 READINGS_PER_MACHINE = 10
 SPACING_S = 6
@@ -42,7 +42,8 @@ def build_batch(now: datetime, active: dict[str, datetime], warp: int = 5,
             continue
         for i in range(1, READINGS_PER_MACHINE + 1):
             t = start + timedelta(seconds=SPACING_S * i)
-            readings.append(reading(m, t, live_effect(m.machine_id, active, t), warp_extra_h(t, live_anchor, warp)))
+            readings.append(reading(m, t, live_effect(m.machine_id, active, t), warp_extra_h(t, live_anchor, warp),
+                                    pin=live_pin(m.machine_id, active, t)))
     return {
         "batch_id": batch_id(sent_at),
         "sent_at": iso(sent_at),

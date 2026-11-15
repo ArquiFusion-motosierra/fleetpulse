@@ -81,6 +81,49 @@ def test_s2_context_points_to_lot_l2311():
         ("EX-003", "VQ-011", "VQ-014", "TO-002"), "L-2311")
 
 
+def _geohash6(lat: float, lon: float) -> str:
+    alphabet, rng, bits, even = "0123456789bcdefghjkmnpqrstuvwxyz", {True: [-180.0, 180.0], False: [-90.0, 90.0]}, [], True
+    while len(bits) < 30:
+        lo, hi = rng[even]
+        mid = (lo + hi) / 2
+        value = lon if even else lat
+        bits.append(int(value >= mid))
+        rng[even] = [mid, hi] if value >= mid else [lo, mid]
+        even = not even
+    return "".join(alphabet[int("".join(map(str, bits[i:i + 5])), 2)] for i in range(0, 30, 5))
+
+
+S2 = ("EX-003", "VQ-011", "VQ-014", "TO-002")
+
+
+def test_s2_pins_the_four_machines_to_one_geohash6_cell():
+    """La correlacion en vivo agrupa por celda geohash6: sin S2 las cuatro no comparten celda; con S2 si, en
+    todos los bloques de 15 min (los volquetes dejan de rotar de zona) y en la zona NORTE."""
+    since = NOW - timedelta(minutes=5)
+    act = parse_active({"S2": {"since": iso(since)}})
+    cells, zones_seen = set(), set()
+    for minutes in range(0, 90, 7):
+        batch = live.build_batch(NOW + timedelta(minutes=minutes), act, machine_ids=set(S2) | {"EX-018"})
+        for r in batch["readings"]:
+            if r["machine_id"] in S2:
+                cells.add(_geohash6(r["lat"], r["lon"]))
+                zones_seen.add(r["zone_id"])
+    assert len(cells) == 1 and zones_seen == {"NORTE"}
+    base = live.build_batch(NOW, {}, machine_ids=set(S2))["readings"]
+    assert len({_geohash6(r["lat"], r["lon"]) for r in base}) > 1  # el problema que resuelve
+
+
+def test_s2_pin_only_after_since_and_only_s2_machines():
+    def where(batch):
+        return [(r["lat"], r["lon"], r["zone_id"]) for r in batch["readings"]]
+
+    act = parse_active({"S2": {"since": iso(NOW + timedelta(minutes=30))}})
+    assert where(live.build_batch(NOW, act, machine_ids=set(S2))) == where(live.build_batch(NOW, {}, machine_ids=set(S2)))
+    act = parse_active({"S2": {"since": iso(NOW - timedelta(minutes=5))}})
+    other = {"EX-018", "VQ-022"}
+    assert live.build_batch(NOW, act, machine_ids=other) == live.build_batch(NOW, {}, machine_ids=other)
+
+
 def test_s3_idle_and_s6_usage():
     day = [NOW.replace(hour=0) + timedelta(minutes=15 * i) for i in range(96 * 3)]
 

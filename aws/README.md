@@ -26,10 +26,15 @@ score viejo, cerrar desde la consola los incidentes falsos que haya abierto.
 
 ## Simulador
 ```bash
-cd aws && npx serverless deploy --param="enabled=true"    # enciende
-scripts/drift.py on S1                                      # inyecta deriva
-cd aws && npx serverless deploy --param="enabled=false"   # apaga (costo)
+scripts/simulator.sh on       # habilita la regla de EventBridge del stack fp-simulator-dev (un lote por minuto)
+scripts/drift.py on S1        # inyecta deriva
+scripts/simulator.sh off      # apaga (costo)
+scripts/simulator.sh status   # estado de la regla
 ```
+El deploy siempre deja la regla en `enabled: false` (compose 1.3.0 no acepta `--param`), y cuando CloudFormation
+actualiza la regla la vuelve a deshabilitar. Por eso, durante la grabacion no se pushea nada a `aws/`, `simulator/`
+ni `contracts/` (cada push despliega; `gh workflow disable deploy-aws` congela el deploy), y tras cualquier deploy
+se corre `scripts/simulator.sh status`.
 
 ## Tests
 Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el job python de CI):

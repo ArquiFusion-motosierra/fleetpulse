@@ -16,7 +16,9 @@ Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y re
 3. `scripts/push-secrets.sh`
 4. `bash aws/shared/build.sh && (cd aws && npm ci && npx serverless deploy)`
 5. `scripts/seed-registry.py` (catálogo de `contracts/ids.yaml`)
-6. `scripts/smoke.sh`
+6. `scripts/seed-baselines.py` (líneas base del score con 24 h simuladas; con `scripts/drift.py off all`)
+7. `scripts/smoke.sh`
+8. `scripts/simulator.sh on` (`off` al terminar, `status` para ver). Cada deploy deja el simulador en `enabled: false` y puede apagarlo: durante la grabación no se pushea a `aws/`, `simulator/` ni `contracts/`.
 
 ## Costo mensual estimado
 | Máquinas | 100 | 1.000 | 10.000 |

@@ -1,0 +1,5 @@
+project_id  = "fleetpulse-g19-2026"
+region      = "us-east1"
+name_suffix = "g19-2026"
+# insights_image se pasa tras construir la imagen:
+#   terraform apply -var insights_image=us-east1-docker.pkg.dev/fleetpulse-g19-2026/fleetpulse/insights:latest

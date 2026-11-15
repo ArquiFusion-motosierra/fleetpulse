@@ -373,3 +373,53 @@ def test_any_role_reads_the_catalog_seeded_on_first_use(svc, ddb):
 
 def test_unknown_route_is_404(svc, ddb):
     assert svc.call(api_event("DELETE /reports", ADMIN))["statusCode"] == 404
+
+
+# --- flujo completo (lo mismo que el smoke test en vivo, con moto y dobles) ----------------------------------------
+
+def test_report_lifecycle_end_to_end_with_roles(svc, ex017, monkeypatch):
+    routes = ((CREATE, None, CREATE_BODY), (LIST, None, None), (GET, {"report_id": RPT}, None),
+              (CLOSE, {"report_id": RPT}, CLOSE_BODY), ("GET /abnormality-types", None, None))
+    for route, path, body in routes:  # sin token: 401 en todas las rutas
+        assert svc.call(api_event(route, None, body=body, path=path))["statusCode"] == 401, route
+
+    types = body_of(svc.call(api_event("GET /abnormality-types", OPERATOR)))["abnormality_types"]
+    assert CREATE_BODY["abnormality_type"] in {t["code"] for t in types}
+
+    assert _create(svc, TECH1)["statusCode"] == 403  # un tecnico no reporta
+    svc.http = FakeHttp(TimeoutError("timed out"))  # /recommend-checks (T33) aun no responde
+    resp = _create(svc)
+    assert resp["statusCode"] == 201, resp["body"]
+    rep = body_of(resp)["report"]
+    assert rep["status"] == "open" and rep["recommendation"]["source"] == "template"
+    assert rep["incident_id"] == INC and rep["incident_link"] == "started" and len(svc.sfn.calls) == 1
+
+    out = body_of(svc.call(api_event(GET, OPERATOR, path={"report_id": RPT})))
+    assert out["report"]["telemetry_snapshot"]["means"]["coolant_temp_c"] == 104.0
+    assert svc.call(api_event(GET, OPERATOR2, path={"report_id": RPT}))["statusCode"] == 403
+
+    def mine(claims):
+        resp = svc.call(api_event(LIST, claims, qs={"mine": "1"}))
+        assert resp["statusCode"] == 200, resp["body"]
+        return [(r["report_id"], r["status"]) for r in body_of(resp)["reports"]]
+
+    assert mine(OPERATOR) == [(RPT, "open")] and mine(OPERATOR2) == [] and mine(TECH1) == []
+
+    seed_incident(ex017.registry, tech_id="TEC-01")  # incident-flow asigno a TEC-01
+    assert mine(TECH1) == [(RPT, "in_review")]
+    assert _close(svc, MANAGEMENT)["statusCode"] == 403
+    assert _close(svc, TECH3)["statusCode"] == 403  # asignado a otro tecnico
+
+    monkeypatch.setattr(clock, "now", lambda: NOW + timedelta(minutes=45))
+    resp = _close(svc, TECH1)
+    assert resp["statusCode"] == 200, resp["body"]
+    assert body_of(resp)["incident_event"] is True and body_of(resp)["report"]["closed_by"] == "TEC-01"
+    assert _close(svc, SUPERVISOR)["statusCode"] == 409
+
+    out = body_of(svc.call(api_event(GET, SUPERVISOR, path={"report_id": RPT})))
+    assert out["report"]["status"] == "closed"
+    assert [t["type"] for t in out["timeline"]] == ["report.created", "report.closed"]
+    assert mine(OPERATOR) == [(RPT, "closed")]
+    assert len(outbox_events(ex017.outbox, "report.created")) == 1
+    assert len(outbox_events(ex017.outbox, "report.closed")) == 1
+    assert sorted(i["type"] for i in ev_items(ex017.registry, f"INCIDENT#{INC}")) == ["report.closed"]

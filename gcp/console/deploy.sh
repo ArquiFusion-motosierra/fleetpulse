@@ -5,7 +5,7 @@
 #   gcp/console/deploy.sh
 # MOCK=1 gcp/console/deploy.sh   -> despliega con datos de prueba (respaldo para grabar si AWS no esta).
 #
-# Una vez por proyecto (Fabricio u Owner):
+# Una vez por proyecto (hecho el 15/11: SA fp-console creada; consola en https://console-603826680958.us-east1.run.app):
 #   gcloud iam service-accounts create fp-console
 #   printf '{"api_key":"<valor de fleetpulse/api/console-key>"}' | gcloud secrets create aws-console-api-key --data-file=-
 #   gcloud secrets add-iam-policy-binding aws-console-api-key \

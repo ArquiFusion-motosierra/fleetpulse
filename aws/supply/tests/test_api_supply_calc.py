@@ -34,7 +34,18 @@ def test_fila_de_stock_bajo_y_quiebre():
     assert low["status"] == "low" and low["available"] == 3
     out = calc.stock_row({"PK": "STOCK#PRT-01#NORTE", "on_hand": 2, "reserved": 2, "reorder_point": 4,
                           "in_transit": 5}, part, consumed_30d=60)
-    assert out["status"] == "stockout" and out["days_of_coverage"] == 2.5 and out["rop"] >= 4
+    assert out["status"] == "stockout" and out["days_of_coverage"] == 0.0 and out["rop"] >= 4
+
+
+def test_cobertura_usa_el_disponible_no_lo_en_mano_ni_lo_en_transito():
+    """Alex en T41: PRT-04 en NORTE con 1 en mano, 1 reservada y 1 en transito se veia `0 · 15 d`. Debe ser 0 d."""
+    part = {"part_id": "PRT-04", "unit_cost_usd": 6800}
+    row = calc.stock_row({"PK": "STOCK#PRT-04#NORTE", "on_hand": Decimal(1), "reserved": Decimal(1),
+                          "available": Decimal(0), "in_transit": Decimal(1), "reorder_point": Decimal(1)}, part)
+    assert row["available"] == 0 and row["status"] == "stockout" and row["days_of_coverage"] == 0.0
+    row = calc.stock_row({"PK": "STOCK#PRT-03#NORTE", "on_hand": 6, "reserved": 4, "available": 2,
+                          "reorder_point": 2}, {"part_id": "PRT-03", "unit_cost_usd": 120}, consumed_30d=30)
+    assert row["days_of_coverage"] == 2.0  # 2 libres / 1 por dia (no 6 en mano)
 
 
 def test_doc_minimo_de_supply_flow_completa_las_claves_de_la_consola():

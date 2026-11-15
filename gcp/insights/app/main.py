@@ -92,7 +92,7 @@ def explain(req: ExplainRequest):
     data = req.model_dump()
     try:
         raw = app.state.gemini.explain(data)
-        result = validate_explain(raw)
+        result = validate_explain(raw, data)
         if result is None:
             raise GeminiError("invalid_json")
     except GeminiError as exc:

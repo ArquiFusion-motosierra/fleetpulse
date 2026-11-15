@@ -1,8 +1,13 @@
 """Logica pura de /explain: prompt para Gemini, validacion del JSON y plantilla de respaldo.
 
 Sin red ni credenciales aqui: todo es deterministico para poder testearlo con falsos.
+T28: `report` (informe tecnico con la ficha del fabricante, app/report.py) en la plantilla y en la respuesta de Gemini
+(Gemini solo reescribe sus textos). `common_cause` de un incidente agrupado nombra el lote de combustible compartido
+(`context.fuel_lots`, ej. L-2311 en S2) aunque Gemini no lo haga.
 """
 from __future__ import annotations
+
+from app import report as oem_report
 
 ROLES = ("technician", "supervisor", "management", "operator")
 
@@ -41,14 +46,17 @@ def build_prompt(req: dict) -> str:
     campos = (
         '{"hypotheses": [string], "probable_component": string, "suggested_parts": [string PRT-##], '
         '"confidence": number 0..1, "common_cause": string|null, '
-        '"role_messages": {"technician": string, "supervisor": string, "management": string, "operator": string}}'
+        '"role_messages": {"technician": string, "supervisor": string, "management": string, "operator": string}, '
+        '"report": {"summary": string, "probable_cause": string, "recommended_action": string}}'
     )
     return (
         "Eres un ingeniero de mantenimiento de maquinaria pesada minera. "
         "Analiza el incidente y responde SOLO con un objeto JSON valido con esta forma:\n"
         f"{campos}\n\n"
         "Reglas: hypotheses son 2 a 4 causas probables en espanol; suggested_parts usa IDs PRT-## reales; "
-        "common_cause solo si el incidente esta agrupado (group_id no nulo), si no, null; "
+        "common_cause solo si el incidente esta agrupado (group_id no nulo), si no, null; si el contexto trae "
+        "fuel_lots, common_cause nombra ese lote de combustible; report resume el borrador del informe tecnico "
+        "con la ficha del fabricante (citar limites y resonancia si la hay); "
         "role_messages adapta el mensaje al rol (technician: tecnico; supervisor: jefe de zona; "
         "management: gerencia; operator: operador de la maquina), breve y accionable.\n\n"
         f"incident_id: {req.get('incident_id')}\n"
@@ -60,7 +68,47 @@ def build_prompt(req: dict) -> str:
         f"contexto: {req.get('context')}\n"
         f"incidentes recientes de esta maquina: {req.get('recent_incidents')}\n"
         f"pista de componente/repuestos tipicos para este modo: {cat.get('component')} {cat.get('parts')}\n"
+        f"{oem_report.prompt_excerpt(req)}"
     )
+
+
+def _fuel_lots(req: dict) -> list[str]:
+    ctx = req.get("context") or {}
+    lots = ctx.get("fuel_lots") if isinstance(ctx, dict) else None
+    return [str(lot) for lot in lots if lot] if isinstance(lots, list) else []
+
+
+def common_cause_text(req: dict) -> str | None:
+    """Causa comun deterministica de un incidente agrupado; None si no esta agrupado."""
+    group = req.get("group_id")
+    if not group:
+        return None
+    lots = _fuel_lots(req)
+    if lots:
+        return (f"Lote de combustible {', '.join(lots)} cargado en la zona por las maquinas del grupo {group}: "
+                "combustible contaminado probable. Inmovilizar el lote y revisar filtros e inyectores del grupo.")[:300]
+    return (f"Incidente agrupado ({group}): varias maquinas comparten el patron, "
+            "revisar causa comun (lote de combustible, condiciones de zona).")
+
+
+def common_cause_for(req: dict, gemini_text) -> str | None:
+    """La de Gemini si el incidente esta agrupado y, cuando hay lotes en el contexto, los nombra; si no, la
+    deterministica. Nunca hay causa comun sin grupo."""
+    if not req.get("group_id"):
+        return None
+    text = gemini_text.strip() if isinstance(gemini_text, str) else ""
+    lots = _fuel_lots(req)
+    if text and (not lots or any(lot in text for lot in lots)):
+        return text[:300]
+    return common_cause_text(req)
+
+
+def with_report(result: dict, req: dict, gemini_report=None) -> dict:
+    """Agrega `report` (contrato $defs/report) si la ficha del modelo permite armarlo."""
+    rep = oem_report.build_report(req)
+    if rep is None:
+        return result
+    return {**result, "report": oem_report.merge_texts(rep, gemini_report)}
 
 
 def fallback_response(req: dict) -> dict:
@@ -70,13 +118,8 @@ def fallback_response(req: dict) -> dict:
     machine = req.get("machine_id", "la maquina")
     sev = SEVERITY_LABEL.get(req.get("severity", ""), req.get("severity", "desconocida"))
     dev = _deviated_text(req.get("deviated_vars"))
-    grouped = bool(req.get("group_id"))
-    common = (
-        f"Incidente agrupado ({req.get('group_id')}): varias maquinas comparten el patron, "
-        "revisar causa comun (lote de combustible, condiciones de zona)."
-        if grouped else None
-    )
-    return {
+    common = common_cause_text(req)
+    return with_report({
         "hypotheses": [
             f"Patron compatible con {fm or 'anomalia'} en {cat['component'].lower()}.",
             f"Variables desviadas: {dev}.",
@@ -92,11 +135,12 @@ def fallback_response(req: dict) -> dict:
             "operator": f"Reduce la exigencia de {machine} y reporta. Severidad {sev}.",
         },
         "source": "template",
-    }
+    }, req)
 
 
-def validate_explain(obj: object) -> dict | None:
-    """Valida que el JSON de Gemini tenga la forma esperada. Devuelve el dict normalizado o None."""
+def validate_explain(obj: object, req: dict | None = None) -> dict | None:
+    """Valida que el JSON de Gemini tenga la forma esperada. Devuelve el dict normalizado o None. Con `req`
+    (la peticion) ajusta common_cause y agrega el informe tecnico."""
     if not isinstance(obj, dict):
         return None
     hyps = obj.get("hypotheses")
@@ -114,12 +158,16 @@ def validate_explain(obj: object) -> dict | None:
         confidence = 0.5
     confidence = max(0.0, min(1.0, confidence))
     common = obj.get("common_cause")
-    return {
+    common = common if (common is None or isinstance(common, str)) else str(common)
+    out = {
         "hypotheses": [str(h) for h in hyps],
         "probable_component": str(obj.get("probable_component", "")),
         "suggested_parts": [str(p) for p in (parts or [])],
         "confidence": confidence,
-        "common_cause": common if (common is None or isinstance(common, str)) else str(common),
+        "common_cause": common,
         "role_messages": {r: str(roles[r]) for r in ROLES},
         "source": "gemini",
     }
+    if req is None:
+        return out
+    return with_report({**out, "common_cause": common_cause_for(req, common)}, req, obj.get("report"))

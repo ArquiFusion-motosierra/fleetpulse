@@ -5,14 +5,17 @@ Llamada: secreto `INVOKER_SECRET` (`fleetpulse/gcp/sa-invoker` = `{key, audience
 account con fplib.gcp_auth (cache 50 min) y `POST <audience>/explain` con timeout `EXPLAIN_TIMEOUT_S`. Cuerpo:
 incident_id, machine_id, model, severity, deviated_vars, failure_mode, group_id, context (de CorrelateZone) y
 recent_incidents. Respuesta esperada: hypotheses (texto o `{text}`, la mas probable primero), probable_component,
-suggested_parts, confidence, common_cause, role_messages.
+suggested_parts, confidence, common_cause, role_messages y, desde T28, `report` (informe tecnico con la ficha del
+fabricante).
 Salida: el objeto `explanation` de `incident.assigned` (source `gemini`, summary = hasta tres hipotesis,
 probable_component, suggested_parts solo con repuestos del BOM del modelo y sin repetir, common_cause solo si el
-incidente esta agrupado). `role_messages` no se usa: los textos por rol se arman despues de asignar (nombran al
-tecnico asignado) y el contrato de `explanation` no admite campos extra.
+incidente esta agrupado; si Cloud Run no la da y el contexto trae un lote de combustible, la de la plantilla) y
+`report` solo si cumple `incident.schema.json` $defs/report (si no, se omite). `role_messages` no se usa: los
+textos por rol se arman despues de asignar (nombran al tecnico asignado) y el contrato de `explanation` no admite
+campos extra.
 La IA nunca bloquea la asignacion: cualquier excepcion, estado distinto de 200, JSON invalido o campos faltantes
--> `lib.templates.explanation(...)` (source `template`) y el log `explain_fallback` con el motivo (nunca la llave,
-el token ni el cuerpo). Si la Lambda misma falla, el Catch de la ASL sigue a RankTechnicians sin explicacion.
+-> `lib.templates.explanation(...)` (source `template`, con la causa comun por lote si el incidente esta agrupado)
+y el log `explain_fallback` con el motivo (nunca la llave, el token ni el cuerpo). Si la Lambda misma falla, el Catch de la ASL sigue a RankTechnicians sin explicacion.
 Idempotencia: solo lee; AssignTechnician guarda la explicacion en el META.
 """
 from __future__ import annotations
@@ -22,7 +25,7 @@ import os
 import urllib.error
 import urllib.request
 
-from fplib import gcp_auth, ids, log
+from fplib import gcp_auth, ids, log, schema
 from fplib import secrets as fp_secrets
 from lib import templates
 
@@ -48,6 +51,18 @@ def _text(hypothesis) -> str:
     if isinstance(hypothesis, dict):
         hypothesis = hypothesis.get("text")
     return hypothesis.strip() if isinstance(hypothesis, str) else ""
+
+
+def _report(body: dict, ctx: dict):
+    rep = body.get("report")
+    if rep is None:
+        return None
+    try:
+        schema.validate("incident", rep, ref="report")
+    except (schema.ContractError, TypeError) as exc:
+        log.event("explain_report_invalido", reason=getattr(exc, "message", type(exc).__name__)[:200], **ctx)
+        return None
+    return rep
 
 
 def _map(body, model: str, grouped: bool) -> dict:
@@ -83,10 +98,11 @@ def handler(event, context=None, secrets=None, http=None):
     deviated = inc.get("deviated_vars") or event.get("deviated_vars") or []
     model = event.get("model") or templates.model_of(machine_id)
     group_id = inc.get("group_id")
+    zone_ctx = (event.get("correlation") or {}).get("context") or {}
     request = {
         "incident_id": incident_id, "machine_id": machine_id, "model": model,
         "severity": event["classified"]["severity"], "deviated_vars": deviated, "failure_mode": mode,
-        "group_id": group_id, "context": (event.get("correlation") or {}).get("context") or {},
+        "group_id": group_id, "context": zone_ctx,
         "recent_incidents": [],
     }
     try:
@@ -103,10 +119,15 @@ def handler(event, context=None, secrets=None, http=None):
         except ValueError:
             raise BadResponse("json invalido") from None
         out = _map(body, model, grouped=bool(group_id))
+        if group_id and not out["common_cause"]:
+            out["common_cause"] = templates.common_cause(group_id, zone_ctx.get("fuel_lots"))
+        rep = _report(body, ctx)
+        if rep is not None:
+            out["report"] = rep
     except Exception as exc:  # la IA nunca bloquea la asignacion
         reason = str(exc) if isinstance(exc, BadResponse) else type(exc).__name__
         log.event("explain_fallback", reason=reason, **ctx)
-        return templates.explanation(deviated, mode, machine_id)
+        return templates.explanation(deviated, mode, machine_id, group_id, zone_ctx.get("fuel_lots"))
     log.event("explicacion_gemini", confidence=body.get("confidence"), suggested_parts=out["suggested_parts"],
-              common_cause=bool(out["common_cause"]), **ctx)
+              common_cause=bool(out["common_cause"]), report="report" in out, **ctx)
     return out

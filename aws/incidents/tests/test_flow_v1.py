@@ -201,6 +201,53 @@ def test_explain_falls_back_when_the_token_cannot_be_obtained(ex017, ddb, caplog
     assert line["reason"] and "PRIVATE KEY" not in caplog.text and "NO-ES-UNA-LLAVE" not in caplog.text
 
 
+REPORT = {
+    "summary": "Presion hidraulica bajo el critico del fabricante.",
+    "findings": [{"parameter": "hydraulic_pressure_bar", "value": 240.0, "unit": "bar",
+                  "oem_limit": "normal 280-345 bar; advertencia bajo 270 bar; critico bajo 250 bar",
+                  "status": "critical"}],
+    "probable_cause": "Bomba hidraulica gastada", "failure_mode": "hydraulic_pump", "resonance": None,
+    "recommended_action": "Medir caudal y presion de la bomba", "parts": [{"part_id": "PRT-04", "qty": 1}],
+    "oem_reference": "Ficha EX v1 (ilustrativa): limites de hydraulic_pressure_bar",
+}
+
+
+def test_explain_keeps_a_valid_report_and_it_reaches_incident_assigned(ex017, ddb, invoker):
+    ev = _explain_input(ex017, ddb)
+    out = explain_cause.handler(ev, secrets=invoker.secrets,
+                                http=FakeHttp((200, json.dumps({**GEMINI, "report": REPORT}).encode())))
+    assert out["source"] == "gemini" and out["report"] == REPORT
+    seed_tech(ddb.state, "TEC-01", "hydraulics", LAT + 0.4 * KM_LAT, LON)
+    rk = ranked({**ex017, "correlation": ev["correlation"]}, ddb)
+    assign({**rk, "explanation": out}, ddb)  # valida incident.assigned contra el contrato
+    (env,) = outbox_events(ddb.outbox, "incident.assigned")
+    assert env["payload"]["explanation"]["report"] == REPORT
+
+
+def test_explain_drops_a_report_that_breaks_the_contract(ex017, ddb, invoker, caplog):
+    bad = {**REPORT, "failure_mode": "no_existe"}
+    with caplog.at_level("INFO", logger="fplib"):
+        out = explain_cause.handler(_explain_input(ex017, ddb), secrets=invoker.secrets,
+                                    http=FakeHttp((200, json.dumps({**GEMINI, "report": bad}).encode())))
+    assert out["source"] == "gemini" and "report" not in out
+    assert log_lines(caplog, "explain_report_invalido")
+
+
+def test_explain_grouped_without_common_cause_names_the_fuel_lot(ex017, ddb, invoker):
+    group = f"GRP-{GH}-20261115T14"
+    out = explain_cause.handler(_explain_input(ex017, ddb, group), secrets=invoker.secrets,
+                                http=FakeHttp((200, json.dumps({**GEMINI, "common_cause": None}).encode())))
+    assert out["source"] == "gemini" and "L-2311" in out["common_cause"]
+
+
+def test_explain_fallback_grouped_names_the_fuel_lot(ex017, ddb, invoker):
+    group = f"GRP-{GH}-20261115T14"
+    out = explain_cause.handler(_explain_input(ex017, ddb, group), secrets=invoker.secrets,
+                                http=FakeHttp(TimeoutError("timed out")))
+    assert out["source"] == "template" and "L-2311" in out["common_cause"] and group in out["common_cause"]
+    assert len(out["common_cause"]) <= 300
+
+
 # --- WaitForApproval -----------------------------------------------------------------------------------------------
 
 def test_wait_for_approval_mails_the_approve_link_to_the_supervisor(ex017, ddb, caplog):

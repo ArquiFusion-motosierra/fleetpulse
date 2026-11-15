@@ -36,6 +36,23 @@ actualiza la regla la vuelve a deshabilitar. Por eso, durante la grabacion no se
 ni `contracts/` (cada push despliega; `gh workflow disable deploy-aws` congela el deploy), y tras cualquier deploy
 se corre `scripts/simulator.sh status`.
 
+## Smoke de incident-flow (T14)
+Con el lab arriba, desplegado y `scripts/seed-registry.py` corrido (tecnicos y maquinas en fp-state):
+```bash
+eval "$(scripts/lab-creds.sh)"
+scripts/smoke.sh incidents                          # S1 y S2 (SCENARIO=s1 o s2 para uno)
+.venv/bin/python scripts/smoke_incidents.py s1 --close-stale   # cierra antes incidentes abiertos de EX-017
+.venv/bin/python scripts/smoke_incidents.py s2 --sim           # con el simulador encendido y drift.py on S2
+```
+Por defecto inicia las ejecuciones con la misma entrada que arma `score` (rapido, sin esperar la deriva); `--sim`
+enciende el escenario y espera la ejecucion real. S1: schedule queda en WaitForApproval, otra ejecucion lo escala a
+immediate, el script lee el task token del historial, imprime el enlace del correo del supervisor y lo abre; luego
+comprueba asignacion, repuestos pedidos, `POST /incidents/{id}/close`, tecnico libre e `incident.closed` en EV# y
+fp-outbox. S2: cuatro maquinas en una celda, mismo `group_id`, aprobacion de las dos schedule y cierre. La explicacion
+de Gemini y la reserva de stock de `aws/registry` solo dan WARN. Solo corre con credenciales del Learner Lab
+(rol `voclabs`) o con `FP_ACCOUNT_ID` igual a la cuenta: crea y cierra incidentes reales. Los correos llegan solo a
+quien se suscribio con `scripts/subscribe-notify.sh`.
+
 ## Tests
 Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el job python de CI):
 ```bash

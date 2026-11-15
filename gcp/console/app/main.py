@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -97,6 +98,27 @@ def stock():
 def reorders():
     m = app.state.mock
     return m.list_reorders() if m else upstream(app.state.aws.get, "/reorders")
+
+
+@app.get("/api/orders")
+def orders():
+    m = app.state.mock
+    return m.list_orders() if m else upstream(app.state.aws.get, "/orders")
+
+
+@app.get("/api/kpis")
+def kpis():
+    """KPIs del ultimo dia con datos (daily-planning corre a las 05:00 de Lima por el dia anterior)."""
+    m = app.state.mock
+    if m:
+        return m.kpis()
+    today = datetime.now(timezone.utc) - timedelta(hours=5)
+    for back in range(1, 4):
+        day = (today - timedelta(days=back)).strftime("%Y-%m-%d")
+        data = upstream(app.state.aws.get, f"/kpis/{day}")
+        if data.get("machines"):
+            return data
+    return {"day": None, "machines": []}
 
 
 @app.post("/api/incidents/{incident_id}/close")

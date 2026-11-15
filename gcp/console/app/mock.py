@@ -159,8 +159,49 @@ class MockRegistry:
             rows.append({**s, "available": avail, "below_reorder": avail <= s["reorder_point"]})
         return {"stock": rows}
 
+    # ---- T19: KPIs, ordenes preventivas y pedidos sugeridos ----
+    def kpis(self, day=None):
+        """KPIs del dia anterior con los rasgos del simulador: S3 (CF-042 en ralenti), S6 (VQ-031..035 2 h, MN-003 20 h)."""
+        rng = random.Random(15)
+        day = day or (datetime.now(timezone.utc) - timedelta(hours=5) - timedelta(days=1)).strftime("%Y-%m-%d")
+        base_fuel = {m["model_id"]: m["fuel_lph_base"] for m in self.ids["models"]}
+        rows = []
+        for mid, m in sorted(self.machines.items()):
+            hours = 2.0 if mid in {"VQ-031", "VQ-032", "VQ-033", "VQ-034", "VQ-035"} else                 20.0 if mid == "MN-003" else rng.uniform(9.0, 13.5)
+            idle = 0.45 if mid == "CF-042" else rng.uniform(0.08, 0.2)
+            peers = 21.0 if mid == "CF-042" else 9.0 if mid == "MN-005" else rng.gauss(0, 4.5)
+            fuel = base_fuel[m["model"]] * 0.75 * (1 + peers / 100)
+            rows.append({"machine_id": mid, "operating_h": round(hours * (1 - idle), 2), "idle_ratio": round(idle, 3),
+                         "utilization": round(hours * (1 - idle) / 24, 3), "fuel_lph": round(fuel, 2),
+                         "fuel_vs_peers_pct": round(peers, 1), "cost_per_h": round(fuel * 1.15 + 18, 2)})
+        for r in rows:
+            high_use, costly = r["utilization"] >= 0.35, r["fuel_vs_peers_pct"] > 5
+            r["quadrant"] = ("workhorse" if costly else "star") if high_use else ("inefficient" if costly else "underused")
+        return {"day": day, "machines": rows}
+
+    def list_orders(self):
+        interval = {m["model_id"]: m["service_interval_h"] for m in self.ids["models"]}
+        now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        rows = []
+        for m in self.ids["machines"]:
+            left = interval[m["model_id"]] - m["hours_since_service"]
+            if left <= 40:
+                due = now + timedelta(hours=max(left, 0) * 2)  # ~12 h de operacion por dia
+                rows.append({"order_id": f"ORD-{m['machine_id']}-{due:%Y%m%d}", "machine_id": m["machine_id"],
+                             "kind": "preventive", "status": "suggested", "due_at": _iso(due),
+                             "hours_since_service": m["hours_since_service"],
+                             "service_interval_h": interval[m["model_id"]],
+                             "reason": f"{m['hours_since_service']} h desde el ultimo servicio "
+                                       f"(intervalo {interval[m['model_id']]} h)"})
+        return {"orders": sorted(rows, key=lambda r: r["due_at"])}
+
     def list_reorders(self):
-        return {"reorders": list(self.reorders)}
+        now = _iso(datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0))
+        base = [{"part_id": "PRT-01", "zone_id": "NORTE", "qty": 8, "source": "forecast", "forecast_14d": 9.4,
+                 "created_at": now},
+                {"part_id": "PRT-03", "zone_id": "NORTE", "qty": 4, "source": "forecast", "forecast_14d": 5.1,
+                 "created_at": now}]
+        return {"reorders": list(self.reorders) + base}
 
     def close(self, inc_id, body):
         i = self.incidents.get(inc_id)

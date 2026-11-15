@@ -16,6 +16,9 @@ export const api = {
   incidents: (status) => req(`/incidents?limit=100${status ? `&status=${status}` : ""}`).then((b) => b.incidents),
   incident: (id) => req(`/incidents/${id}`),
   stock: () => req("/stock").then((b) => b.stock),
+  kpis: () => req("/kpis"),
+  orders: () => req("/orders").then((b) => b.orders),
+  reorders: () => req("/reorders").then((b) => b.reorders),
   close: (id, body) => req(`/incidents/${id}/close`, { method: "POST", body: JSON.stringify(body) }),
 };
 

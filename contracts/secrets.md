@@ -46,6 +46,7 @@ Modelo fijado en `docs/superpowers/plans/2026-11-14-aws-core-pipeline.md` ("Data
 | Movimiento | `MOVE#<part_id>#<zone_id>` / `<closed_at>#<incident_id>` | Lambda `registry` |
 | Pedido sugerido | `REORDER#<part_id>#<zone_id>` / `<created_at>` (GSI1 `REORDERS` / `<created_at>#…`) | Lambda `registry` |
 | KPI diario | `KPI#<day>` / `<machine_id>` | Lambda `registry` |
+| Orden de mantenimiento | `ORDER#<machine_id>` / `<due_at>` (GSI1 `ORDERS` / `<due_at>#<machine_id>`) | Lambda `registry` (desde `maintenance.order.suggested`) |
 
 Lambda `registry` (cola `registry-q`, filtrada a `part.reserve.requested`, `incident.closed` y `kpi.daily`):
 - Reserva cada línea con `SET reserved += q, available -= q` y condición `available >= :q` (DynamoDB no admite aritmética en condiciones), probando primero la zona del incidente y luego la más cercana. Si no hay stock, escribe un `REORDER` y emite `part.shortage`.
@@ -63,6 +64,7 @@ Lambda `registry` (cola `registry-q`, filtrada a `part.reserve.requested`, `inci
 | `GET /incidents/{id}` | incidente + `timeline` + `reservations` |
 | `GET /stock` | `{"stock": [{"part_id", "sku", "name", "zone_id", "on_hand", "reserved", "available", "reorder_point", "below_reorder"}]}` |
 | `GET /reorders` | `{"reorders": [...]}` (T19) |
+| `GET /orders` | `{"orders": [...]}` órdenes sugeridas, la más próxima primero (T19) |
 | `GET /kpis/{day}` | `{"day", "machines": [...]}` (T19) |
 
 ## GCP

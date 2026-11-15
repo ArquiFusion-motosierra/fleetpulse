@@ -52,6 +52,17 @@ def test_close_updates_machine_and_stock(mock_client):
     assert mock_client.get("/api/machines/EX-017").json()["severity"] == "ok"
 
 
+def test_planning_endpoints(mock_client):
+    k = mock_client.get("/api/kpis").json()
+    assert len(k["machines"]) == 100 and k["day"]
+    by = {m["machine_id"]: m for m in k["machines"]}
+    assert by["CF-042"]["quadrant"] == "inefficient" and by["CF-042"]["idle_ratio"] == 0.45
+    assert by["VQ-031"]["quadrant"] == "underused" and by["MN-003"]["utilization"] > 0.6
+    orders = mock_client.get("/api/orders").json()["orders"]
+    assert orders and orders == sorted(orders, key=lambda o: o["due_at"])
+    assert mock_client.get("/api/reorders").json()["reorders"]
+
+
 def test_input_validation(mock_client):
     assert mock_client.get("/api/incidents/drop-table").status_code == 400
     assert mock_client.get("/api/machines/XX-1").status_code == 400

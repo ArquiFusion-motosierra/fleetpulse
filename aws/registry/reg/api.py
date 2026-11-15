@@ -1,6 +1,6 @@
 """API de lectura para la consola (HTTP API, payload v2). Header x-api-key = fleetpulse/api/console-key.
 
-GET /machines, /machines/{id}, /incidents, /incidents/{id}, /stock, /reorders, /kpis/{day}
+GET /machines, /machines/{id}, /incidents, /incidents/{id}, /stock, /reorders, /orders, /kpis/{day}
 Claves segun el modelo fijado en docs/superpowers/plans/2026-11-14-aws-core-pipeline.md:
 - fp-state MACHINE#<id>/META (GSI1 ZONE#<zona>/MACHINE#<id>): posicion y status = severidad (lo escriben ingest y score).
 - fp-registry INCIDENT#<id>/META (GSI1 MACHINE#<id>/INC#<opened_at>, GSI2 STATUS#<open|closed>/<opened_at>), EV#, RSV#,
@@ -154,6 +154,12 @@ def list_reorders(client, limit: int = 50) -> list[dict]:
     return [clean(r) for r in rows[:limit]]
 
 
+def list_orders(client, limit: int = 50) -> list[dict]:
+    rows = store.query_all(client, TableName=REGISTRY, IndexName="GSI1",
+                           KeyConditionExpression="GSI1PK = :p", ExpressionAttributeValues=vals(p="ORDERS"))
+    return [clean(r) for r in rows[:limit]]
+
+
 def kpis(client, day: str) -> list[dict]:
     rows = store.query_all(client, TableName=REGISTRY, KeyConditionExpression="PK = :p",
                            ExpressionAttributeValues=vals(p=f"KPI#{day}"))
@@ -185,6 +191,8 @@ def handler(event, context=None, client=None, secrets=None):
             return resp(200, {"stock": list_stock(client)})
         if route == "GET /reorders":
             return resp(200, {"reorders": list_reorders(client)})
+        if route == "GET /orders":
+            return resp(200, {"orders": list_orders(client)})
         if route == "GET /kpis/{day}":
             return resp(200, {"day": params["day"], "machines": kpis(client, params["day"])})
     except ValueError:

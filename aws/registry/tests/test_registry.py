@@ -156,6 +156,16 @@ def test_kpis_stored(ddb):
     assert {r["machine_id"] for r in api.kpis(ddb, "2026-11-14")} == {"CF-042", "MN-003"}
 
 
+def test_maintenance_orders_listed_soonest_first(ddb):
+    order = load("contracts/examples/maintenance.order/preventive.json")
+    later = evt(order, event_id="6b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e", machine_id="EX-017",
+                aggregate_id="ORD-EX-017-20261118", payload={**order["payload"], "due_at": "2026-11-18T13:00:00Z"})
+    assert reg_apply.apply(ddb, later)["status"] == "applied"
+    assert reg_apply.apply(ddb, order)["status"] == "applied"
+    assert reg_apply.apply(ddb, order)["status"] == "duplicate"
+    assert [o["machine_id"] for o in api.list_orders(ddb)] == ["TO-006", "EX-017"]
+
+
 def test_consumer_reports_only_bad_message(ddb):
     good = {"messageId": "ok", "body": json.dumps(RESERVE)}
     bad = {"messageId": "bad", "body": "{not json"}

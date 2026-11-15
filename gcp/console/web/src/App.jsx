@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import MapView from "./MapView.jsx";
+import PlanningView from "./Planning.jsx";
 import { IncidentPanel, IncidentRow, MachinePanel, StockView, Sev } from "./Panels.jsx";
 import { api, SEVERITY, statusOf, MODE_LABEL, fmtTime } from "./api.js";
 
 const REFRESH_MS = 15000;
 
 export default function App() {
-  const [tab, setTab] = useState("map");
+  const TABS = ["map", "incidents", "stock", "planning"];
+  // La pestana vive en la URL (#planning) para poder abrirla directo al grabar
+  const [tab, setTabState] = useState(() => (TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "map"));
+  const setTab = (t) => { setTabState(t); history.replaceState(null, "", `#${t}`); };
   const [machines, setMachines] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [drawer, setDrawer] = useState(null); // {kind: "machine"|"incident", id}
@@ -54,7 +58,7 @@ export default function App() {
           </div>
         </div>
         <nav>
-          {[["map", "Mapa"], ["incidents", "Incidentes"], ["stock", "Stock"]].map(([k, l]) => (
+          {[["map", "Mapa"], ["incidents", "Incidentes"], ["stock", "Stock"], ["planning", "Planificación"]].map(([k, l]) => (
             <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
               {l}{k === "incidents" && open.length > 0 && <em>{open.length}</em>}
             </button>
@@ -117,6 +121,7 @@ export default function App() {
           </section>
         )}
         {tab === "stock" && <StockView />}
+        {tab === "planning" && <PlanningView onMachine={showMachine} />}
 
         {drawer?.kind === "machine" && <MachinePanel id={drawer.id} onClose={() => setDrawer(null)} onOpenIncident={showIncident} />}
         {drawer?.kind === "incident" && <IncidentPanel id={drawer.id} onClose={() => setDrawer(null)} onChanged={refresh} onMachine={showMachine} />}

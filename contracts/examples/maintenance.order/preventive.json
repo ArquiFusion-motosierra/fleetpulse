@@ -1,0 +1,18 @@
+{
+  "event_id": "5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e",
+  "event_type": "maintenance.order.suggested",
+  "schema_version": 1,
+  "source": "aws.daily-planning",
+  "aggregate_type": "machine",
+  "aggregate_id": "ORD-TO-006-20261116",
+  "occurred_at": "2026-11-15T10:05:00Z",
+  "machine_id": "TO-006",
+  "payload": {
+    "kind": "preventive",
+    "due_at": "2026-11-16T13:00:00Z",
+    "reason": "382 h desde el ultimo servicio (intervalo 400 h)",
+    "hours_since_service": 382,
+    "service_interval_h": 400,
+    "parts": [{"part_id": "PRT-01", "qty": 1}, {"part_id": "PRT-11", "qty": 1}]
+  }
+}

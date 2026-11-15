@@ -112,3 +112,35 @@ table.grid td .tag { margin: 4px 0 0; }
   .side { border-left: 0; border-top: 1px solid var(--line); }
   .kpis { margin-left: 0; }
 }
+
+/* Planificacion (T19) */
+.page-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; }
+.page-head h2 { margin: 0; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.tiles div { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.tiles span { display: block; font-size: 12px; color: var(--muted); }
+.tiles b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+.card h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.card-head { display: flex; justify-content: space-between; align-items: center; }
+.toggle { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.two-col .card { margin-bottom: 0; }
+table.grid.compact td, table.grid.compact th { padding: 7px 10px; }
+.chart-wrap { position: relative; max-width: 940px; margin: 0 auto; }
+.scatter { width: 100%; height: auto; display: block; }
+.scatter .grid { stroke: var(--line); stroke-width: 1; }
+.scatter .axis-zero { stroke: #3b4c61; stroke-width: 1; }
+.scatter .split { stroke: #52627a; stroke-width: 1; stroke-dasharray: 4 4; }
+.scatter .tick { fill: var(--muted); font-size: 11px; }
+.scatter .axis-title { fill: var(--muted); font-size: 12px; }
+.scatter .quad { fill: #6b7a8c; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.scatter .dot { stroke: var(--panel); stroke-width: 2; transition: r 0.1s; }
+.scatter .dlabel { fill: var(--text); font-size: 11px; paint-order: stroke; stroke: var(--panel); stroke-width: 3px; }
+.tip { position: absolute; transform: translate(12px, -50%); pointer-events: none; background: #0b0f14; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; min-width: 190px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.tip div { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+.tip div span { color: var(--text); font-variant-numeric: tabular-nums; }
+.legend-row { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; margin-top: 6px; }
+.legend-row span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-row i { width: 10px; height: 10px; border-radius: 50%; }
+@media (max-width: 900px) { .tiles { grid-template-columns: 1fr 1fr; } .two-col { grid-template-columns: 1fr; } }

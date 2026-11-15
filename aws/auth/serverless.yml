@@ -46,6 +46,7 @@ resources:
         ClientName: fleetpulse-console
         UserPoolId: !Ref UserPool
         GenerateSecret: false
+        PreventUserExistenceErrors: ENABLED
         AllowedOAuthFlowsUserPoolClient: true
         AllowedOAuthFlows: [code]
         AllowedOAuthScopes: [openid, email, profile]

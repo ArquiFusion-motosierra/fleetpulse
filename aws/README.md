@@ -35,7 +35,7 @@ Cognito (`aws/auth`, stack `fp-auth`) emite los JWT; el HTTP API `fp-api` los va
 
 Los roles los asigna solo un administrador con el AWS CLI; los usuarios no pueden cambiar su propio rol.
 
-Orden: `auth` se despliega antes que `core` (ya esta en `serverless-compose.yml`). Luego los usuarios de prueba:
+La consola debe enviar el **ID token** (el access token no trae `custom:role`). `auth` debe desplegarse antes que `core`: con los valores por defecto del authorizer (modo offline) `/whoami` responde 401. Orden: `auth` se despliega antes que `core` (ya esta en `serverless-compose.yml`). Luego los usuarios de prueba:
 ```bash
 FP_TEST_PASSWORD='…' scripts/cognito-seed.sh     # operador@, tecnico@, supervisor@, direccion@, admin@example.com
 TOKEN=$(aws cognito-idp initiate-auth --auth-flow USER_PASSWORD_AUTH \

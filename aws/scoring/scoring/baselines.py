@@ -49,6 +49,6 @@ def for_machine(table, machine_id: str, model: str) -> tuple[dict | None, dict |
         if own is not None and meta:
             table.update_item(Key={"PK": pk, "SK": "META"},
                               UpdateExpression="SET baseline = :b, baseline_n = :n",
-                              ExpressionAttributeValues={":b": _decimals(own), ":n": len(rows)})
+                              ExpressionAttributeValues={":b": _decimals(own), ":n": sum(1 for r in rows if r.get("engine_status") != "off")})
     peer = table.get_item(Key={"PK": f"MODEL#{model}", "SK": "BASELINE"}).get("Item") or {}
     return own, _floats(peer.get("baseline"))

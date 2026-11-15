@@ -132,3 +132,58 @@ def test_same_window_starts_one_execution(table):
     assert out["scored"] == 2
     assert out["started"] == ["INC-EX-017-20261114T1000"]
     assert len(sfn.calls) == 2
+
+
+def test_failing_group_does_not_block_others_and_reraises(table):
+    seed_meta(table, "EX-001")
+    seed_meta(table, "EX-017")
+
+    class Boom(FakeSfn):
+        def start_execution(self, **kw):
+            if "EX-001" in kw["name"]:
+                raise RuntimeError("sfn down")
+            return super().start_execution(**kw)
+
+    items = drift_batch("B1", "2026-11-14T10:01:00Z", "EX-001") + drift_batch("B2", "2026-11-14T10:02:00Z")
+    sfn = Boom()
+    with pytest.raises(RuntimeError):
+        handler.handler(event(items), table=table, sfn=sfn)
+    assert table.get_item(Key={"PK": "MACHINE#EX-017", "SK": "S#2026-11-14T10:02:09Z"}).get("Item")
+    assert [c["name"] for c in sfn.calls] == ["INC-EX-017-20261114T1000"]
+
+
+def test_meta_missing_optional_fields_still_starts(table):
+    seed_meta(table)
+    table.update_item(Key={"PK": "MACHINE#EX-017", "SK": "META"}, UpdateExpression="REMOVE serial, hours_total")
+    sfn = FakeSfn()
+    handler.handler(event(drift_batch()), table=table, sfn=sfn)
+    inp = json.loads(sfn.calls[0]["input"])
+    assert inp["serial"] == "" and inp["hours_total"] == 0
+
+
+def test_bootstrap_persists_baseline_from_operating_readings(table):
+    from scoring import baselines
+    seed_meta(table, baseline=False)
+    t0 = clock.parse("2026-11-14T08:00:00Z")
+    from datetime import timedelta
+    rows = []
+    for i in range(60):
+        over = {v: Decimal(str(MU[v] + (i % 3 - 1) * SIGMA[v])) for v in MU}
+        if i < 5:
+            over["engine_status"] = "off"
+        rows.append(reading(clock.iso(t0 + timedelta(minutes=i)), **over))
+    for r in rows:
+        table.put_item(Item=r)
+    sfn = FakeSfn()
+    out = handler.handler(event(rows[-10:]), table=table, sfn=sfn)
+    assert out["scored"] == 1
+    meta = table.get_item(Key={"PK": "MACHINE#EX-017", "SK": "META"})["Item"]
+    assert meta["baseline_n"] == 55
+    assert set(meta["baseline"]) == set(MU)
+    assert all({"mu", "sigma"} <= set(b) for b in meta["baseline"].values())
+    assert table.query(KeyConditionExpression=Key("PK").eq("MACHINE#EX-017") & Key("SK").begins_with("S#"))["Items"]
+    # segunda llamada: lee lo persistido, no recalcula (aunque las lecturas ya no esten)
+    for r in rows:
+        table.delete_item(Key={"PK": r["PK"], "SK": r["SK"]})
+    own, _ = baselines.for_machine(table, "EX-017", "CAT320")
+    assert own["engine_rpm"]["mu"] == pytest.approx(float(meta["baseline"]["engine_rpm"]["mu"]))

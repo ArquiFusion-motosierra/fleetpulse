@@ -10,7 +10,7 @@ def infer(deviated_vars: list[dict]) -> str:
     if "fuel_rate_lph" in up and ("engine_rpm" in z or "coolant_temp_c" in up):
         return "fuel_contamination"
     if len(z) == 1:
-        (only,) = up or {None}
+        only = next(iter(up), None)
         return {"coolant_temp_c": "engine_overheat", "hydraulic_oil_temp_c": "hydraulic_overheat",
                 "vibration_mm_s": "final_drive"}.get(only, "sensor_fault")
     return "sensor_fault"

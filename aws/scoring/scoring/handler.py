@@ -1,5 +1,7 @@
 """Lambda `score`: consume INSERTs `R#` del stream de fp-state, puntua cada (maquina, lote) e inicia `incident-flow`.
 
+Un grupo que falla no impide puntuar los demas; al final se relanza el primer error para que el event source
+mapping reintente/bisecte.
 Idempotencia: reprocesar un lote reescribe el mismo item `S#<ts>` (y `A#<ts>#<maquina>`), y el nombre de la
 ejecucion es el `incident_id` (maquina + ventana de 15 min), asi que un segundo inicio en la misma ventana
 lanza `ExecutionAlreadyExists`, que se ignora. Sin linea base propia no se puntua (arranque en frio).
@@ -118,10 +120,10 @@ def _score_group(table, sfn, machine_id: str, batch_id: str, readings: list[dict
     if res["score"] < score.THRESHOLDS["schedule"]:
         return True, None
     payload = {
-        "incident_id": incident_id, "machine_id": machine_id, "model": meta["model"], "serial": meta["serial"],
-        "zone_id": meta["zone_id"], "lat": lat, "lon": lon, "geohash6": gh, "ts": last_ts, "batch_id": batch_id,
+        "incident_id": incident_id, "machine_id": machine_id, "model": meta["model"], "serial": meta.get("serial", ""),
+        "zone_id": meta.get("zone_id", ""), "lat": lat, "lon": lon, "geohash6": gh, "ts": last_ts, "batch_id": batch_id,
         "score": res["score"], "severity": res["severity"], "z": res["z"], "deviated_vars": res["deviated_vars"],
-        "failure_mode": failure_mode.infer(res["deviated_vars"]), "hours_total": _num(meta["hours_total"]),
+        "failure_mode": failure_mode.infer(res["deviated_vars"]), "hours_total": _num(meta.get("hours_total", 0)),
     }
     try:
         sfn.start_execution(stateMachineArn=os.environ["STATE_MACHINE_ARN"], name=incident_id,
@@ -136,10 +138,17 @@ def _score_group(table, sfn, machine_id: str, batch_id: str, readings: list[dict
 def handler(event, context=None, table=None, sfn=None):
     table = table or _get_table()
     sfn = sfn or _get_sfn()
-    scored, started = 0, []
+    scored, started, failed = 0, [], []
     for (machine_id, batch_id), rows in sorted(_groups(event).items(), key=lambda kv: max(r["ts"] for r in kv[1])):
-        done, incident_id = _score_group(table, sfn, machine_id, batch_id, rows)
+        try:
+            done, incident_id = _score_group(table, sfn, machine_id, batch_id, rows)
+        except Exception as e:  # noqa: BLE001 - aislar el grupo; se relanza al final para que el stream reintente
+            log.error("fallo_grupo", machine_id=machine_id, batch_id=batch_id, error=repr(e))
+            failed.append(e)
+            continue
         scored += done
         if incident_id and incident_id not in started:
             started.append(incident_id)
+    if failed:
+        raise failed[0]
     return {"scored": scored, "started": started}

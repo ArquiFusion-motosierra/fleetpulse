@@ -1,0 +1,230 @@
+# Stack fp-core: tablas, bucket raw, topics, HTTP API fp-api, lambdas ingest y archiver.
+# Otros servicios consumen por nombre: tablas fp-*, bucket fp-raw-<cuenta>, Outputs de este stack.
+service: fp-core
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+  httpApi:
+    name: fp-api
+    cors: false
+
+package:
+  patterns:
+    - "!**"
+    - "api/**"
+    - "consumidores/**"
+    - "lib/**"
+    - "!**/__pycache__/**"
+
+functions:
+  ingest:
+    handler: api/ingest.handler
+    memorySize: 512
+    timeout: 29
+    layers:
+      - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+    environment:
+      STATE_TABLE: fp-state
+      INBOX_TABLE: fp-inbox
+      API_KEY_SECRET: fleetpulse/api/ingest-key
+    events:
+      - httpApi: POST /telemetry
+      - httpApi: POST /context
+  archiver:
+    handler: consumidores/archiver.handler
+    memorySize: 1024
+    timeout: 300
+    layers:
+      - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+    environment:
+      BUCKET: fp-raw-${aws:accountId}
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt StateTable.StreamArn
+          batchSize: 1000
+          batchWindow: 300
+          startingPosition: LATEST
+          bisectBatchOnFunctionError: true
+          maximumRetryAttempts: 3
+          filterPatterns:
+            - dynamodb:
+                NewImage:
+                  SK:
+                    S:
+                      - prefix: "R#"
+
+resources:
+  Resources:
+    StateTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: fp-state
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - {AttributeName: PK, AttributeType: S}
+          - {AttributeName: SK, AttributeType: S}
+          - {AttributeName: GSI1PK, AttributeType: S}
+          - {AttributeName: GSI1SK, AttributeType: S}
+        KeySchema:
+          - {AttributeName: PK, KeyType: HASH}
+          - {AttributeName: SK, KeyType: RANGE}
+        GlobalSecondaryIndexes:
+          - IndexName: GSI1
+            KeySchema:
+              - {AttributeName: GSI1PK, KeyType: HASH}
+              - {AttributeName: GSI1SK, KeyType: RANGE}
+            Projection: {ProjectionType: ALL}
+        PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
+        DeletionProtectionEnabled: true
+        TimeToLiveSpecification: {AttributeName: ttl, Enabled: true}
+        StreamSpecification: {StreamViewType: NEW_IMAGE}
+
+    OutboxTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: fp-outbox
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - {AttributeName: event_id, AttributeType: S}
+        KeySchema:
+          - {AttributeName: event_id, KeyType: HASH}
+        PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
+        DeletionProtectionEnabled: true
+        TimeToLiveSpecification: {AttributeName: ttl, Enabled: true}
+        StreamSpecification: {StreamViewType: NEW_IMAGE}
+
+    InboxTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: fp-inbox
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - {AttributeName: message_id, AttributeType: S}
+        KeySchema:
+          - {AttributeName: message_id, KeyType: HASH}
+        PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
+        DeletionProtectionEnabled: true
+        TimeToLiveSpecification: {AttributeName: ttl, Enabled: true}
+
+    RegistryTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: fp-registry
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - {AttributeName: PK, AttributeType: S}
+          - {AttributeName: SK, AttributeType: S}
+          - {AttributeName: GSI1PK, AttributeType: S}
+          - {AttributeName: GSI1SK, AttributeType: S}
+          - {AttributeName: GSI2PK, AttributeType: S}
+          - {AttributeName: GSI2SK, AttributeType: S}
+        KeySchema:
+          - {AttributeName: PK, KeyType: HASH}
+          - {AttributeName: SK, KeyType: RANGE}
+        GlobalSecondaryIndexes:
+          - IndexName: GSI1
+            KeySchema:
+              - {AttributeName: GSI1PK, KeyType: HASH}
+              - {AttributeName: GSI1SK, KeyType: RANGE}
+            Projection: {ProjectionType: ALL}
+          - IndexName: GSI2
+            KeySchema:
+              - {AttributeName: GSI2PK, KeyType: HASH}
+              - {AttributeName: GSI2SK, KeyType: RANGE}
+            Projection: {ProjectionType: ALL}
+        PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
+        DeletionProtectionEnabled: true
+        TimeToLiveSpecification: {AttributeName: ttl, Enabled: true}
+        StreamSpecification: {StreamViewType: NEW_IMAGE}
+
+    RawBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: fp-raw-${aws:accountId}
+        VersioningConfiguration: {Status: Enabled}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        LifecycleConfiguration:
+          Rules:
+            - Id: telemetry-to-glacier-ir
+              Status: Enabled
+              Prefix: telemetry/
+              Transitions: [{StorageClass: GLACIER_IR, TransitionInDays: 90}]
+            - Id: events-to-glacier-ir
+              Status: Enabled
+              Prefix: events/
+              Transitions: [{StorageClass: GLACIER_IR, TransitionInDays: 90}]
+
+    DomainEventsTopic:
+      Type: AWS::SNS::Topic
+      Properties: {TopicName: fp-domain-events}
+    NotifyTopic:
+      Type: AWS::SNS::Topic
+      Properties: {TopicName: fp-notify}
+    AlertsTopic:
+      Type: AWS::SNS::Topic
+      Properties: {TopicName: fp-alerts}
+
+    ApiUrlParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/api/url
+        Type: String
+        Value: !GetAtt HttpApi.ApiEndpoint
+
+    IngestKeySecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Name: fleetpulse/api/ingest-key
+        GenerateSecretString:
+          SecretStringTemplate: "{}"
+          GenerateStringKey: api_key
+          ExcludePunctuation: true
+          PasswordLength: 40
+    ConsoleKeySecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Name: fleetpulse/api/console-key
+        GenerateSecretString:
+          SecretStringTemplate: "{}"
+          GenerateStringKey: api_key
+          ExcludePunctuation: true
+          PasswordLength: 40
+
+  Outputs:
+    HttpApiId:
+      Value: !Ref HttpApi
+      Export: {Name: "${self:service}-HttpApiId"}
+    HttpApiUrl:
+      Value: !GetAtt HttpApi.ApiEndpoint
+      Export: {Name: "${self:service}-HttpApiUrl"}
+    StateTableStreamArn:
+      Value: !GetAtt StateTable.StreamArn
+      Export: {Name: "${self:service}-StateTableStreamArn"}
+    OutboxTableStreamArn:
+      Value: !GetAtt OutboxTable.StreamArn
+      Export: {Name: "${self:service}-OutboxTableStreamArn"}
+    RegistryTableStreamArn:
+      Value: !GetAtt RegistryTable.StreamArn
+      Export: {Name: "${self:service}-RegistryTableStreamArn"}
+    DomainEventsTopicArn:
+      Value: !Ref DomainEventsTopic
+      Export: {Name: "${self:service}-DomainEventsTopicArn"}
+    NotifyTopicArn:
+      Value: !Ref NotifyTopic
+      Export: {Name: "${self:service}-NotifyTopicArn"}
+    AlertsTopicArn:
+      Value: !Ref AlertsTopic
+      Export: {Name: "${self:service}-AlertsTopicArn"}

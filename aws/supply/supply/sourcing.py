@@ -151,7 +151,7 @@ def trf_doc(option: dict, *, zone_id: str, part_id: str, qty: int, now: datetime
     doc = _base("transfer", doc_id, tenant_id=ids.tenant_of_zone(zone_id), zone_id=zone_id, part_id=part_id,
                 qty=qty, eta_h=option["eta_h"], cost_usd=option["cost_usd"], now=now, **kw)
     return doc | {"trf_id": doc_id, "from_zone": option["from_zone"], "from_tenant": option["from_tenant"],
-                  "to_zone": zone_id, "freight_usd": doc["cost_usd"],
+                  "to_zone": zone_id, "freight_usd": doc["cost_usd"], "transit_h": doc["eta_h"],
                   "GSI1PK": f"TRFFROM#{option['from_tenant']}", "GSI1SK": doc["created_at"]}
 
 

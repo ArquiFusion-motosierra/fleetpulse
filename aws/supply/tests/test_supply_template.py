@@ -60,12 +60,12 @@ def test_waits_store_the_token_and_reject_or_timeout_cancel():
     w = s["WaitForApproval"]
     assert w["Resource"] == "arn:aws:states:::lambda:invoke.waitForTaskToken" and w["TimeoutSeconds"] == 86400
     assert w["Parameters"]["Payload"] == {"id.$": "$.id", "token.$": "$$.Task.Token"}
-    assert w["Catch"][0] == {"ErrorEquals": ["SupplyRejected", "States.Timeout"], "ResultPath": "$.cancel",
+    assert w["Catch"][0] == {"ErrorEquals": ["SupplyRejected", "Rejected", "States.Timeout"], "ResultPath": "$.cancel",
                              "Next": "Cancel"}
     # una espera no reintenta el rechazo (States.ALL / TaskFailed lo atraparian y volverian a pedir aprobacion)
     for name in ("WaitForApproval", "WaitForReceipt", "WaitForReceiptLate"):
         for r in s[name]["Retry"]:
-            assert not {"States.ALL", "States.TaskFailed", "SupplyRejected"} & set(r["ErrorEquals"]), name
+            assert not {"States.ALL", "States.TaskFailed", "SupplyRejected", "Rejected"} & set(r["ErrorEquals"]), name
     assert s["WaitForReceipt"]["TimeoutSecondsPath"] == "$.shipment.receipt_timeout_s"
     assert s["WaitForReceipt"]["Catch"][0]["Next"] == "WaitForReceiptLate"
     assert s["WaitForReceiptLate"]["Parameters"]["Payload"]["late"] is True

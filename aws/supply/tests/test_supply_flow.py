@@ -242,3 +242,21 @@ def test_order_born_approved_skips_the_approval_wait(sf):
     ex = sf.machine.executions["manual"]
     assert ex.visited[:4] == ["Load", "Status?", "Kind?", "PlaceOrder"] and ex.waiting_in == "WaitForReceipt"
     assert meta(sf, PO)["status"] == "ordered"
+
+
+def test_t40_rejection_shape_plain_cause_also_cancels(sf):
+    """T40 manda error `Rejected` y el motivo en texto plano; la API ya quito waiting_for antes de responder."""
+    seed_demo(sf.ddb)
+    sf.shortage()
+    api(sf, TRF, "approval", error="Rejected", cause="agro lo necesita")
+    d = meta(sf, TRF)
+    assert (d["status"], d["cancel_reason"], "cancelled_by" in d) == ("cancelled", "agro lo necesita", False)
+
+
+def test_t40_approval_output_shape(sf):
+    seed_demo(sf.ddb)
+    sf.shortage()
+    api(sf, TRF, "approval", {"decision": "approved", "approved_by": "jefe@fleetpulse.pe", "override": False})
+    assert meta(sf, TRF)["approved_by"] == "jefe@fleetpulse.pe"
+    api(sf, TRF, "receipt", {"decision": "received", "received_by": "admin@mineria.pe"})
+    assert meta(sf, TRF)["received_by"] == "admin@mineria.pe"

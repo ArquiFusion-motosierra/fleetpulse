@@ -328,6 +328,10 @@ def _as_user(request: Request, method: str, path: str, body: dict | None = None,
     try:
         status, data = app.state.aws.as_user(method, path, auth, body, query)
     except UpstreamError as exc:
+        log.warning(json.dumps({"msg": "aws_user_error", "method": method, "path": path, "status": exc.status,
+                                "detail": exc.body[:80]}))
+        if exc.status == 504:  # sin respuesta a tiempo: AWS pudo haber terminado (no reintentar a ciegas un POST)
+            raise HTTPException(504, "AWS_TIMEOUT") from exc
         raise HTTPException(502, "AWS_UNAVAILABLE") from exc
     return JSONResponse(data, status_code=status)
 

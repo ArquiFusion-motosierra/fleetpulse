@@ -210,3 +210,200 @@ models:
         spectrum: "1x y 2x irregulares por combustion desigual"
         fault_codes: [111, 110]
         action: "Revisar nivel y presion del sistema de refrigeracion; prueba de compresion; reemplazar junta."
+
+  # --- Parque agricola (tenant agro) ---
+  TA:
+    name: Tractor agricola
+    rated_rpm: 2000
+    idle_rpm: 800
+    max_rpm: 2300
+    rated_fuel_lph: 14
+    limits:
+      coolant_temp_c: {normal: [65, 100], warning: 105, critical: 110}
+      hydraulic_oil_temp_c: {normal: [30, 82], warning: 88, critical: 95}
+      hydraulic_pressure_bar: {normal: [130, 215], low_warning: 120, low_critical: 105}
+      vibration_mm_s: {normal: [0, 9.0], warning: 11.2, critical: 18.0}
+      fuel_rate_lph: {normal: [0, 18], warning: 20, critical: 23}
+    service_schedule:
+      - {every_h: 250, task: "Filtro de aire y engrase general", parts: [{part_id: PRT-11, qty: 1}]}
+      - {every_h: 500, task: "Filtros de combustible e hidraulico", parts: [{part_id: PRT-01, qty: 1}, {part_id: PRT-02, qty: 1}]}
+      - {every_h: 5000, task: "Inyectores", parts: [{part_id: PRT-19, qty: 1}]}
+      - {every_h: 7000, task: "Eje de toma de fuerza (PTO)", parts: [{part_id: PRT-14, qty: 1}]}
+    vibration:
+      pump_vane_order: 9
+      gear_mesh_order: 21
+      bearing_bpfo_order: 3.48
+      bearing_bpfi_order: 5.52
+      natural_frequencies:
+        - {mode: 1, component: "Enganche de tres puntos", hz: 5.5}
+        - {mode: 2, component: "Cabina", hz: 125}
+        - {mode: 3, component: "Chasis", hz: 165}
+    typical_failures:
+      - failure_mode: engine_overheat
+        name: Sobrecalentamiento de motor (radiador obstruido por polvo y paja)
+        symptoms: [{var: coolant_temp_c, change: up}, {var: fuel_rate_lph, change: up}]
+        spectrum: "Sin cambio espectral"
+        fault_codes: [110]
+        action: "Limpiar el panal del radiador y el filtro de aire; revisar ventilador y termostato."
+      - failure_mode: hydraulic_pump
+        name: Bomba hidraulica de levante gastada
+        symptoms: [{var: hydraulic_pressure_bar, change: down}, {var: hydraulic_oil_temp_c, change: up}]
+        spectrum: "Paso de paletas (9x) en alza"
+        fault_codes: [520193]
+        action: "Medir caudal de la bomba de levante; reemplazar bomba."
+  CS:
+    name: Cosechadora
+    rated_rpm: 2100
+    idle_rpm: 850
+    max_rpm: 2400
+    rated_fuel_lph: 30
+    limits:
+      coolant_temp_c: {normal: [65, 100], warning: 106, critical: 112}
+      hydraulic_oil_temp_c: {normal: [30, 85], warning: 92, critical: 98}
+      hydraulic_pressure_bar: {normal: [140, 240], low_warning: 130, low_critical: 115}
+      vibration_mm_s: {normal: [0, 12.0], warning: 14.0, critical: 20.0}
+      fuel_rate_lph: {normal: [0, 37], warning: 40, critical: 45}
+    service_schedule:
+      - {every_h: 250, task: "Filtro de aire y limpieza del radiador", parts: [{part_id: PRT-11, qty: 1}]}
+      - {every_h: 500, task: "Filtros de combustible e hidraulico", parts: [{part_id: PRT-01, qty: 1}, {part_id: PRT-02, qty: 1}]}
+      - {every_h: 1500, task: "Correa del rotor de trilla", parts: [{part_id: PRT-16, qty: 1}]}
+      - {every_h: 3000, task: "Rodamientos del rotor", parts: [{part_id: PRT-17, qty: 2}]}
+    vibration:
+      pump_vane_order: 9
+      gear_mesh_order: 25
+      bearing_bpfo_order: 3.6
+      bearing_bpfi_order: 5.4
+      natural_frequencies:
+        - {mode: 1, component: "Plataforma de corte", hz: 4.5}
+        - {mode: 2, component: "Rotor de trilla", hz: 130}
+        - {mode: 3, component: "Tolva", hz: 170}
+    typical_failures:
+      - failure_mode: final_drive
+        name: Rodamiento del rotor de trilla
+        symptoms: [{var: vibration_mm_s, change: up}, {var: fuel_rate_lph, change: up}]
+        spectrum: "BPFO (3,6x) del rotor y bandas laterales"
+        fault_codes: []
+        action: "Detener la trilla; revisar holgura del rotor; reemplazar rodamientos y correa."
+      - failure_mode: engine_overheat
+        name: Sobrecalentamiento de motor (radiador tapado por paja)
+        symptoms: [{var: coolant_temp_c, change: up}, {var: hydraulic_oil_temp_c, change: up}]
+        spectrum: "Sin cambio espectral"
+        fault_codes: [110]
+        action: "Limpiar la rejilla rotativa y el radiador; revisar ventilador."
+
+  # --- Parque industrial (tenant industria) ---
+  MC:
+    name: Montacargas
+    rated_rpm: 2200
+    idle_rpm: 800
+    max_rpm: 2600
+    rated_fuel_lph: 4
+    limits:
+      coolant_temp_c: {normal: [65, 98], warning: 104, critical: 110}
+      hydraulic_oil_temp_c: {normal: [30, 75], warning: 82, critical: 90}
+      hydraulic_pressure_bar: {normal: [115, 200], low_warning: 105, low_critical: 95}
+      vibration_mm_s: {normal: [0, 7.1], warning: 9.0, critical: 14.0}
+      fuel_rate_lph: {normal: [0, 6], warning: 7, critical: 8.5}
+    service_schedule:
+      - {every_h: 250, task: "Filtro de aire e inspeccion de cadenas", parts: [{part_id: PRT-11, qty: 1}]}
+      - {every_h: 500, task: "Filtro de combustible", parts: [{part_id: PRT-01, qty: 1}]}
+      - {every_h: 3000, task: "Sellos del cilindro de elevacion", parts: [{part_id: PRT-21, qty: 1}]}
+      - {every_h: 4000, task: "Cadena de mastil", parts: [{part_id: PRT-20, qty: 1}]}
+    vibration:
+      pump_vane_order: 9
+      gear_mesh_order: 17
+      bearing_bpfo_order: 3.3
+      bearing_bpfi_order: 5.7
+      natural_frequencies:
+        - {mode: 1, component: "Mastil", hz: 6.0}
+        - {mode: 2, component: "Contrapeso", hz: 128}
+        - {mode: 3, component: "Chasis", hz: 175}
+    typical_failures:
+      - failure_mode: hydraulic_pump
+        name: Fuga en el cilindro de elevacion
+        symptoms: [{var: hydraulic_pressure_bar, change: down}, {var: hydraulic_oil_temp_c, change: up}]
+        spectrum: "Sin cambio espectral"
+        fault_codes: [520193]
+        action: "Bajar la carga; revisar fugas en el cilindro de elevacion; reemplazar sellos."
+      - failure_mode: final_drive
+        name: Cadena de mastil desgastada
+        symptoms: [{var: vibration_mm_s, change: up}]
+        spectrum: "Golpeteo a baja frecuencia en el mastil"
+        fault_codes: []
+        action: "Medir elongacion de la cadena; reemplazar si supera el 3 %."
+  CP:
+    name: Compresor de tornillo
+    rated_rpm: 1500
+    idle_rpm: 750
+    max_rpm: 1600
+    rated_fuel_lph: 12
+    limits:
+      coolant_temp_c: {normal: [65, 95], warning: 100, critical: 106}
+      hydraulic_oil_temp_c: {normal: [60, 100], warning: 105, critical: 110}
+      hydraulic_pressure_bar: {normal: [85, 140], low_warning: 80, low_critical: 70}
+      vibration_mm_s: {normal: [0, 4.5], warning: 7.1, critical: 11.2}
+      fuel_rate_lph: {normal: [0, 15], warning: 17, critical: 20}
+    service_schedule:
+      - {every_h: 500, task: "Filtro de aire de admision", parts: [{part_id: PRT-11, qty: 1}]}
+      - {every_h: 2000, task: "Cambio de aceite del compresor", parts: [{part_id: PRT-26, qty: 1}]}
+      - {every_h: 4000, task: "Separador aire-aceite", parts: [{part_id: PRT-22, qty: 1}]}
+      - {every_h: 20000, task: "Rodamientos del tornillo", parts: [{part_id: PRT-23, qty: 1}]}
+    vibration:
+      pump_vane_order: 5
+      gear_mesh_order: 11
+      bearing_bpfo_order: 4.1
+      bearing_bpfi_order: 5.9
+      natural_frequencies:
+        - {mode: 1, component: "Base del compresor", hz: 8.0}
+        - {mode: 2, component: "Tuberia de descarga", hz: 140}
+    typical_failures:
+      - failure_mode: final_drive
+        name: Rodamiento del tornillo compresor
+        symptoms: [{var: vibration_mm_s, change: up}, {var: hydraulic_oil_temp_c, change: up}]
+        spectrum: "BPFO (4,1x) del rotor macho"
+        fault_codes: []
+        action: "Analisis de vibraciones y de aceite; programar cambio de rodamientos."
+      - failure_mode: hydraulic_overheat
+        name: Aceite del compresor sobrecalentado
+        symptoms: [{var: hydraulic_oil_temp_c, change: up}, {var: hydraulic_pressure_bar, change: down}]
+        spectrum: "Sin cambio espectral"
+        fault_codes: []
+        action: "Revisar enfriador y nivel de aceite; cambiar aceite y separador."
+  GE:
+    name: Grupo electrogeno
+    rated_rpm: 1800
+    idle_rpm: 900
+    max_rpm: 1850
+    rated_fuel_lph: 28
+    limits:
+      coolant_temp_c: {normal: [65, 95], warning: 100, critical: 106}
+      hydraulic_oil_temp_c: {normal: [30, 75], warning: 85, critical: 95}
+      hydraulic_pressure_bar: {normal: [70, 120], low_warning: 65, low_critical: 55}
+      vibration_mm_s: {normal: [0, 4.5], warning: 7.1, critical: 11.2}
+      fuel_rate_lph: {normal: [0, 34], warning: 37, critical: 42}
+    service_schedule:
+      - {every_h: 250, task: "Filtro de aire", parts: [{part_id: PRT-11, qty: 1}]}
+      - {every_h: 500, task: "Filtro de combustible", parts: [{part_id: PRT-01, qty: 1}]}
+      - {every_h: 6000, task: "Bomba de agua del motor", parts: [{part_id: PRT-25, qty: 1}]}
+      - {every_h: 10000, task: "Regulador de voltaje (AVR)", parts: [{part_id: PRT-24, qty: 1}]}
+    vibration:
+      pump_vane_order: 7
+      gear_mesh_order: 13
+      bearing_bpfo_order: 3.4
+      bearing_bpfi_order: 5.6
+      natural_frequencies:
+        - {mode: 1, component: "Patin de montaje", hz: 7.0}
+        - {mode: 2, component: "Alternador", hz: 150}
+    typical_failures:
+      - failure_mode: engine_overheat
+        name: Bomba de agua del motor
+        symptoms: [{var: coolant_temp_c, change: up}]
+        spectrum: "Sin cambio espectral"
+        fault_codes: [110]
+        action: "Reducir carga; revisar bomba de agua y radiador."
+      - failure_mode: electrical_fault
+        name: Regulador de voltaje (AVR) inestable
+        symptoms: [{var: engine_rpm, change: unstable}, {var: fuel_rate_lph, change: unstable}]
+        spectrum: "1x inestable por variacion de carga"
+        fault_codes: [168]
+        action: "Medir tension y frecuencia de salida; reemplazar AVR."

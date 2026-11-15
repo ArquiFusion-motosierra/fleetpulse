@@ -20,9 +20,9 @@ def mock_client(monkeypatch):
 
 
 def test_fleet_json_in_sync_with_contracts():
-    yaml = pytest.importorskip("yaml")
-    with open(os.path.join(ROOT, "contracts", "ids.yaml"), encoding="utf-8") as f:
-        expected = yaml.safe_load(f)
+    pytest.importorskip("yaml")
+    with open(os.path.join(ROOT, "simulator", "fpsim", "ids.json"), encoding="utf-8") as f:
+        expected = json.load(f)  # union de los parques (simulator/fpsim/sync_ids.py; test_ids_in_sync la compara)
     with open(os.path.join(ROOT, "gcp", "console", "app", "fleet.json"), encoding="utf-8") as f:
         assert json.load(f) == expected, "cp simulator/fpsim/ids.json gcp/console/app/fleet.json"
 

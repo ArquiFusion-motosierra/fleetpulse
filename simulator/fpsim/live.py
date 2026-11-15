@@ -2,13 +2,16 @@
 
 Funcion pura: el handler hace la E/S. batch_id es determinista por minuto, asi que si la Lambda se
 reintenta, ingest recibe el mismo batch_id y lo puede descartar.
+
+Multi-tenancy: un lote por parque y por minuto (`tenant_id` en el lote; ingest rechaza maquinas de otro parque). El
+lote de mineria conserva el batch_id de antes (crc del minuto); el de otro parque mezcla el parque en el crc.
 """
 from __future__ import annotations
 
 import zlib
 from datetime import datetime, timedelta, timezone
 
-from fpsim.fleet import fleet, zones
+from fpsim.fleet import DEFAULT_TENANT, enabled_tenants, fleet, zones
 from fpsim.physics import fuel_cycle, elapsed_hours, iso, reading, refill_context, weather_context
 from fpsim.scenarios import S2_LOT, S2_MACHINES, batches_since, live_effect
 
@@ -20,9 +23,10 @@ def floor_minute(t: datetime) -> datetime:
     return t.astimezone(timezone.utc).replace(second=0, microsecond=0)
 
 
-def batch_id(sent_at: datetime) -> str:
+def batch_id(sent_at: datetime, tenant: str = DEFAULT_TENANT) -> str:
     stamp = sent_at.strftime("%Y%m%dT%H%M%SZ")
-    return f"B-{stamp}-{zlib.crc32(stamp.encode()) & 0xFFFFFFFF:08x}"
+    seed = stamp if tenant == DEFAULT_TENANT else f"{stamp}|{tenant}"
+    return f"B-{stamp}-{zlib.crc32(seed.encode()) & 0xFFFFFFFF:08x}"
 
 
 def warp_extra_h(t: datetime, live_anchor: datetime | None, warp: int) -> float:
@@ -33,23 +37,32 @@ def warp_extra_h(t: datetime, live_anchor: datetime | None, warp: int) -> float:
 
 
 def build_batch(now: datetime, active: dict[str, datetime], warp: int = 5,
-                live_anchor: datetime | None = None, machine_ids: set[str] | None = None) -> dict:
+                live_anchor: datetime | None = None, machine_ids: set[str] | None = None,
+                tenant: str = DEFAULT_TENANT) -> dict:
     sent_at = floor_minute(now)
     start = sent_at - timedelta(seconds=SPACING_S * READINGS_PER_MACHINE)
     readings = []
     for m in fleet():
-        if machine_ids and m.machine_id not in machine_ids:
+        if m.tenant_id != tenant or (machine_ids and m.machine_id not in machine_ids):
             continue
         for i in range(1, READINGS_PER_MACHINE + 1):
             t = start + timedelta(seconds=SPACING_S * i)
             readings.append(reading(m, t, live_effect(m.machine_id, active, t), warp_extra_h(t, live_anchor, warp)))
     return {
-        "batch_id": batch_id(sent_at),
+        "batch_id": batch_id(sent_at, tenant),
         "sent_at": iso(sent_at),
         "source": "simulator.live",
+        "tenant_id": tenant,
         "time_warp": warp,
         "readings": readings,
     }
+
+
+def build_batches(now: datetime, active: dict[str, datetime], warp: int = 5,
+                  live_anchor: datetime | None = None) -> list[dict]:
+    """Un lote por parque simulado (FP_TENANTS); cada lote cabe en el contrato (<= 100 maquinas x 10 lecturas)."""
+    batches = [build_batch(now, active, warp, live_anchor, tenant=t) for t in enabled_tenants()]
+    return [b for b in batches if b["readings"]]
 
 
 def build_context(now: datetime, active: dict[str, datetime], warp: int = 5,

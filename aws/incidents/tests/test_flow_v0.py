@@ -93,11 +93,19 @@ def _seed_incident(reg, incident_id, opened_at, status="open", **attrs):
         "GSI2PK": f"STATUS#{status}", "GSI2SK": opened_at, **attrs})
 
 
-def _seed_tech(state, tech_id, specialty, lat, lon, available=True, zone="NORTE"):
+def _seed_tech(state, tech_id, specialty, lat, lon, available=True, zone="NORTE", **attrs):
     state.put_item(Item={
         "PK": f"TECH#{tech_id}", "SK": "META", "tech_id": tech_id, "name": f"Tecnico {tech_id}",
         "specialty": specialty, "zone_id": zone, "lat": Decimal(str(lat)), "lon": Decimal(str(lon)),
-        "available": available, "GSI1PK": f"ZONE#{zone}", "GSI1SK": f"TECH#{tech_id}"})
+        "available": available, "GSI1PK": f"ZONE#{zone}", "GSI1SK": f"TECH#{tech_id}", **attrs})
+
+
+def _tech(state, tech_id):
+    return state.get_item(Key={"PK": f"TECH#{tech_id}", "SK": "META"})["Item"]
+
+
+def _assign(ev, ddb):
+    return assign_technician.handler(ev, state=ddb.state, registry=ddb.registry, outbox=ddb.outbox)
 
 
 def _classified(ev):
@@ -122,7 +130,7 @@ def test_classify_schedule_needs_approval(ex017):
 def test_create_incident_writes_registry_and_outbox_atomically(ex017, ddb):
     out = create_incident.handler(_classified(ex017), registry=ddb.registry, outbox=ddb.outbox)
     assert out == {"incident_id": INC, "opened_at": NOW_ISO, "recurrence_flag": False, "group_id": None,
-                   "zone_id": "NORTE"}
+                   "zone_id": "NORTE", "deviated_vars": DEVIATED}
     meta = _meta(ddb.registry, INC)
     assert meta["status"] == "open" and meta["severity"] == "schedule" and meta["failure_mode"] == "hydraulic_pump"
     assert meta["score"] == Decimal("2.31") and meta["zone_id"] == "NORTE" and meta["recurrence_flag"] is False
@@ -161,9 +169,12 @@ def test_create_incident_derives_deviated_vars_from_z_when_empty(ex017, ddb, cap
     ev = _classified({**ex017, "deviated_vars": [], "z": z})
     with caplog.at_level("INFO", logger="fplib"):
         out = create_incident.handler(ev, registry=ddb.registry, outbox=ddb.outbox)
-    assert out["incident_id"] == INC
+    derived = [{"var": "hydraulic_pressure_bar", "value": -0.95, "z": -0.95}]
+    assert out["incident_id"] == INC and out["deviated_vars"] == derived
     (env,) = _events(ddb.outbox, "incident.opened")
-    assert env["payload"]["deviated_vars"] == [{"var": "hydraulic_pressure_bar", "value": -0.95, "z": -0.95}]
+    assert env["payload"]["deviated_vars"] == derived
+    msgs = render_messages.handler({**ev, "incident": out, "ranking": {"top": []}})
+    assert "hydraulic_pressure_bar" in msgs["technician"] and "sin variables desviadas" not in msgs["supervisor"]
     (line,) = [json.loads(r.getMessage()) for r in caplog.records if "deviated_vars_derived" in r.getMessage()]
     assert line["incident_id"] == INC and line["machine_id"] == "EX-017" and line["var"] == "hydraulic_pressure_bar"
 
@@ -259,7 +270,7 @@ def test_assign_marks_tech_busy_and_emits_assigned(ex017, ddb):
     _seed_tech(ddb.state, "TEC-01", "hydraulics", LAT + 0.4 * KM_LAT, LON)
     ev = _ranked(ex017, ddb)
     out = assign_technician.handler(ev, state=ddb.state, registry=ddb.registry, outbox=ddb.outbox)
-    assert out == {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto"}
+    assert out == {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto", "tech_busy": False}
     tech = ddb.state.get_item(Key={"PK": "TECH#TEC-01", "SK": "META"})["Item"]
     assert tech["available"] is False and tech["current_incident"] == INC
     meta = _meta(ddb.registry, INC)
@@ -296,8 +307,63 @@ def test_messages_are_distinct_per_role(ex017, ddb):
 
 
 def test_assign_without_incident_fails_loudly(ex017, ddb):
-    ev = {**_classified(ex017), "ranking": {"top": [{"tech_id": "TEC-01", "name": "Rosa Quispe", "distance_km": 0.4,
-                                                     "specialty_match": True, "score": 10.0}]}}
+    ev = {**_classified(ex017), "incident": {"incident_id": INC, "zone_id": "NORTE", "deviated_vars": DEVIATED},
+          "ranking": {"top": [{"tech_id": "TEC-01", "name": "Rosa Quispe", "distance_km": 0.4,
+                               "specialty_match": True, "score": 10.0}]}}
     with pytest.raises(RuntimeError, match=INC):
         assign_technician.handler(ev, state=ddb.state, registry=ddb.registry, outbox=ddb.outbox)
     assert ddb.outbox.scan()["Items"] == []
+
+
+def test_assign_all_busy_keeps_tech_link_and_flags_incident(ex017, ddb):
+    other = "INC-EX-003-20261115T1400"
+    _seed_tech(ddb.state, "TEC-01", "hydraulics", LAT + 0.4 * KM_LAT, LON, available=False, current_incident=other)
+    _seed_tech(ddb.state, "TEC-03", "engine", LAT - 1.0 * KM_LAT, LON, available=False,
+               current_incident="INC-EX-005-20261115T1400")
+    ev = _ranked(ex017, ddb)
+    assert ev["ranking"]["top"][0]["tech_id"] == "TEC-01" and ev["ranking"]["top"][0]["score"] == 0
+    msgs = render_messages.handler(ev)
+    assert "ocupado" in msgs["supervisor"] and "ocupado" in msgs["technician"]
+    out = _assign(ev, ddb)
+    assert out == {"tech_id": "TEC-01", "assigned_at": NOW_ISO, "approval": "auto", "tech_busy": True}
+    tech = _tech(ddb.state, "TEC-01")
+    assert tech["available"] is False and tech["current_incident"] == other  # no se pisa el enlace previo
+    meta = _meta(ddb.registry, INC)
+    assert meta["tech_id"] == "TEC-01" and meta["tech_busy"] is True
+    (env,) = _events(ddb.outbox, "incident.assigned")
+    assert env["payload"]["tech_id"] == "TEC-01"
+    assert _assign(ev, ddb) == out and len(_events(ddb.outbox, "incident.assigned")) == 1  # reintento
+
+
+def test_second_incident_claims_next_available_tech(ex017, ddb):
+    _seed_tech(ddb.state, "TEC-01", "hydraulics", LAT + 0.4 * KM_LAT, LON)
+    _seed_tech(ddb.state, "TEC-02", "hydraulics", LAT + 1.5 * KM_LAT, LON)
+    inc_b = "INC-EX-019-20261115T1430"
+    first = _ranked(ex017, ddb)
+    second = _ranked({**ex017, "machine_id": "EX-019", "incident_id": inc_b}, ddb)
+    assert first["ranking"]["top"][0]["tech_id"] == second["ranking"]["top"][0]["tech_id"] == "TEC-01"
+    assert _assign(first, ddb)["tech_id"] == "TEC-01"
+    out = _assign(second, ddb)  # su ranking ya esta viejo: TEC-01 lo tomo la primera ejecucion
+    assert out["tech_id"] == "TEC-02" and out["tech_busy"] is False
+    assert _tech(ddb.state, "TEC-01")["current_incident"] == INC
+    assert _tech(ddb.state, "TEC-02")["current_incident"] == inc_b and _tech(ddb.state, "TEC-02")["available"] is False
+    assert _meta(ddb.registry, inc_b)["tech_id"] == "TEC-02"
+    (env,) = [e for e in _events(ddb.outbox, "incident.assigned") if e["incident_id"] == inc_b]
+    assert env["payload"]["tech_id"] == "TEC-02" and env["payload"]["distance_km"] == pytest.approx(1.5, abs=0.01)
+
+
+def test_render_uses_approve_url_when_present(ex017, ddb):
+    url = "https://api.example/approvals/tok?tech=TEC-01"
+    msgs = render_messages.handler({**_ranked(ex017, ddb), "approve_url": url})
+    assert url in msgs["supervisor"]
+    assert url not in render_messages.handler(_ranked({**ex017, "incident_id": "INC-EX-017-20261115T1445"},
+                                                      ddb))["supervisor"]
+
+
+def test_assign_with_ids_yaml_fallback_creates_no_tech_item(ex017, ddb):
+    ev = _ranked(ex017, ddb)  # fp-state sin TECH#: ranking desde ids.yaml
+    out = _assign(ev, ddb)
+    assert out["tech_id"] == "TEC-01" and out["tech_busy"] is False
+    assert ddb.state.get_item(Key={"PK": "TECH#TEC-01", "SK": "META"}).get("Item") is None
+    (env,) = _events(ddb.outbox, "incident.assigned")
+    assert env["payload"]["tech_id"] == "TEC-01"

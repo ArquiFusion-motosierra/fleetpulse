@@ -52,7 +52,8 @@ def explanation(deviated_vars: list[dict], failure_mode: str, machine_id: str) -
 
 def messages(incident: dict, explanation: dict, ranking_top: dict | None, approve_url: str | None) -> dict:
     """`incident`: incident_id, machine_id, severity, score, failure_mode, zone_id, lat, lon, deviated_vars,
-    group_id, recurrence_flag. Devuelve los cuatro textos y el asunto comun."""
+    group_id, recurrence_flag, tech_busy (el tecnico propuesto esta ocupado con otro incidente). Devuelve los cuatro
+    textos y el asunto comun."""
     mid, sev, mode = incident["machine_id"], incident["severity"], incident["failure_mode"]
     names = _part_names()
     parts = ", ".join(f"{p} {names.get(p, '')}".strip() for p in explanation.get("suggested_parts") or []) or "ninguno"
@@ -61,18 +62,22 @@ def messages(incident: dict, explanation: dict, ranking_top: dict | None, approv
     tech = (f"{ranking_top['tech_id']} {ranking_top['name']} ({ranking_top['distance_km']:.1f} km)"
             if ranking_top else "sin tecnico disponible")
     group = incident.get("group_id")
+    busy = ("Aviso: el tecnico propuesto esta ocupado con otro incidente y no hay otro libre; "
+            "coordinar la prioridad con el supervisor.") if incident.get("tech_busy") and ranking_top else None
     technician = (
         f"Incidente {incident['incident_id']}: {mid}, severidad {sev}, puntaje {incident['score']:.2f}.\n"
         f"Falla probable: {mode} ({explanation.get('probable_component', mode)}).\n"
         f"Variables desviadas:\n{variables}\n"
         f"Ubicacion: {where}.\n"
         f"Repuestos sugeridos: {parts}."
+        + (f"\n{busy}" if busy else "")
     )
     supervisor_lines = [
         f"{mid} ({incident['zone_id']}) requiere atencion: severidad {sev}, puntaje {incident['score']:.2f}, "
         f"falla probable {mode}.",
         f"Diagnostico: {explanation['summary']}",
-        f"Tecnico propuesto: {tech}.",
+        f"Tecnico propuesto: {tech}" + (" (ocupado con otro incidente: no hay tecnicos libres, reasignar o "
+                                         "priorizar)." if busy else "."),
     ]
     if incident.get("recurrence_flag"):
         supervisor_lines.append("Recurrente: misma falla cerrada en los ultimos 7 dias.")

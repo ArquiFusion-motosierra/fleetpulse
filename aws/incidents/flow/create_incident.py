@@ -8,7 +8,8 @@ la zona cuyo centroide queda mas cerca.
 `deviated_vars` puede llegar vacio (score >= 2.0 con todas las |z| < 1.0), pero `incident.opened` exige al menos
 una. Entonces se deriva una sola entrada del mapa `z` de la entrada: la variable con mayor |z| dominante (la de
 mayor modulo entre self y peer, igual que en aws/scoring). La entrada no trae medias, asi que `value` lleva la misma
-z dominante como marcador y se registra `deviated_vars_derived`. Sin `z` utilizable se registra y se lanza
+z dominante como marcador y se registra `deviated_vars_derived`. La lista final va en el META y en
+`$.incident.deviated_vars`, que es la que usan RenderMessages y AssignTechnician. Sin `z` utilizable se registra y se lanza
 ValueError, para que la alerta de fp-alerts diga por que.
 """
 from __future__ import annotations
@@ -20,7 +21,7 @@ from lib import registry as fp_registry
 from lib.technicians import haversine_km
 
 RECURRENCE_WINDOW = timedelta(days=7)
-RESULT_KEYS = ("incident_id", "opened_at", "recurrence_flag", "group_id", "zone_id")
+RESULT_KEYS = ("incident_id", "opened_at", "recurrence_flag", "group_id", "zone_id", "deviated_vars")
 
 
 def _zone(zone_id: str | None, machine_id: str, lat: float, lon: float) -> str:
@@ -78,7 +79,7 @@ def handler(event, context=None, registry=None, outbox=None):
         **fp_registry.meta_key(incident_id), "incident_id": incident_id, "machine_id": machine_id,
         "model": event.get("model"), "zone_id": zone, "lat": lat, "lon": lon, "status": "open",
         "severity": severity, "score": payload["score"], "failure_mode": mode, "opened_at": opened_at,
-        "group_id": group_id, "recurrence_flag": recurrence,
+        "group_id": group_id, "recurrence_flag": recurrence, "deviated_vars": deviated,
         "GSI1PK": f"MACHINE#{machine_id}", "GSI1SK": f"INC#{opened_at}", "GSI2PK": "STATUS#open", "GSI2SK": opened_at,
     }
     try:

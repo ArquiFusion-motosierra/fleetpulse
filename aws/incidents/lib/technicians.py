@@ -1,14 +1,13 @@
-"""Tecnicos en fp-state (`TECH#<id>` / `META`): candidatos, ranking (puro, sin I/O) y marcado como ocupado.
+"""Tecnicos en fp-state (`TECH#<id>` / `META`): candidatos, ranking (puro, sin I/O) y reserva condicional.
 
 score = peso_severidad x 1/max(km, 0.5) x (2 si la especialidad coincide con el modo de falla) x (1 si disponible).
-Idempotencia: el ranking es determinista y `mark_busy` escribe siempre los mismos valores para un incidente.
+Idempotencia: el ranking es determinista y `claim` acepta al tecnico ya tomado por el mismo incidente.
 """
 from __future__ import annotations
 
 import math
 
 from boto3.dynamodb.conditions import Key
-from botocore.exceptions import ClientError
 
 from fplib import ids
 
@@ -74,15 +73,26 @@ def rank(cands: list[dict], lat: float, lon: float, severity: str, failure_mode:
     return sorted(ranked, key=lambda r: (-r["score"], not r["specialty_match"], r["distance_km"], r["tech_id"]))
 
 
-def mark_busy(state_table, tech_id: str, incident_id: str) -> bool:
-    """`available=false, current_incident`. False si el tecnico no tiene item (respaldo de ids.yaml): no lo crea."""
-    try:
-        state_table.update_item(
-            Key={"PK": f"TECH#{tech_id}", "SK": "META"}, ConditionExpression="attribute_exists(PK)",
-            UpdateExpression="SET available = :f, current_incident = :i",
-            ExpressionAttributeValues={":f": False, ":i": incident_id})
-    except ClientError as exc:
-        if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            return False
-        raise
-    return True
+def get(state_table, tech_id: str) -> dict | None:
+    """Item `TECH#<id>` / `META` con lectura consistente, o None (tecnico de ids.yaml sin item)."""
+    return state_table.get_item(Key={"PK": f"TECH#{tech_id}", "SK": "META"}, ConsistentRead=True).get("Item")
+
+
+def is_free(item: dict, incident_id: str) -> bool:
+    """Disponible, o ya tomado por este mismo incidente (reintento)."""
+    return item.get("available", True) is not False or item.get("current_incident") == incident_id
+
+
+def claim(state_tbl_name: str, tech_id: str, incident_id: str) -> dict:
+    """`Update` de TransactWriteItems (tipos nativos) que marca al tecnico ocupado con este incidente.
+
+    La condicion repite `is_free` en el servidor: si otra ejecucion lo tomo despues del ranking, la transaccion se
+    cancela y no se pisa su `current_incident`.
+    """
+    return {"Update": {
+        "TableName": state_tbl_name, "Key": {"PK": f"TECH#{tech_id}", "SK": "META"},
+        "UpdateExpression": "SET available = :f, current_incident = :i",
+        "ConditionExpression": "attribute_exists(PK) AND (attribute_not_exists(available) OR available = :t "
+                               "OR current_incident = :i)",
+        "ExpressionAttributeValues": {":f": False, ":t": True, ":i": incident_id},
+    }}

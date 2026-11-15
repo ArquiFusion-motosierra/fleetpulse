@@ -26,7 +26,12 @@ _tables: dict = {}
 
 
 class ConditionFailed(Exception):
-    """La condicion sobre el META del incidente no se cumplio; la operacion no escribio nada."""
+    """Una condicion de la transaccion no se cumplio y no se escribio nada. `index`: posicion del item que fallo
+    (0 = el META del incidente)."""
+
+    def __init__(self, index: int = 0):
+        super().__init__(f"condicion fallida en el item {index} de la transaccion")
+        self.index = index
 
 
 def table_from_env(env_var: str):
@@ -118,11 +123,12 @@ def _transact(client, items: list[dict]) -> None:
     try:
         client.transact_write_items(TransactItems=items)
     except ClientError as exc:
-        reasons = exc.response.get("CancellationReasons") or []
-        if exc.response["Error"]["Code"] == "TransactionCanceledException" and reasons \
-                and reasons[0].get("Code") == "ConditionalCheckFailed":
-            raise ConditionFailed() from exc
-        raise
+        if exc.response["Error"]["Code"] != "TransactionCanceledException":
+            raise
+        reasons = [r.get("Code") for r in exc.response.get("CancellationReasons") or []]
+        if "ConditionalCheckFailed" not in reasons:
+            raise
+        raise ConditionFailed(reasons.index("ConditionalCheckFailed")) from exc
 
 
 def put_incident_tx(registry_tbl_name: str, outbox_tbl_name: str, incident_item: dict, envelope: dict,
@@ -140,11 +146,12 @@ def put_incident_tx(registry_tbl_name: str, outbox_tbl_name: str, incident_item:
 
 
 def update_incident(table, incident_id: str, *, envelope: dict, outbox_tbl_name: str, expect: dict | None = None,
-                    **attrs) -> None:
+                    extra_items: list[dict] | None = None, **attrs) -> None:
     """SET `attrs` en el META existente + EV# + evento `envelope` en el outbox, en una sola transaccion.
 
-    `expect` = {atributo: valor esperado}; `None` exige que el atributo no exista. `ConditionFailed` si el META no
-    existe o no cumple `expect`.
+    `expect` = {atributo: valor esperado}; `None` exige que el atributo no exista. `extra_items`: elementos de
+    TransactWriteItems que van en la misma transaccion, desde la posicion 3. `ConditionFailed(index)` dice cual
+    fallo: 0 si el META no existe o no cumple `expect`.
     """
     names, values, sets, conds = {}, {}, [], ["attribute_exists(PK)"]
     for i, (k, v) in enumerate(attrs.items()):
@@ -163,4 +170,5 @@ def update_incident(table, incident_id: str, *, envelope: dict, outbox_tbl_name:
                     "ExpressionAttributeNames": names, "ExpressionAttributeValues": to_ddb(values)}},
         {"Put": {"TableName": table.name, "Item": event_item(envelope)}},
         _outbox_put(envelope, outbox_tbl_name),
+        *(extra_items or []),
     ])

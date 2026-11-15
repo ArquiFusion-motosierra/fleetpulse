@@ -34,6 +34,6 @@ def build(
             env[key] = val
     schema.validate("envelope", env)
     family = event_type.split(".", 1)[0]
-    if family in ("incident", "part"):
+    if family in ("incident", "part", "report"):
         schema.validate(family, env)
     return env

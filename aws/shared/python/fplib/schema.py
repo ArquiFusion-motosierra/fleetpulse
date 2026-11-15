@@ -27,14 +27,21 @@ def contracts_dir() -> Path:
 
 
 @lru_cache(maxsize=None)
-def _validator(contract: str):
+def _validator(contract: str, ref: str | None = None):
     import jsonschema
     schema = json.loads((contracts_dir() / f"{contract}.schema.json").read_text())
+    if ref is not None:
+        if ref not in schema.get("$defs", {}):
+            raise KeyError(f"{contract}: no existe $defs/{ref}")
+        # misma $id y $defs: los $ref internos ("#/$defs/...") siguen resolviendo igual
+        schema = {k: schema[k] for k in ("$schema", "$id", "$defs") if k in schema} | {"$ref": f"#/$defs/{ref}"}
     return jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker())
 
 
-def validate(contract: str, obj: dict) -> None:
+def validate(contract: str, obj: dict, ref: str | None = None) -> None:
+    """Valida `obj` contra el contrato completo o, con `ref`, contra `$defs/<ref>` (ej. `report`, `create`)."""
     from jsonschema.exceptions import best_match
-    err = best_match(_validator(contract).iter_errors(obj))
+    err = best_match(_validator(contract, ref).iter_errors(obj))
     if err is not None:
-        raise ContractError(f"{contract}: {err.message}", list(err.absolute_path))
+        where = f"{contract}#{ref}" if ref else contract
+        raise ContractError(f"{where}: {err.message}", list(err.absolute_path))

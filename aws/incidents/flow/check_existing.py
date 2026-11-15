@@ -4,12 +4,14 @@ Si hay uno abierto y la nueva severidad es mayor, escribe `incident.escalated` (
 severidad del META en una sola transaccion condicionada a la severidad leida.
 Idempotencia: al reintentar, la severidad ya subio (o cambio en paralelo) y no se emite un segundo evento.
 Si escalo, devuelve tambien `from_severity`, `to_severity` y `score`: con ellos la maquina de estados arma el aviso
-a supervisor y direccion (`Escalated?` -> `NotifyEscalation`).
+a supervisor y direccion (`Escalated?` -> `NotifyEscalation`), y `operator_message`, la instruccion de la nueva
+severidad para el operador (en immediate, detener la maquina; RenderMessages ya pudo haberle dicho que siga).
 """
 from __future__ import annotations
 
 from fplib import envelope, log
 from lib import registry as fp_registry
+from lib import templates
 
 RANK = {"observe": 1, "schedule": 2, "immediate": 3}
 
@@ -40,4 +42,4 @@ def handler(event, context=None, registry=None, outbox=None):
         return {"found": True, "incident_id": open_id, "escalated": False}
     log.event("incidente_escalado", from_severity=old, to_severity=new, event_id=env["event_id"], **ctx)
     return {"found": True, "incident_id": open_id, "escalated": True, "from_severity": old, "to_severity": new,
-            "score": round(score, 2)}
+            "score": round(score, 2), "operator_message": templates.operator_message(machine_id, new)}

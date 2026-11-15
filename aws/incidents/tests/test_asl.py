@@ -169,7 +169,10 @@ def test_notify_by_role_has_four_branches():
     (mgmt,) = [b for b in par["Branches"] if b["States"][b["StartAt"]]["Type"] == "Choice"]
     choice = mgmt["States"][mgmt["StartAt"]]
     rules = json.dumps(choice["Choices"])
-    assert "$.classified.severity" in rules and '"immediate"' in rules and "$.incident.group_id" in rules
+    # severidad vigente (AssignTechnician la relee del META): un incidente escalado mientras esperaba la aprobacion
+    # avisa a direccion aunque se haya clasificado schedule
+    assert "$.assignment.severity" in rules and '"immediate"' in rules and "$.incident.group_id" in rules
+    assert "$.classified.severity" not in rules
     assert mgmt["States"][choice["Default"]]["Type"] == "Pass"
 
 
@@ -227,21 +230,22 @@ def _render(expr: str, state: dict) -> str:
     return template
 
 
-def test_escalation_notifies_supervisor_and_management():
+def test_escalation_notifies_supervisor_management_and_operator():
     par = ASL["States"]["NotifyEscalation"]
-    assert par["Type"] == "Parallel" and len(par["Branches"]) == 2
+    assert par["Type"] == "Parallel" and len(par["Branches"]) == 3
     assert par["ResultSelector"] == {"published": True} and par["ResultPath"] == "$.escalation_notified"
     assert par["Catch"] == [ALERT]
     publishes = [st for b in par["Branches"] for _, st in _states(b)]
-    assert {st["Parameters"]["MessageAttributes"]["role"]["StringValue"] for st in publishes} == {
-        "supervisor", "management"}
+    by_role = {st["Parameters"]["MessageAttributes"]["role"]["StringValue"]: st for st in publishes}
+    assert set(by_role) == {"supervisor", "management", "operator"}
     for st in publishes:
         p = st["Parameters"]
         assert st["Resource"] == "arn:aws:states:::sns:publish" and st["Retry"] == RETRY and st["End"] is True
         assert p["TopicArn"] == "${NotifyTopicArn}" and p["MessageAttributes"]["role"]["DataType"] == "String"
         assert p["Subject.$"] == "States.Format('[FleetPulse] escalado {} {}', $.machine_id, $.existing.incident_id)"
-    first, second = (st["Parameters"]["Message.$"] for st in publishes)
-    assert first == second
+    assert by_role["supervisor"]["Parameters"]["Message.$"] == by_role["management"]["Parameters"]["Message.$"]
+    # el operador recibe la instruccion de la nueva severidad (immediate: detener la maquina), armada por la Lambda
+    assert by_role["operator"]["Parameters"]["Message.$"] == "$.existing.operator_message"
 
 
 def test_escalation_texts_render_from_check_existing_output(ex017, ddb):
@@ -256,11 +260,55 @@ def test_escalation_texts_render_from_check_existing_output(ex017, ddb):
     state = classified({**ex017, "score": 3.62})
     state["existing"] = check_existing.handler(state, registry=ddb.registry, outbox=ddb.outbox)
     assert state["existing"]["escalated"] is True
-    params = ASL["States"]["NotifyEscalation"]["Branches"][0]["States"]
-    (st,) = params.values()
+    (st,) = ASL["States"]["NotifyEscalation"]["Branches"][0]["States"].values()
     subject = _render(st["Parameters"]["Subject.$"], state)
     message = _render(st["Parameters"]["Message.$"], state)
     assert subject == f"[FleetPulse] escalado EX-017 {old}" and len(subject) <= 100  # tope de Subject en SNS
     assert message == (f"El incidente {old} de la maquina EX-017 (zona NORTE) subio de severidad schedule a "
                        "immediate con score 3.62. Si aun espera aprobacion, el supervisor puede aprobarlo ya desde "
                        "el correo anterior; revisar asignacion y repuestos en la consola.")
+
+
+def _scopes(defn):
+    """Cada bloque `States` con su StartAt: el de primer nivel y el de cada rama de un Parallel."""
+    yield defn["StartAt"], defn["States"]
+    for st in defn["States"].values():
+        for branch in st.get("Branches", []):
+            yield from _scopes(branch)
+
+
+def _targets(st):
+    out = [st["Next"]] if "Next" in st else []
+    out += [c["Next"] for c in st.get("Choices", [])] + ([st["Default"]] if "Default" in st else [])
+    return out + [c["Next"] for c in st.get("Catch", [])]
+
+
+def test_every_transition_lands_on_a_state_of_its_scope_and_every_state_is_reachable():
+    """Step Functions rechaza la definicion al desplegar si un Next apunta afuera; un estado inalcanzable es codigo
+    muerto que nadie prueba. Las ramas de un Parallel no pueden saltar a estados del nivel superior."""
+    for start, states in _scopes(ASL):
+        assert start in states
+        for name, st in states.items():
+            for target in _targets(st):
+                assert target in states, f"{name} -> {target}"
+            if st["Type"] in ("Choice", "Succeed", "Fail"):
+                assert "End" not in st and ("Next" not in st), name
+            else:
+                assert ("Next" in st) != bool(st.get("End")), f"{name}: Next o End, uno solo"
+        seen, todo = set(), [start]
+        while todo:
+            name = todo.pop()
+            if name not in seen:
+                seen.add(name)
+                todo += _targets(states[name])
+        assert seen == set(states), f"inalcanzables: {set(states) - seen}"
+
+
+def test_every_sns_publish_retries_and_only_fp_alerts_ends_in_fail():
+    for name, st in _states(ASL):
+        if st.get("Resource") == "arn:aws:states:::sns:publish":
+            assert st["Retry"] == RETRY, name
+    fails = [n for n, st in _states(ASL) if st["Type"] == "Fail"]
+    assert fails == ["Failed"]
+    into_fail = [n for n, st in ASL["States"].items() if "Failed" in _targets(st)]
+    assert into_fail == ["PublishAlert"]  # toda falla avisa en fp-alerts antes de terminar

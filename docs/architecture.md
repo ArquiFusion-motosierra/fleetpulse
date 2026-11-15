@@ -53,7 +53,7 @@ score = Σ_v w_v · max(0, |z_v| − 2,25) + 0,5 · #{v : |z_v| ≥ 2,25 y sube 
 ```mermaid
 flowchart TD
     A[ClassifySeverity<br/>observar ≥1,2 · programar ≥2,0 · inmediato ≥3,5] --> B{CheckExistingIncident<br/>GSI1 INC#}
-    B -- ya existe --> B2[Escalar severidad<br/>si sube: aviso SNS a supervisor y dirección] --> Z((fin))
+    B -- ya existe --> B2[Escalar severidad<br/>si sube: aviso SNS a supervisor, dirección y operador] --> Z((fin))
     B -- nuevo --> C[CorrelateZone<br/>geohash-6 · última hora · group_id]
     C --> D[CreateIncident<br/>TransactWriteItems: incidente + incident.opened]
     D --> E[ExplainCause → Cloud Run /explain<br/>timeout 10 s · plantilla si falla]

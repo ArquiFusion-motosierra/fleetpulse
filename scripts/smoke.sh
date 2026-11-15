@@ -4,6 +4,8 @@
 #   scripts/smoke.sh ingest   # T05: item en DynamoDB fp-state y NDJSON en S3 fp-raw
 #   scripts/smoke.sh secrets  # T12: los secretos de AWS Secrets Manager existen
 #   scripts/smoke.sh gcp      # T11: filas en fleetpulse.telemetry via load job
+#   scripts/smoke.sh incidents  # T14: S1 y S2 por incident-flow, aprobacion y cierre (crea incidentes reales;
+#                               #      no entra en `all`). SCENARIO=s1|s2|all, SMOKE_ARGS="--sim --close-stale"
 #   scripts/smoke.sh e2e      # T17: mismo incident_id en AWS y GCP
 #   scripts/smoke.sh all      # T12: todo lo anterior en verde
 set -euo pipefail
@@ -74,6 +76,20 @@ stage_secrets() {
   fail "faltan secretos:$missing (corre push-secrets.sh)"
 }
 
+stage_incidents() {
+  echo "[incidents] T14"
+  if ! command -v aws >/dev/null 2>&1; then
+    [ "$SKIP_MISSING" = "1" ] && { skip "incidents (sin aws cli)"; return 0; }
+    fail "incidents: falta aws cli"; return 1
+  fi
+  if ! aws ssm get-parameter --name /fleetpulse/api/url --region "$AWS_REGION" >/dev/null 2>&1; then
+    [ "$SKIP_MISSING" = "1" ] && { skip "incidents (sin /fleetpulse/api/url; fp-core no desplegado)"; return 0; }
+    fail "incidents: falta SSM /fleetpulse/api/url"; return 1
+  fi
+  # shellcheck disable=SC2086 # SMOKE_ARGS son varias banderas
+  "${PYTHON:-.venv/bin/python}" scripts/smoke_incidents.py "${SCENARIO:-all}" ${SMOKE_ARGS:-}
+}
+
 stage_gcp() {
   echo "[gcp] T11"
   [ "$SKIP_MISSING" = "1" ] && { skip "gcp"; return 0; }
@@ -101,7 +117,8 @@ case "${1:-all}" in
   ingest)  run ingest ;;
   secrets) run secrets ;;
   gcp)     run gcp ;;
+  incidents) run incidents ;;
   e2e)     run e2e ;;
   all)     run ingest secrets gcp e2e ;;
-  *)       echo "uso: $0 {ingest|secrets|gcp|e2e|all}" >&2 ; exit 2 ;;
+  *)       echo "uso: $0 {ingest|secrets|gcp|incidents|e2e|all}" >&2 ; exit 2 ;;
 esac

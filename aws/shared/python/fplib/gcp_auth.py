@@ -1,11 +1,13 @@
 """ID token de Google para invocar Cloud Run `insights` desde AWS con la llave de la service account `fp-invoker`.
 
+Lo usan ExplainCause (aws/incidents, `POST /explain`) y la Lambda `reports` (aws/reports, `POST /recommend-checks`).
+
 `google.oauth2.service_account.IDTokenCredentials` (google-auth, en la layer) firma una asercion con la llave y la
 cambia por un ID token firmado por Google con `target_audience` = URL base del servicio (POST al token_uri, timeout
 `TOKEN_TIMEOUT_S`; google-auth solo reintenta respuestas 5xx). El token vale 1 h: se cachea `CACHE` por
-(service account, audiencia), asi que en caliente ExplainCause no hace esta llamada. La llave puede llegar como
+(service account, audiencia), asi que en caliente la Lambda no hace esta llamada. La llave puede llegar como
 objeto JSON o como texto JSON (el secreto `fleetpulse/gcp/sa-invoker` admite ambas formas).
-Nunca se registra la llave ni el token.
+Nunca se registra la llave ni el token. Idempotencia: sin efectos fuera del proceso (solo la cache en memoria).
 """
 from __future__ import annotations
 

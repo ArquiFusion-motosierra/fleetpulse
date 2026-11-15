@@ -168,6 +168,101 @@ def test_drift_script_apply():
 
     st = drift.apply({}, "on", "S1", NOW)
     assert st == {"S1": {"since": "2026-11-15T19:30:00Z"}}
-    assert drift.apply(st, "off", "all", NOW) == {"S1": False, "S2": False, "S5": False}
+    assert drift.apply(st, "off", "all", NOW) == {"S1": False, "S2": False, "S5": False, "S7": False}
     with pytest.raises(SystemExit):
         drift.apply({}, "on", "S3", NOW)
+
+
+# ---------- T26: ficha del fabricante ----------
+
+def test_oem_specs_valid_and_in_sync():
+    yaml = pytest.importorskip("yaml")
+    with open(os.path.join(ROOT, "contracts", "oem_specs.yaml"), encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    jsonschema.validate(data, SCHEMA("oem_specs.schema.json"))
+    with open(os.path.join(ROOT, "simulator", "fpsim", "oem.json"), encoding="utf-8") as f:
+        assert json.load(f) == data, "corre: python simulator/fpsim/sync_ids.py"
+    parts = {p["part_id"] for p in yaml.safe_load(open(os.path.join(ROOT, "contracts", "ids.yaml"), encoding="utf-8"))["parts"]}
+    for m in data["models"].values():
+        for s in m["service_schedule"]:
+            assert {p["part_id"] for p in s["parts"]} <= parts
+
+
+VAR_TO_LIMIT = {"coolant_temp_c": "coolant_temp_c", "hydraulic_oil_temp_c": "hydraulic_oil_temp_c",
+                "hydraulic_pressure_bar": "hydraulic_pressure_bar", "vibration_mm_s": "vibration_mm_s",
+                "fuel_rate_lph": "fuel_rate_lph"}
+
+
+def test_normal_operation_stays_inside_oem_normal_ranges():
+    """La ficha y el simulador no se contradicen: operando sin escenarios, >= 99 % dentro del rango normal."""
+    from fpsim import oem
+    inside = total = 0
+    worst = {}
+    for h in range(0, 24, 3):
+        t = NOW.replace(hour=h)
+        for r in live.build_batch(t, {})["readings"]:
+            if r["engine_status"] != "operating":
+                continue
+            lim = oem.model(r["model"])["limits"]
+            for var, key in VAR_TO_LIMIT.items():
+                lo, hi = lim[key]["normal"]
+                ok = lo <= r[var] <= hi
+                inside += ok
+                total += 1
+                if not ok:
+                    worst[(r["model"], var)] = worst.get((r["model"], var), 0) + 1
+    assert inside / total >= 0.99, sorted(worst.items(), key=lambda x: -x[1])[:5]
+
+
+def test_normal_harmonics_do_not_cross_natural_frequencies():
+    from fpsim import oem
+    for model_id in ("EX", "CF", "VQ", "MN", "TO"):
+        rated = oem.model(model_id)["rated_rpm"]
+        for rpm in range(int(rated * 0.93), int(rated * 1.03), 5):
+            assert oem.resonance(model_id, rpm) is None, (model_id, rpm, oem.resonance(model_id, rpm))
+
+
+def test_head_gasket_raises_rpm_into_vq_chassis_resonance():
+    from fpsim import oem
+    from fpsim.scenarios import signature
+    eff = signature("head_gasket", 1.0)
+    rpm = oem.model("VQ")["rated_rpm"] * eff.mult["rpm"]
+    hit = oem.resonance("VQ", rpm)
+    assert hit and hit["harmonic"] == "2x" and hit["natural_frequency_hz"] == 62
+    assert eff.faults[0]["spn"] == 111
+
+
+# ---------- T27: S7 junta de culata en vivo ----------
+
+def _operating(rows):
+    return [r for r in rows if r["engine_status"] == "operating"]
+
+
+def test_s7_head_gasket_live_on_vq022_only():
+    act = parse_active({"S7": {"since": iso(NOW - timedelta(minutes=22))}})
+    base = live.build_batch(NOW, {}, machine_ids={"VQ-022", "VQ-023"})["readings"]
+    s7 = live.build_batch(NOW, act, machine_ids={"VQ-022", "VQ-023"})["readings"]
+    b22, d22 = [r for r in base if r["machine_id"] == "VQ-022"], [r for r in s7 if r["machine_id"] == "VQ-022"]
+    assert _mean(d22, "coolant_temp_c") > _mean(b22, "coolant_temp_c") + 12
+    assert _mean(d22, "engine_rpm") > 1.1 * _mean(b22, "engine_rpm")
+    assert all(r["fault_codes"][0]["spn"] == 111 for r in _operating(d22))
+    assert [r for r in base if r["machine_id"] == "VQ-023"] == [r for r in s7 if r["machine_id"] == "VQ-023"]
+
+
+def test_s7_crosses_the_chassis_mode_and_vibration_jumps():
+    from fpsim import oem
+    act = parse_active({"S7": {"since": iso(NOW - timedelta(minutes=22))}})
+    rows = []
+    for m in range(0, 90, 3):
+        rows += _operating(live.build_batch(NOW + timedelta(minutes=m), act, machine_ids={"VQ-022"})["readings"])
+    hit = [r for r in rows if oem.resonance("VQ", r["engine_rpm"])]
+    miss = [r for r in rows if not oem.resonance("VQ", r["engine_rpm"])]
+    assert 0.2 < len(hit) / len(rows) < 0.8  # intermitente: depende de la carga del momento
+    assert sum(r["vibration_mm_s"] for r in hit) / len(hit) > 1.3 * sum(r["vibration_mm_s"] for r in miss) / len(miss)
+
+
+def test_s7_coolant_crosses_the_oem_warning():
+    from fpsim import oem
+    act = parse_active({"S7": {"since": iso(NOW - timedelta(minutes=25))}})
+    d = _operating(live.build_batch(NOW, act, machine_ids={"VQ-022"})["readings"])
+    assert _mean(d, "coolant_temp_c") > oem.model("VQ")["limits"]["coolant_temp_c"]["warning"]

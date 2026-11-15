@@ -81,7 +81,7 @@ def evt(base, **over):
 
 
 def test_seed_loads_catalog_and_keeps_dynamic_fields(ddb):
-    assert seed.counts(ddb, IDS) == {"machines": 100, "stock_rows": 36}
+    assert seed.counts(ddb, IDS) == {"machines": 100, "stock_rows": 39}
     ddb.update_item(TableName="fp-registry", Key=store.key("STOCK#PRT-01#NORTE", "META"),
                     UpdateExpression="SET reserved = :r", ExpressionAttributeValues=store.vals(r=3))
     ddb.update_item(TableName="fp-state", Key=store.key("MACHINE#EX-017", "META"),
@@ -201,7 +201,7 @@ def test_read_api_on_benjamin_keys(ddb):
     d = call(ddb, "GET /incidents/{id}", id=INC)[1]
     assert {r["part_id"] for r in d["reservations"]} == {"PRT-03", "PRT-04"}
     stock_rows = call(ddb, "GET /stock")[1]["stock"]
-    assert len(stock_rows) == 36 and next(s for s in stock_rows if s["part_id"] == "PRT-04"
+    assert len(stock_rows) == 39 and next(s for s in stock_rows if s["part_id"] == "PRT-04"
                                           and s["zone_id"] == "NORTE")["available"] == 0
     assert call(ddb, "GET /incidents/{id}", id="INC-EX-001-20261115T1430")[0] == 404
     assert call(ddb, "GET /stock", key="wrong")[0] == 401

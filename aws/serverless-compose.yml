@@ -1,0 +1,35 @@
+# Orden de despliegue de AWS (Serverless Framework 3 compose). Correr `bash aws/shared/build.sh` antes.
+# oci-writer NO esta aqui a proposito: plan B sin OCI.
+services:
+  shared:
+    path: shared
+
+  core:
+    path: ingest
+    dependsOn: [shared]
+
+  outbox-publisher:
+    path: integrations/outbox-publisher
+    dependsOn: [shared, core]
+
+  registry:
+    path: registry
+    dependsOn: [shared, core]
+
+  gcp-exporter:
+    path: integrations/gcp-exporter
+    dependsOn: [shared, core]
+
+  incidents:
+    path: incidents
+    dependsOn: [shared, core]
+
+  scoring:
+    path: scoring
+    dependsOn: [core, incidents]
+
+  simulator:
+    path: ../simulator
+    dependsOn: [core]
+    params:
+      enabled: false

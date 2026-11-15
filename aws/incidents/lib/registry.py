@@ -80,7 +80,8 @@ def event_item(envelope: dict) -> dict:
     }
 
 
-def _query_all(table, **kwargs):
+def query_all(table, **kwargs):
+    """Todas las paginas de un `Query`."""
     while True:
         page = table.query(**kwargs)
         yield from page["Items"]
@@ -92,7 +93,7 @@ def _query_all(table, **kwargs):
 def _machine_incidents(table, machine_id: str, flt):
     """Incidentes de la maquina (GSI1), el mas reciente primero, filtrados por `flt`."""
     key = Key("GSI1PK").eq(f"MACHINE#{machine_id}") & Key("GSI1SK").begins_with("INC#")
-    return _query_all(table, IndexName="GSI1", ScanIndexForward=False, KeyConditionExpression=key,
+    return query_all(table, IndexName="GSI1", ScanIndexForward=False, KeyConditionExpression=key,
                       FilterExpression=flt)
 
 

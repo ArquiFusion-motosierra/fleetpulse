@@ -1,5 +1,7 @@
-# Stack fp-incidents: maquina de estados Standard incident-flow (T09) y sus Lambdas.
-# La inicia `score` (aws/scoring) con nombre = incident_id. Tablas y topics los crea fp-core (aws/ingest).
+# Stack fp-incidents: maquina de estados Standard incident-flow (T09 + T14), sus Lambdas y las rutas
+# /approvals/{token+} y /incidents/{incident_id}/close en la HTTP API fp-api de fp-core (provider.httpApi.id).
+# La inicia `score` (aws/scoring) con nombre = incident_id. Tablas, topics, la API y /fleetpulse/api/url los crea
+# fp-core (aws/ingest); el secreto fleetpulse/gcp/sa-invoker lo carga Fabricio (contracts/secrets.md).
 service: fp-incidents
 frameworkVersion: "3"
 
@@ -16,6 +18,8 @@ provider:
     role: arn:aws:iam::${aws:accountId}:role/LabRole
   layers:
     - ${ssm:/fleetpulse/layers/shared, 'arn:aws:lambda:us-east-1:000000000000:layer:fp-shared:1'}
+  httpApi:
+    id: ${cf:fp-core-${sls:stage}.HttpApiId, 'offline-default-id'}
   environment:
     STATE_TABLE: fp-state
     REGISTRY_TABLE: fp-registry
@@ -25,6 +29,7 @@ package:
   patterns:
     - "!**"
     - "flow/**"
+    - "api/**"
     - "lib/**"
     - "!**/__pycache__/**"
 
@@ -33,14 +38,43 @@ functions:
     handler: flow/classify.handler
   checkExisting:
     handler: flow/check_existing.handler
+  correlateZone:
+    handler: flow/correlate_zone.handler
   createIncident:
     handler: flow/create_incident.handler
+  explainCause:
+    handler: flow/explain_cause.handler
+    timeout: 15  # token 3 s + /explain 8 s; la plantilla cubre cualquier falla
+    environment:
+      INVOKER_SECRET: fleetpulse/gcp/sa-invoker
   rankTechnicians:
     handler: flow/rank_technicians.handler
+  waitForApproval:
+    handler: flow/wait_for_approval.handler
+    timeout: 15
+    environment:
+      NOTIFY_TOPIC_ARN: arn:aws:sns:${aws:region}:${aws:accountId}:fp-notify
+      API_URL_PARAM: /fleetpulse/api/url
   renderMessages:
     handler: flow/render_messages.handler
   assignTechnician:
     handler: flow/assign_technician.handler
+  reserveParts:
+    handler: flow/reserve_parts.handler
+  approvals:
+    handler: api/approvals.handler
+    timeout: 10
+    events:
+      # greedy: el task token trae "/" (%2F en el enlace del correo)
+      - httpApi: GET /approvals/{token+}
+      - httpApi: POST /approvals/{token+}
+  close:
+    handler: api/close.handler
+    timeout: 10
+    environment:
+      EXECUTION_ARN_PREFIX: arn:aws:states:${aws:region}:${aws:accountId}:execution:incident-flow
+    events:
+      - httpApi: POST /incidents/{incident_id}/close
 
 resources:
   Resources:
@@ -60,10 +94,14 @@ resources:
         DefinitionSubstitutions:
           ClassifyArn: !GetAtt ClassifyLambdaFunction.Arn
           CheckExistingArn: !GetAtt CheckExistingLambdaFunction.Arn
+          CorrelateZoneArn: !GetAtt CorrelateZoneLambdaFunction.Arn
           CreateIncidentArn: !GetAtt CreateIncidentLambdaFunction.Arn
+          ExplainCauseArn: !GetAtt ExplainCauseLambdaFunction.Arn
           RankTechniciansArn: !GetAtt RankTechniciansLambdaFunction.Arn
+          WaitForApprovalArn: !GetAtt WaitForApprovalLambdaFunction.Arn
           RenderMessagesArn: !GetAtt RenderMessagesLambdaFunction.Arn
           AssignTechnicianArn: !GetAtt AssignTechnicianLambdaFunction.Arn
+          ReservePartsArn: !GetAtt ReservePartsLambdaFunction.Arn
           NotifyTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-notify
           AlertsTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts
         LoggingConfiguration:

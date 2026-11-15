@@ -125,6 +125,13 @@ def test_secrets_cached():
     assert secrets.get_json("fleetpulse/api/ingest-key", client=fake)["api_key"] == "k" and fake.calls == 1
 
 
+@mock_aws
+def test_secrets_default_client_has_explicit_timeouts():
+    cfg = secrets._client().meta.config
+    assert cfg.connect_timeout == 3 and cfg.read_timeout == 5
+    assert cfg.retries["total_max_attempts"] == 3  # botocore guarda max_attempts=2 reintentos como 3 intentos
+
+
 def test_log_event_is_one_json_line(caplog):
     from fplib import log
     with caplog.at_level("INFO", logger="fplib"):

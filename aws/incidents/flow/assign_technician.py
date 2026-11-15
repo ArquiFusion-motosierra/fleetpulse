@@ -1,14 +1,17 @@
 """Lambda `assign_technician` (AssignTechnician): asigna el tecnico, emite `incident.assigned` y lo reserva.
 
 Preferencia: `$.approval.tech_id` (aprobacion por correo, T14) y despues `$.ranking.top` en orden. approval:
-`$.approval.approval` o `auto`. Explicacion: `$.explanation` (Cloud Run, T14) o la plantilla sobre
-`$.incident.deviated_vars`.
+`$.approval.approval` (`approved` o `timeout`) o `auto`. Un tecnico aprobado se respeta solo si se puede reservar;
+si ya esta ocupado se toma el siguiente libre, approval sigue `approved` y queda el log `tecnico_aprobado_ocupado`.
+Explicacion: `$.explanation` (ExplainCause) o la plantilla sobre `$.incident.deviated_vars`.
 Cada intento es una sola transaccion: META (tech_id, assigned_at, approval, explanation, tech_busy) condicionado a
 que el incidente aun no tenga tecnico + EV# + fp-outbox + reserva de `TECH#<id>` (available=false,
 current_incident) condicionada a que siga libre. Si otra ejecucion tomo al tecnico despues del ranking, se cancela
 todo y se prueba el siguiente. Un tecnico sin item en fp-state (respaldo de ids.yaml) se asigna sin reserva.
 Si nadie esta libre se asigna el primero de la lista sin tocar su `TECH#` (no se pisa su incidente actual), con
 `tech_busy=true` en el META y el log `tecnico_ocupado`; RenderMessages (que corre despues) lo avisa.
+El META tambien exige `status = open`: si el incidente se cerro mientras esperaba la aprobacion (POST /close), no se
+asigna ni se reserva a nadie, se devuelve `skipped: closed` (log `incidente_ya_cerrado`) y la ASL termina en Done.
 Idempotencia: un reintento choca con la condicion del META y devuelve la asignacion guardada sin emitir otro evento.
 """
 from __future__ import annotations
@@ -40,13 +43,19 @@ def _commit(registry, outbox_tbl_name: str, event: dict, tech_id: str, *, busy: 
                          incident_id=incident_id, machine_id=machine_id, occurred_at=now)
     try:
         fp_registry.update_incident(registry, incident_id, envelope=env, outbox_tbl_name=outbox_tbl_name,
-                                    expect={"tech_id": None}, extra_items=[reserve] if reserve else None,
-                                    status="open", tech_id=tech_id, assigned_at=assigned_at, approval=approval,
-                                    explanation=explanation, tech_busy=busy)
+                                    expect={"tech_id": None, "status": "open"},
+                                    extra_items=[reserve] if reserve else None, tech_id=tech_id,
+                                    assigned_at=assigned_at, approval=approval, explanation=explanation,
+                                    tech_busy=busy)
     except fp_registry.ConditionFailed as exc:
         if exc.index != 0:
             raise
         meta = fp_registry.get_incident(registry, incident_id) or {}
+        if meta.get("status") == "closed":
+            log.event("incidente_ya_cerrado", incident_id=incident_id, machine_id=machine_id,
+                      closed_at=meta.get("closed_at"))
+            return {"tech_id": None, "assigned_at": None, "approval": approval, "tech_busy": False,
+                    "skipped": "closed"}
         if not meta.get("tech_id"):
             raise RuntimeError(f"{incident_id}: el incidente no existe en fp-registry, no se puede asignar") from None
         log.event("tecnico_ya_asignado", incident_id=incident_id, machine_id=machine_id, tech_id=meta["tech_id"])
@@ -66,6 +75,7 @@ def handler(event, context=None, state=None, registry=None, outbox=None):
     order = _order(event)
     if not order:
         raise ValueError(f"sin tecnico para asignar a {incident_id}")
+    approved = (event.get("approval") or {}).get("tech_id")
     deviated = event["incident"].get("deviated_vars") or event["deviated_vars"]
     common = {"approval": (event.get("approval") or {}).get("approval") or "auto",
               "explanation": event.get("explanation") or templates.explanation(deviated, event["failure_mode"],
@@ -73,6 +83,8 @@ def handler(event, context=None, state=None, registry=None, outbox=None):
     for tech_id in order:
         item = technicians.get(state, tech_id)
         if item is not None and not technicians.is_free(item, incident_id):
+            if tech_id == approved:
+                log.event("tecnico_aprobado_ocupado", tech_id=tech_id, **ctx)
             continue
         reserve = technicians.claim(state.name, tech_id, incident_id) if item is not None else None
         try:

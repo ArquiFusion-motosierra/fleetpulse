@@ -1,4 +1,5 @@
-"""Explicacion por plantilla y mensajes por rol (tecnico, supervisor, direccion, operador). Funciones puras.
+"""Explicacion por plantilla, mensajes por rol (tecnico, supervisor, direccion, operador) y el pedido de aprobacion
+al supervisor. Funciones puras.
 
 La explicacion por plantilla cumple `incident.assigned.payload.explanation` (source `template`) y es el respaldo
 cuando Cloud Run `/explain` no responde (T14). Mismos insumos, mismos textos.
@@ -25,7 +26,7 @@ OPERATOR = {
 }
 
 
-def _model(machine_id: str) -> str:
+def model_of(machine_id: str) -> str:
     return machine_id.split("-", 1)[0]  # EX-017 -> EX (el prefijo del id es el modelo, ver ids.yaml)
 
 
@@ -50,7 +51,7 @@ def explanation(deviated_vars: list[dict], failure_mode: str, machine_id: str) -
         "source": "template",
         "summary": f"{machine_id}: {signs}. Causa probable: {component.lower()} ({failure_mode}).",
         "probable_component": component,
-        "suggested_parts": [b["part_id"] for b in ids.bom_for(_model(machine_id), failure_mode)],
+        "suggested_parts": [b["part_id"] for b in ids.bom_for(model_of(machine_id), failure_mode)],
         "common_cause": None,
     }
 
@@ -98,3 +99,20 @@ def messages(incident: dict, explanation: dict, ranking_top: dict | None, approv
     operator = f"{mid}: {OPERATOR.get(sev, OPERATOR['schedule'])}."
     return {"technician": technician, "supervisor": "\n".join(supervisor_lines), "management": management,
             "operator": operator, "subject": f"[FleetPulse] {sev} {mid} {incident['incident_id']}"}
+
+
+def approval_request(incident: dict, explanation: dict, proposed: dict | None, approve_url: str) -> dict:
+    """Correo al supervisor (WaitForApproval) para aprobar al tecnico propuesto (`proposed`, el primero del
+    ranking, o None). `incident`: incident_id, machine_id, severity, score, failure_mode, zone_id. Devuelve
+    asunto y texto con el enlace `approve_url`."""
+    mid, sev, inc = incident["machine_id"], incident["severity"], incident["incident_id"]
+    tech = _tech(proposed) if proposed else "ninguno en el ranking (se asignara el mejor disponible)"
+    lines = [
+        f"Aprobacion requerida para el incidente {inc}: {mid} ({incident['zone_id']}), severidad {sev}, "
+        f"puntaje {incident['score']:.2f}, falla probable {incident['failure_mode']}.",
+        f"Diagnostico: {explanation['summary']}",
+        f"Tecnico propuesto: {tech}.",
+        f"Aprobar la asignacion: {approve_url}",
+        "Sin respuesta en 30 minutos se asigna automaticamente el mejor tecnico disponible.",
+    ]
+    return {"subject": f"[FleetPulse] Aprobar {sev} {mid} {inc}", "message": "\n".join(lines)}

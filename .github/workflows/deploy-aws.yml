@@ -3,7 +3,7 @@ name: deploy-aws
 on:
   push:
     branches: [main]
-    paths: ["aws/**", "contracts/**", ".github/workflows/deploy-aws.yml"]
+    paths: ["aws/**", "simulator/**", "aws/shared/**", "contracts/**", ".github/workflows/deploy-aws.yml"]
   workflow_dispatch:
 
 concurrency:
@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_REGION: us-east-1
+      SLS_TELEMETRY_DISABLED: "1"
       # Credenciales de sesion del Learner Lab. Caducan: Benjamin las renueva con scripts/lab-creds.sh --gh
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -32,6 +33,15 @@ jobs:
         if: steps.go.outputs.ok == 'true'
         with:
           node-version: 20
+      - uses: actions/setup-python@v5
+        if: steps.go.outputs.ok == 'true'
+        with:
+          python-version: "3.12"
+      - name: Construir la layer fp-shared
+        if: steps.go.outputs.ok == 'true'
+        run: |
+          python -m pip install pyyaml
+          bash aws/shared/build.sh
       - name: Verificar credenciales
         if: steps.go.outputs.ok == 'true'
         run: aws sts get-caller-identity
@@ -39,5 +49,5 @@ jobs:
         if: steps.go.outputs.ok == 'true'
         working-directory: aws
         run: |
-          if [ -f package.json ]; then npm ci; fi
-          npx serverless@3 deploy --stage dev --region "$AWS_REGION" --verbose
+          npm ci
+          npx serverless deploy --stage dev --verbose

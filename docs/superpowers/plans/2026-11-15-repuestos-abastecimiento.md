@@ -99,7 +99,7 @@ Todos llevan `tenant_id`. Las órdenes y transferencias escriben `GSI3` de T36 (
 | Transferencia | `TRF#<trf_id>` / `META` | `from_zone, from_tenant, to_zone, tenant_id (= destino), part_id, qty, eta, freight_usd, status, incident_id?, …` como la PO; GSI1 `TRFFROM#<from_tenant>` / `<created_at>` (salientes del donante); GSI2 `SUPPLY#<status>`; GSI3 `TENANT#<destino>` / `TRF#<created_at>` | idem |
 | Línea de tiempo | `PO#<id>` o `TRF#<id>` / `EV#<ts>#<event_id>` | sobre completo, como `INCIDENT#…/EV#` | idem |
 | Pendiente de entrega | `BACKORDER#<part>#<zone>` / `<incident_id>` | `qty, machine_id, ref (PO/TRF id), tenant_id, created_at` | `supply-sourcing`; lo borra `AllocateBackorders` |
-| Movimiento (existe, se amplía) | `MOVE#<part>#<zone>` / `<ts>#<ref>` | existente `kind: consumption` + `receipt, transfer_out, transfer_in, adjustment`; `qty` (con signo), `on_hand_after, ref, tenant_id` | `registry`, `supply-flow` |
+| Movimiento (existe, se amplía) | `MOVE#<part>#<zone>` / `<ts>#<ref>` | existente `kind: consumption` + `receipt, transfer_out, transfer_in, adjustment`; `qty` (con signo), `ref, tenant_id` (sin saldo: una transacción no devuelve el valor nuevo) | `registry`, `supply-flow` |
 | Pedido sugerido (existe) | `REORDER#<part>#<zone>` / `<created_at>` | sin cambios: es la **señal** cruda; `supply-sourcing` la convierte en PO/TRF y le anota `ref` | `registry`, `daily-planning` |
 
 IDs: `PO-<zone>-<part>-<YYYYMMDDTHHMM>` y `TRF-<from_zone>-<to_zone>-<part>-<YYYYMMDDTHHMM>`; son también el nombre

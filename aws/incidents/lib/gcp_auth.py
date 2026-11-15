@@ -3,11 +3,13 @@
 `google.oauth2.service_account.IDTokenCredentials` (google-auth, en la layer) firma una asercion con la llave y la
 cambia por un ID token firmado por Google con `target_audience` = URL base del servicio (POST al token_uri, timeout
 `TOKEN_TIMEOUT_S`; google-auth solo reintenta respuestas 5xx). El token vale 1 h: se cachea `CACHE` por
-(service account, audiencia), asi que en caliente ExplainCause no hace esta llamada.
+(service account, audiencia), asi que en caliente ExplainCause no hace esta llamada. La llave puede llegar como
+objeto JSON o como texto JSON (el secreto `fleetpulse/gcp/sa-invoker` admite ambas formas).
 Nunca se registra la llave ni el token.
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 
 from fplib import clock
@@ -32,7 +34,8 @@ def _fetch(sa_key: dict, audience: str) -> str:
     return creds.token
 
 
-def id_token(sa_key: dict, audience: str, now: datetime | None = None) -> str:
+def id_token(sa_key: dict | str, audience: str, now: datetime | None = None) -> str:
+    sa_key = json.loads(sa_key) if isinstance(sa_key, str) else sa_key
     now = now or clock.now()
     key = (sa_key.get("client_email", ""), audience)
     hit = _cache.get(key)

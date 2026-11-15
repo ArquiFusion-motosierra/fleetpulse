@@ -71,6 +71,8 @@ functions:
   close:
     handler: api/close.handler
     timeout: 10
+    environment:
+      EXECUTION_ARN_PREFIX: arn:aws:states:${aws:region}:${aws:accountId}:execution:incident-flow
     events:
       - httpApi: POST /incidents/{incident_id}/close
 

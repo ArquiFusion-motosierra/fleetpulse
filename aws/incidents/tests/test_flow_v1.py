@@ -216,6 +216,14 @@ def test_gcp_auth_caches_the_id_token_for_50_minutes(monkeypatch):
     assert gcp_auth.id_token(SA_KEY, "https://otra.run.app", now=NOW + timedelta(minutes=51)) == "tok-3"
 
 
+def test_gcp_auth_accepts_the_key_as_a_json_string(monkeypatch):
+    seen = []
+    monkeypatch.setattr(gcp_auth, "_fetch", lambda key, aud: seen.append(key) or "tok")
+    assert gcp_auth.id_token(json.dumps(SA_KEY), AUDIENCE, now=NOW) == "tok"
+    assert gcp_auth.id_token(SA_KEY, AUDIENCE, now=NOW) == "tok"  # misma entrada de cache
+    assert seen == [SA_KEY]
+
+
 def _b64(obj) -> str:
     raw = obj if isinstance(obj, bytes) else json.dumps(obj).encode()
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")

@@ -1,5 +1,5 @@
 {
-  "Comment": "incident-flow (T09 + T14): clasifica, correlaciona por celda y zona, crea el incidente, pide la explicacion a Cloud Run (plantilla si falla), rankea, espera la aprobacion del supervisor si la severidad es schedule (30 min, luego asignacion automatica), asigna, arma los textos con el tecnico asignado, notifica por rol y pide la reserva de repuestos.",
+  "Comment": "incident-flow (T09 + T14): clasifica, correlaciona por celda y zona, crea el incidente, pide la explicacion a Cloud Run (plantilla si falla), rankea, espera la aprobacion del supervisor si la severidad es schedule (30 min, luego asignacion automatica), asigna (termina si el incidente ya se cerro), arma los textos con el tecnico asignado, notifica por rol y pide la reserva de repuestos. CorrelateZone, ExplainCause y WaitForApproval degradan en vez de fallar.",
   "StartAt": "ClassifySeverity",
   "States": {
     "ClassifySeverity": {
@@ -83,7 +83,8 @@
           "ErrorEquals": [
             "States.ALL"
           ],
-          "Next": "PublishAlert"
+          "ResultPath": "$.correlation_error",
+          "Next": "CreateIncident"
         }
       ],
       "Next": "CreateIncident"
@@ -206,7 +207,8 @@
           "ErrorEquals": [
             "States.ALL"
           ],
-          "Next": "PublishAlert"
+          "ResultPath": "$.approval_error",
+          "Next": "ApprovalUnavailable"
         }
       ],
       "Next": "AssignTechnician"
@@ -214,8 +216,15 @@
     "ApprovalTimedOut": {
       "Type": "Pass",
       "Result": {
-        "approval": "timeout",
-        "tech_id": null
+        "approval": "timeout"
+      },
+      "ResultPath": "$.approval",
+      "Next": "AssignTechnician"
+    },
+    "ApprovalUnavailable": {
+      "Type": "Pass",
+      "Result": {
+        "approval": "auto"
       },
       "ResultPath": "$.approval",
       "Next": "AssignTechnician"
@@ -242,7 +251,18 @@
           "Next": "PublishAlert"
         }
       ],
-      "Next": "RenderMessages"
+      "Next": "IncidentClosed?"
+    },
+    "IncidentClosed?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.assignment.skipped",
+          "IsPresent": true,
+          "Next": "Done"
+        }
+      ],
+      "Default": "RenderMessages"
     },
     "RenderMessages": {
       "Type": "Task",
@@ -427,7 +447,10 @@
           }
         }
       ],
-      "ResultPath": null,
+      "ResultSelector": {
+        "published": true
+      },
+      "ResultPath": "$.notified",
       "Catch": [
         {
           "ErrorEquals": [

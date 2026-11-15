@@ -63,10 +63,15 @@ def test_starts_at_classify_and_v1_order():
     (rule,) = s["NeedsApproval"]["Choices"]
     assert rule == {"Variable": "$.classified.needs_approval", "BooleanEquals": True, "Next": "WaitForApproval"}
     assert s["NeedsApproval"]["Default"] == "AssignTechnician"
-    assert s["WaitForApproval"]["Next"] == s["ApprovalTimedOut"]["Next"] == "AssignTechnician"
+    assert s["WaitForApproval"]["Next"] == "AssignTechnician"
+    assert s["ApprovalTimedOut"]["Next"] == s["ApprovalUnavailable"]["Next"] == "AssignTechnician"
+    # incidente cerrado desde la consola antes de asignar: AssignTechnician devuelve `skipped` y se termina
+    assert _chain(s, "AssignTechnician") == ["AssignTechnician", "IncidentClosed?"]
+    (rule,) = s["IncidentClosed?"]["Choices"]
+    assert rule == {"Variable": "$.assignment.skipped", "IsPresent": True, "Next": "Done"}
+    assert s["IncidentClosed?"]["Default"] == "RenderMessages"
     # los textos nombran al tecnico realmente asignado; la reserva de repuestos va al final
-    assert _chain(s, "AssignTechnician") == ["AssignTechnician", "RenderMessages", "NotifyByRole", "ReserveParts",
-                                             "Done"]
+    assert _chain(s, "RenderMessages") == ["RenderMessages", "NotifyByRole", "ReserveParts", "Done"]
     assert s["Done"]["Type"] == "Succeed"
     paths = {n: s[n]["ResultPath"] for n in (
         "ClassifySeverity", "CheckExistingIncident", "CorrelateZone", "CreateIncident", "ExplainCause",
@@ -76,20 +81,26 @@ def test_starts_at_classify_and_v1_order():
                      "ExplainCause": "$.explanation", "RankTechnicians": "$.ranking", "WaitForApproval": "$.approval",
                      "AssignTechnician": "$.assignment", "RenderMessages": "$.messages",
                      "ReserveParts": "$.reservation"}
-    assert s["NotifyByRole"]["ResultPath"] is None  # el Parallel no pisa $ (ReserveParts lo necesita)
+    # el Parallel no pisa $ (ReserveParts lo necesita): su salida (lista por rama) se reduce a un valor fijo
+    assert s["NotifyByRole"]["ResultSelector"] == {"published": True}
+    assert s["NotifyByRole"]["ResultPath"] == "$.notified"
 
 
 def test_every_lambda_task_has_retry_and_catch():
     lambdas = {n: st for n, st in _states(ASL) if _is_lambda(st)}
     assert set(lambdas) == {"ClassifySeverity", "CheckExistingIncident", "CorrelateZone", "CreateIncident",
                             "ExplainCause", "RankTechnicians", "AssignTechnician", "RenderMessages", "ReserveParts"}
+    # pasos opcionales: si fallan se sigue sin su resultado. Sin $.correlation no hay grupo; sin $.explanation
+    # AssignTechnician usa la plantilla (la IA nunca bloquea la asignacion)
+    degrade = {"CorrelateZone": ("$.correlation_error", "CreateIncident"),
+               "ExplainCause": ("$.explain_error", "RankTechnicians")}
     for name, st in lambdas.items():
         assert st["Retry"] == RETRY, name
-        if name != "ExplainCause":
+        if name in degrade:
+            path, nxt = degrade[name]
+            assert st["Catch"] == [{"ErrorEquals": ["States.ALL"], "ResultPath": path, "Next": nxt}], name
+        else:
             assert st["Catch"] == [ALERT], name
-    # la IA nunca bloquea la asignacion: si la Lambda misma falla se sigue sin $.explanation (plantilla en Assign)
-    assert lambdas["ExplainCause"]["Catch"] == [
-        {"ErrorEquals": ["States.ALL"], "ResultPath": "$.explain_error", "Next": "RankTechnicians"}]
     assert ASL["States"]["NotifyByRole"]["Catch"] == [ALERT]
 
 
@@ -101,11 +112,30 @@ def test_asl_v1_has_wait_for_task_token_with_timeout_and_catch():
     assert w["TimeoutSeconds"] == 1800 and w["ResultPath"] == "$.approval"
     # States.TaskFailed no incluye States.Timeout: el vencimiento no se reintenta (no se manda otro correo)
     assert w["Retry"] == [{**RETRY[0], "ErrorEquals": ["States.TaskFailed"]}]
-    assert w["Catch"] == [{"ErrorEquals": ["States.Timeout"], "ResultPath": "$.approval_timeout",
-                           "Next": "ApprovalTimedOut"}, ALERT]
-    t = ASL["States"]["ApprovalTimedOut"]
-    assert t["Type"] == "Pass" and t["ResultPath"] == "$.approval"
-    assert t["Result"] == {"approval": "timeout", "tech_id": None}
+    # cualquier otra falla (p. ej. SNS) no deja el incidente sin asignar: se asigna sin aprobacion (auto)
+    assert w["Catch"] == [
+        {"ErrorEquals": ["States.Timeout"], "ResultPath": "$.approval_timeout", "Next": "ApprovalTimedOut"},
+        {"ErrorEquals": ["States.ALL"], "ResultPath": "$.approval_error", "Next": "ApprovalUnavailable"}]
+    for name, approval in (("ApprovalTimedOut", "timeout"), ("ApprovalUnavailable", "auto")):
+        t = ASL["States"][name]
+        assert t["Type"] == "Pass" and t["ResultPath"] == "$.approval", name
+        assert t["Result"] == {"approval": approval}, name  # sin tech_id: AssignTechnician toma el ranking
+
+
+def test_definition_has_no_json_nulls():
+    """Serverless v3 borra los `null` del JSON que carga con ${file()}: un `"ResultPath": null` desplegado se
+    vuelve el `$` por defecto y la salida del paso pisa todo el estado. Para descartar un resultado se usa
+    ResultSelector + ResultPath, nunca null."""
+    def nulls(o, path="$"):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                yield from nulls(v, f"{path}.{k}")
+        elif isinstance(o, list):
+            for i, v in enumerate(o):
+                yield from nulls(v, f"{path}[{i}]")
+        elif o is None:
+            yield path
+    assert list(nulls(ASL)) == []
 
 
 def test_publish_alert_then_fail():
@@ -167,5 +197,7 @@ def test_functions_and_http_routes_on_the_shared_fp_core_api():
     assert fns["waitForApproval"]["environment"] == {
         "NOTIFY_TOPIC_ARN": "arn:aws:sns:${aws:region}:${aws:accountId}:fp-notify",
         "API_URL_PARAM": "/fleetpulse/api/url"}
+    assert fns["close"]["environment"] == {
+        "EXECUTION_ARN_PREFIX": "arn:aws:states:${aws:region}:${aws:accountId}:execution:incident-flow"}
     for name in ("approvals", "close"):
         assert fns[name]["timeout"] <= 29, name  # tope de integracion de HTTP API

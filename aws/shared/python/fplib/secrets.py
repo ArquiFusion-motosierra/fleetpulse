@@ -1,4 +1,7 @@
-"""Lectura de secretos JSON de Secrets Manager con cache en memoria por nombre."""
+"""Lectura de secretos JSON de Secrets Manager con cache en memoria por nombre.
+
+El cliente por defecto lleva timeouts explicitos (3 s conexion, 5 s lectura, 2 intentos): boto3 trae 60 s.
+"""
 from __future__ import annotations
 
 import json
@@ -9,7 +12,9 @@ _cache: dict[str, tuple[float, dict]] = {}
 
 def _client():
     import boto3
-    return boto3.client("secretsmanager")
+    from botocore.config import Config
+    return boto3.client("secretsmanager",
+                        config=Config(connect_timeout=3, read_timeout=5, retries={"max_attempts": 2}))
 
 
 def get_json(name: str, ttl_s: int = 300, client=None) -> dict:

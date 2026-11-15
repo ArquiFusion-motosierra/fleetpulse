@@ -10,6 +10,8 @@ current_incident) condicionada a que siga libre. Si otra ejecucion tomo al tecni
 todo y se prueba el siguiente. Un tecnico sin item en fp-state (respaldo de ids.yaml) se asigna sin reserva.
 Si nadie esta libre se asigna el primero de la lista sin tocar su `TECH#` (no se pisa su incidente actual), con
 `tech_busy=true` en el META y el log `tecnico_ocupado`; RenderMessages (que corre despues) lo avisa.
+El META tambien exige `status = open`: si el incidente se cerro mientras esperaba la aprobacion (POST /close), no se
+asigna ni se reserva a nadie, se devuelve `skipped: closed` (log `incidente_ya_cerrado`) y la ASL termina en Done.
 Idempotencia: un reintento choca con la condicion del META y devuelve la asignacion guardada sin emitir otro evento.
 """
 from __future__ import annotations
@@ -41,13 +43,19 @@ def _commit(registry, outbox_tbl_name: str, event: dict, tech_id: str, *, busy: 
                          incident_id=incident_id, machine_id=machine_id, occurred_at=now)
     try:
         fp_registry.update_incident(registry, incident_id, envelope=env, outbox_tbl_name=outbox_tbl_name,
-                                    expect={"tech_id": None}, extra_items=[reserve] if reserve else None,
-                                    status="open", tech_id=tech_id, assigned_at=assigned_at, approval=approval,
-                                    explanation=explanation, tech_busy=busy)
+                                    expect={"tech_id": None, "status": "open"},
+                                    extra_items=[reserve] if reserve else None, tech_id=tech_id,
+                                    assigned_at=assigned_at, approval=approval, explanation=explanation,
+                                    tech_busy=busy)
     except fp_registry.ConditionFailed as exc:
         if exc.index != 0:
             raise
         meta = fp_registry.get_incident(registry, incident_id) or {}
+        if meta.get("status") == "closed":
+            log.event("incidente_ya_cerrado", incident_id=incident_id, machine_id=machine_id,
+                      closed_at=meta.get("closed_at"))
+            return {"tech_id": None, "assigned_at": None, "approval": approval, "tech_busy": False,
+                    "skipped": "closed"}
         if not meta.get("tech_id"):
             raise RuntimeError(f"{incident_id}: el incidente no existe en fp-registry, no se puede asignar") from None
         log.event("tecnico_ya_asignado", incident_id=incident_id, machine_id=machine_id, tech_id=meta["tech_id"])

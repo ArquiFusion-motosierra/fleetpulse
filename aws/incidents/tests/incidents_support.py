@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 
 from flow import assign_technician, classify, create_incident, rank_technicians
 from fplib import schema
@@ -100,18 +101,28 @@ def log_lines(caplog, msg):
 
 
 class FakeSfn:
-    """Step Functions con las excepciones reales de botocore; `fail` = nombre de la excepcion a lanzar."""
+    """Step Functions con las excepciones reales de botocore. `fail` / `stop_fail`: codigo de error que lanzan
+    `send_task_success` / `stop_execution` (la excepcion modelada si existe, si no un ClientError)."""
 
-    def __init__(self, fail=None):
+    def __init__(self, fail=None, stop_fail=None):
         self.exceptions = boto3.client("stepfunctions", region_name="us-east-1").exceptions
-        self.calls, self.fail = [], fail
+        self.calls, self.stops, self.fail, self.stop_fail = [], [], fail, stop_fail
+
+    def _raise(self, code, operation):
+        cls = getattr(self.exceptions, code, ClientError)
+        raise cls({"Error": {"Code": code, "Message": "x"}}, operation)
 
     def send_task_success(self, **kwargs):
         self.calls.append(kwargs)
         if self.fail:
-            raise getattr(self.exceptions, self.fail)({"Error": {"Code": self.fail, "Message": "x"}},
-                                                      "SendTaskSuccess")
+            self._raise(self.fail, "SendTaskSuccess")
         return {}
+
+    def stop_execution(self, **kwargs):
+        self.stops.append(kwargs)
+        if self.stop_fail:
+            self._raise(self.stop_fail, "StopExecution")
+        return {"stopDate": "2026-11-15T17:08:41Z"}
 
 
 class FakeSns:

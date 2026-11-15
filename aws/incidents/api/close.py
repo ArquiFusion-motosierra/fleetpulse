@@ -3,20 +3,27 @@
 
 Cuerpo: `{"closed_by", "parts_used": [{part_id, zone_id, qty}], "cause_summary"}` (`closed_by` obligatorio,
 `parts_used` por defecto [], `cause_summary` por defecto ""). Respuestas: 401 sin una de las dos API keys, 404
-incidente desconocido, 409 ya cerrado, 400 cuerpo invalido (incluye `incident.closed` fuera de contrato), 200
-`{"incident_id", "downtime_h"}`.
+incidente desconocido, 409 ya cerrado, 400 cuerpo invalido (incluye `incident.closed` fuera de contrato), 500 si
+el tecnico cambio de incidente durante el cierre (no se escribe nada; reintentar), 200 `{"incident_id",
+"downtime_h"}`.
 Efectos en una sola transaccion: META (`status` closed, `closed_at`, `downtime_h` = horas desde `opened_at`
 redondeadas a 2, `closed_by`, `cause_summary`, `parts_used`, `GSI2PK` STATUS#closed; la recurrencia de
 CreateIncident filtra por `closed_at`) + EV# + `incident.closed` en fp-outbox (lo consume `registry` para descontar
 stock) + `TECH#<id>` libre (`available` true, `current_incident` null) si el tecnico sigue enlazado a este
 incidente; un tecnico asignado ocupado (`tech_busy`) sigue con el suyo.
+Despues del cierre se detiene la ejecucion `incident-flow` de nombre `<incident_id>` (`EXECUTION_ARN_PREFIX`),
+por si sigue esperando la aprobacion: `ExecutionDoesNotExist` se ignora y cualquier otro error solo se registra (el
+cierre ya quedo escrito; AssignTechnician y ReserveParts exigen `status = open` igual).
 Idempotencia: la transaccion exige `status = open`; un segundo cierre responde 409 sin escribir nada.
 """
 from __future__ import annotations
 
 import base64
 import json
+import os
 import re
+
+from botocore.config import Config
 
 from fplib import auth, clock, envelope, log
 from fplib.schema import ContractError
@@ -25,6 +32,16 @@ from lib import technicians
 
 KEY_SECRETS = ("fleetpulse/api/console-key", "fleetpulse/api/ingest-key")
 INC_RE = re.compile(r"^INC-(?:EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$")
+AWS_CONFIG = Config(connect_timeout=3, read_timeout=5, retries={"max_attempts": 3})
+_sfn = None
+
+
+def _client():
+    global _sfn
+    if _sfn is None:
+        import boto3
+        _sfn = boto3.client("stepfunctions", config=AWS_CONFIG)
+    return _sfn
 
 
 def _resp(code: int, body: dict) -> dict:
@@ -52,7 +69,20 @@ def _release(state, meta: dict, incident_id: str) -> dict | None:
     return technicians.release(state.name, tech_id, incident_id)
 
 
-def handler(event, context=None, state=None, registry=None, outbox=None, secrets=None):
+def _stop_execution(sfn, incident_id: str, ctx: dict) -> None:
+    arn = f"{os.environ['EXECUTION_ARN_PREFIX']}:{incident_id}"
+    try:
+        sfn.stop_execution(executionArn=arn, error="IncidentClosed", cause="closed from console")
+    except sfn.exceptions.ExecutionDoesNotExist:
+        log.event("ejecucion_inexistente", **ctx)
+        return
+    except Exception as exc:  # el cierre ya esta escrito: no se le devuelve un error a la consola
+        log.error("stop_execution_fallo", error=type(exc).__name__, **ctx)
+        return
+    log.event("ejecucion_detenida", **ctx)
+
+
+def handler(event, context=None, state=None, registry=None, outbox=None, secrets=None, sfn=None):
     incident_id = (event.get("pathParameters") or {}).get("incident_id") or ""
     headers = event.get("headers") or {}
     if not any(auth.check_api_key(headers, name, client=secrets) for name in KEY_SECRETS):
@@ -87,10 +117,12 @@ def handler(event, context=None, state=None, registry=None, outbox=None, secrets
                                     expect={"status": "open"}, extra_items=[release] if release else None,
                                     status="closed", GSI2PK="STATUS#closed", **payload)
     except fp_registry.ConditionFailed as exc:
-        if exc.index != 0:  # 3 = el tecnico cambio de incidente entre la lectura y la escritura (500)
-            raise
+        if exc.index != 0:  # el tecnico cambio de incidente entre la lectura y la escritura: no se escribio nada
+            log.error("cierre_tecnico_cambio", tech_id=meta.get("tech_id"), index=exc.index, **ctx)
+            return _resp(500, {"error": "technician changed during close, retry"})
         log.event("cierre_ya_aplicado", **ctx)
         return _resp(409, {"error": "incident already closed"})
+    _stop_execution(sfn or _client(), incident_id, ctx)
     log.event("incidente_cerrado", downtime_h=payload["downtime_h"], closed_by=body["closed_by"],
               tech_id=meta.get("tech_id"), tech_released=release is not None, event_id=env["event_id"], **ctx)
     return _resp(200, {"incident_id": incident_id, "downtime_h": payload["downtime_h"]})

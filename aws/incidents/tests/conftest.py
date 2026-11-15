@@ -13,7 +13,8 @@ from fplib import secrets as fp_secrets
 ENV = (("AWS_ACCESS_KEY_ID", "x"), ("AWS_SECRET_ACCESS_KEY", "x"), ("AWS_DEFAULT_REGION", "us-east-1"),
        ("STATE_TABLE", "fp-state"), ("REGISTRY_TABLE", "fp-registry"), ("OUTBOX_TABLE", "fp-outbox"),
        ("INVOKER_SECRET", "fleetpulse/gcp/sa-invoker"), ("API_URL_PARAM", "/fleetpulse/api/url"),
-       ("NOTIFY_TOPIC_ARN", "arn:aws:sns:us-east-1:000000000000:fp-notify"))
+       ("NOTIFY_TOPIC_ARN", "arn:aws:sns:us-east-1:000000000000:fp-notify"),
+       ("EXECUTION_ARN_PREFIX", "arn:aws:states:us-east-1:000000000000:execution:incident-flow"))
 
 
 @pytest.fixture(autouse=True)

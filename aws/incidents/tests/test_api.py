@@ -17,20 +17,24 @@ from incidents_support import (
     NOW,
     NOW_ISO,
     FakeSfn,
+    assign,
     assigned,
     ev_items,
     get_meta,
     get_tech,
     log_lines,
     outbox_events,
+    ranked,
     seed_tech,
 )
 
 from api import approvals, close
+from flow import reserve_parts
 from fplib import clock
-from lib import registry
+from lib import registry, technicians
 
 TOKEN = "AAAAKgAAAAIAAAAAAAAAAQ+6C4y/7ZgXt=="  # los task tokens traen +, / y =
+EXECUTION = f"arn:aws:states:us-east-1:000000000000:execution:incident-flow:{INC}"
 CONSOLE_KEY, INGEST_KEY = "console-key-123", "ingest-key-456"
 BODY = {"closed_by": "TEC-01", "parts_used": [{"part_id": "PRT-04", "zone_id": "NORTE", "qty": 1}],
         "cause_summary": "Bomba hidraulica cambiada"}
@@ -109,17 +113,19 @@ def open_incident(ex017, ddb):
     return assigned(ex017, ddb)
 
 
-def _close(ddb, keys, incident_id=INC, key=CONSOLE_KEY, body=BODY):
+def _close(ddb, keys, incident_id=INC, key=CONSOLE_KEY, body=BODY, sfn=None):
     headers = {"x-api-key": key} if key else {}
     raw = body if isinstance(body, str) else json.dumps(body)
     ev = _http("POST", f"/incidents/{incident_id}/close", {"incident_id": incident_id}, headers=headers, body=raw)
-    return close.handler(ev, state=ddb.state, registry=ddb.registry, outbox=ddb.outbox, secrets=keys)
+    return close.handler(ev, state=ddb.state, registry=ddb.registry, outbox=ddb.outbox, secrets=keys,
+                         sfn=sfn or FakeSfn())
 
 
 @pytest.mark.parametrize("key", [None, "wrong-key"])
 def test_close_requires_console_key(ddb, keys, open_incident, key):
-    resp = _close(ddb, keys, key=key)
-    assert resp["statusCode"] == 401
+    sfn = FakeSfn()
+    resp = _close(ddb, keys, key=key, sfn=sfn)
+    assert resp["statusCode"] == 401 and sfn.stops == []
     assert get_meta(ddb.registry, INC)["status"] == "open" and get_tech(ddb.state, "TEC-01")["available"] is False
     assert outbox_events(ddb.outbox, "incident.closed") == []
 
@@ -135,9 +141,12 @@ def test_close_accepts_either_key_and_the_console_body(ddb, keys, open_incident,
 def test_close_updates_registry_frees_tech_and_emits_closed(ddb, keys, open_incident, monkeypatch, caplog):
     later = NOW + timedelta(hours=2, minutes=30, seconds=36)  # 2.51 h despues de opened_at
     monkeypatch.setattr(clock, "now", lambda: later)
+    sfn = FakeSfn()
     with caplog.at_level("INFO", logger="fplib"):
-        resp = _close(ddb, keys)
+        resp = _close(ddb, keys, sfn=sfn)
     assert resp["statusCode"] == 200 and json.loads(resp["body"]) == {"incident_id": INC, "downtime_h": 2.51}
+    # la ejecucion (nombre = incident_id) se detiene: no asigna ni notifica un incidente cerrado
+    assert sfn.stops == [{"executionArn": EXECUTION, "error": "IncidentClosed", "cause": "closed from console"}]
     meta = get_meta(ddb.registry, INC)
     assert meta["opened_at"] == NOW_ISO and meta["closed_at"] == clock.iso(later)
     assert meta["status"] == "closed" and meta["downtime_h"] == Decimal("2.51") and meta["closed_by"] == "TEC-01"
@@ -161,9 +170,72 @@ def test_close_updates_registry_frees_tech_and_emits_closed(ddb, keys, open_inci
 
 def test_close_twice_is_409(ddb, keys, open_incident):
     assert _close(ddb, keys)["statusCode"] == 200
-    resp = _close(ddb, keys)
-    assert resp["statusCode"] == 409
+    sfn = FakeSfn()
+    resp = _close(ddb, keys, sfn=sfn)
+    assert resp["statusCode"] == 409 and sfn.stops == []
     assert len(outbox_events(ddb.outbox, "incident.closed")) == 1
+
+
+def test_close_racing_another_close_is_409_from_the_transaction(ddb, keys, open_incident, monkeypatch, caplog):
+    stale = get_meta(ddb.registry, INC)  # la lectura lo vio abierto; otro cierre gano antes de la transaccion
+    assert _close(ddb, keys)["statusCode"] == 200
+    monkeypatch.setattr(registry, "get_incident", lambda table, incident_id: stale)
+    sfn = FakeSfn()
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close(ddb, keys, sfn=sfn)
+    assert resp["statusCode"] == 409 and sfn.stops == []
+    assert len(outbox_events(ddb.outbox, "incident.closed")) == 1
+    (line,) = log_lines(caplog, "cierre_ya_aplicado")
+    assert line["incident_id"] == INC and line["machine_id"] == "EX-017"
+
+
+def test_close_when_the_tech_changes_incident_mid_close_is_500(ddb, keys, open_incident, monkeypatch, caplog):
+    stale, real_get = get_tech(ddb.state, "TEC-01"), technicians.get  # leido enlazado a INC
+    other = "INC-EX-003-20261115T1500"
+    ddb.state.update_item(Key={"PK": "TECH#TEC-01", "SK": "META"}, UpdateExpression="SET current_incident = :i",
+                          ExpressionAttributeValues={":i": other})
+    monkeypatch.setattr(technicians, "get", lambda state, tid: stale if tid == "TEC-01" else real_get(state, tid))
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close(ddb, keys)
+    assert resp["statusCode"] == 500
+    assert get_meta(ddb.registry, INC)["status"] == "open" and get_tech(ddb.state, "TEC-01")["current_incident"] == other
+    assert outbox_events(ddb.outbox, "incident.closed") == []
+    (line,) = log_lines(caplog, "cierre_tecnico_cambio")
+    assert line["tech_id"] == "TEC-01" and line["incident_id"] == INC
+
+
+@pytest.mark.parametrize("stop_fail, msg", [("ExecutionDoesNotExist", "ejecucion_inexistente"),
+                                            ("ThrottlingException", "stop_execution_fallo")])
+def test_close_succeeds_even_if_the_execution_cannot_be_stopped(ddb, keys, open_incident, caplog, stop_fail, msg):
+    with caplog.at_level("INFO", logger="fplib"):
+        resp = _close(ddb, keys, sfn=FakeSfn(stop_fail=stop_fail))
+    assert resp["statusCode"] == 200 and get_meta(ddb.registry, INC)["status"] == "closed"
+    (line,) = log_lines(caplog, msg)
+    assert line["incident_id"] == INC
+
+
+def test_close_while_waiting_for_approval_keeps_the_incident_closed(ex017, ddb, keys):
+    """Secuencia del revisor: ranking (schedule, la ejecucion queda en WaitForApproval) -> cierre desde la consola
+    -> la aprobacion vence y AssignTechnician corre igual (StopExecution no llego a tiempo)."""
+    seed_tech(ddb.state, "TEC-01", "hydraulics", LAT + 0.4 * KM_LAT, LON)
+    ev = ranked(ex017, ddb)
+    assert ev["classified"]["needs_approval"] is True
+    assert _close(ddb, keys)["statusCode"] == 200
+    out = assign({**ev, "approval": {"approval": "timeout", "tech_id": None}}, ddb)
+    assert out == {"tech_id": None, "assigned_at": None, "approval": "timeout", "tech_busy": False,
+                   "skipped": "closed"}
+    assert assign({**ev, "approval": {"approval": "timeout", "tech_id": None}}, ddb) == out  # reintento
+    meta = get_meta(ddb.registry, INC)
+    assert meta["status"] == "closed" and meta["GSI2PK"] == "STATUS#closed" and "tech_id" not in meta
+    tech = get_tech(ddb.state, "TEC-01")
+    assert tech["available"] is True and tech.get("current_incident") is None  # no quedo tomado
+    assert outbox_events(ddb.outbox, "incident.assigned") == []
+    assert registry.open_incident_for(ddb.registry, "EX-017") is None  # CheckExistingIncident no silencia la maquina
+    # ReserveParts tampoco pide repuestos para un incidente cerrado
+    assert reserve_parts.handler({**ev, "assignment": out}, registry=ddb.registry, outbox=ddb.outbox) == {
+        "requested": [], "skipped": "closed"}
+    assert outbox_events(ddb.outbox, "part.reserve.requested", contract="part") == []
+    assert _close(ddb, keys)["statusCode"] == 409
 
 
 @pytest.mark.parametrize("incident_id", ["INC-EX-017-20261115T1500", "no-es-un-id"])

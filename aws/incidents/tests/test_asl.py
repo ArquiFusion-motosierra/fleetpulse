@@ -56,7 +56,12 @@ def test_starts_at_classify_and_v1_order():
     assert s["ClassifySeverity"]["Next"] == "CheckExistingIncident"
     assert s["CheckExistingIncident"]["Next"] == "AlreadyOpen?"
     (rule,) = s["AlreadyOpen?"]["Choices"]
-    assert rule == {"Variable": "$.existing.found", "BooleanEquals": True, "Next": "EscalatedOrIgnored"}
+    assert rule == {"Variable": "$.existing.found", "BooleanEquals": True, "Next": "Escalated?"}
+    # ya abierto: si CheckExisting lo escalo se avisa a supervisor y direccion; si no, se termina sin mas
+    (rule,) = s["Escalated?"]["Choices"]
+    assert rule == {"Variable": "$.existing.escalated", "BooleanEquals": True, "Next": "NotifyEscalation"}
+    assert s["Escalated?"]["Default"] == "EscalatedOrIgnored"
+    assert _chain(s, "NotifyEscalation") == ["NotifyEscalation", "EscalatedOrIgnored"]
     assert s["EscalatedOrIgnored"]["Type"] == "Succeed"
     assert _chain(s, s["AlreadyOpen?"]["Default"]) == [
         "CorrelateZone", "CreateIncident", "ExplainCause", "RankTechnicians", "NeedsApproval"]
@@ -201,3 +206,61 @@ def test_functions_and_http_routes_on_the_shared_fp_core_api():
         "EXECUTION_ARN_PREFIX": "arn:aws:states:${aws:region}:${aws:accountId}:execution:incident-flow"}
     for name in ("approvals", "close"):
         assert fns[name]["timeout"] <= 29, name  # tope de integracion de HTTP API
+
+
+_FORMAT = re.compile(r"^States\.Format\('((?:[^'\\]|\\.)*)'((?:, *\$[.\w]+)*)\)$")
+
+
+def _render(expr: str, state: dict) -> str:
+    """Evalua `States.Format('...', $.a.b, ...)` como Step Functions: un `{}` por argumento, en orden; los
+    numeros se escriben como JSON. Falla si una ruta no existe o si sobran o faltan argumentos."""
+    m = _FORMAT.match(expr)
+    assert m, expr
+    template, args = m.group(1), [a.strip() for a in m.group(2).split(",") if a.strip()]
+    assert not set("{}") & set(template.replace("{}", "")), "llave suelta"  # comillas y barras: ya las exige la regex
+    assert template.count("{}") == len(args), (template, args)
+    for path in args:
+        value = state
+        for key in path[2:].split("."):
+            value = value[key]
+        template = template.replace("{}", value if isinstance(value, str) else json.dumps(value), 1)
+    return template
+
+
+def test_escalation_notifies_supervisor_and_management():
+    par = ASL["States"]["NotifyEscalation"]
+    assert par["Type"] == "Parallel" and len(par["Branches"]) == 2
+    assert par["ResultSelector"] == {"published": True} and par["ResultPath"] == "$.escalation_notified"
+    assert par["Catch"] == [ALERT]
+    publishes = [st for b in par["Branches"] for _, st in _states(b)]
+    assert {st["Parameters"]["MessageAttributes"]["role"]["StringValue"] for st in publishes} == {
+        "supervisor", "management"}
+    for st in publishes:
+        p = st["Parameters"]
+        assert st["Resource"] == "arn:aws:states:::sns:publish" and st["Retry"] == RETRY and st["End"] is True
+        assert p["TopicArn"] == "${NotifyTopicArn}" and p["MessageAttributes"]["role"]["DataType"] == "String"
+        assert p["Subject.$"] == "States.Format('[FleetPulse] escalado {} {}', $.machine_id, $.existing.incident_id)"
+    first, second = (st["Parameters"]["Message.$"] for st in publishes)
+    assert first == second
+
+
+def test_escalation_texts_render_from_check_existing_output(ex017, ddb):
+    """Costura ASL <-> Lambda: las rutas de States.Format existen en la salida real de CheckExisting."""
+    from decimal import Decimal
+
+    from incidents_support import classified, seed_incident
+
+    from flow import check_existing
+    old = "INC-EX-017-20261115T1400"
+    seed_incident(ddb.registry, old, "2026-11-15T14:05:00Z", severity="schedule", score=Decimal("2.2"))
+    state = classified({**ex017, "score": 3.62})
+    state["existing"] = check_existing.handler(state, registry=ddb.registry, outbox=ddb.outbox)
+    assert state["existing"]["escalated"] is True
+    params = ASL["States"]["NotifyEscalation"]["Branches"][0]["States"]
+    (st,) = params.values()
+    subject = _render(st["Parameters"]["Subject.$"], state)
+    message = _render(st["Parameters"]["Message.$"], state)
+    assert subject == f"[FleetPulse] escalado EX-017 {old}" and len(subject) <= 100  # tope de Subject en SNS
+    assert message == (f"El incidente {old} de la maquina EX-017 (zona NORTE) subio de severidad schedule a "
+                       "immediate con score 3.62. Si aun espera aprobacion, el supervisor puede aprobarlo ya desde "
+                       "el correo anterior; revisar asignacion y repuestos en la consola.")

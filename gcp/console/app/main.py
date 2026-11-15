@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.aws_api import AwsApi, UpstreamError
+from app import mock_reports as mr
 from app.mock import MockRegistry
 
 log = logging.getLogger("console")
@@ -26,7 +27,11 @@ MID_RE = re.compile(r"^(EX|CF|VQ|MN|TO)-[0-9]{3}$")
 
 app = FastAPI(title="FleetPulse console", docs_url=None, redoc_url=None)
 app.state.mock = MockRegistry() if os.environ.get("MOCK") == "1" else None
+app.state.reports = mr.MockReports(app.state.mock) if app.state.mock else None
 app.state.aws = AwsApi()
+RID_RE = re.compile(r"^RPT-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{6}$")
+TECH_RE = re.compile(r"^TEC-[0-9]{2}$")
+CODE_RE = re.compile(r"^[a-z][a-z0-9_]{1,39}$")
 
 
 def upstream(fn, *args):
@@ -158,6 +163,152 @@ async def close(incident_id: str, request: Request):
             raise HTTPException(404, "INCIDENT_NOT_FOUND")
         return r
     return upstream(app.state.aws.close_incident, incident_id, payload)
+
+
+# ---------- T34: login y rutas por rol ----------
+
+@app.get("/api/auth/config")
+def auth_config():
+    """Configuracion publica del login. En modo de prueba no hay Cognito: la consola ofrece usuarios de prueba."""
+    if app.state.mock:
+        return {"mode": "mock", "users": [{"token": f"mock.{k}", **v} for k, v in mr.USERS.items()]}
+    pool, client, domain = (os.environ.get(k, "") for k in ("AUTH_USER_POOL_ID", "AUTH_CLIENT_ID", "AUTH_DOMAIN"))
+    if not (pool and client and domain):
+        raise HTTPException(503, "AUTH_NOT_CONFIGURED")
+    region = pool.split("_", 1)[0]
+    return {"mode": "cognito", "region": region, "user_pool_id": pool, "client_id": client,
+            "authority": f"https://cognito-idp.{region}.amazonaws.com/{pool}",
+            "domain": domain if domain.startswith("https://") else f"https://{domain}"}
+
+
+def _as_user(request: Request, method: str, path: str, body: dict | None = None, query: str = ""):
+    """Modo real: reenvia el token de Cognito a la API compartida y devuelve lo que diga AWS."""
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        raise HTTPException(401, "UNAUTHORIZED")
+    try:
+        status, data = app.state.aws.as_user(method, path, auth, body, query)
+    except UpstreamError as exc:
+        raise HTTPException(502, "AWS_UNAVAILABLE") from exc
+    return JSONResponse(data, status_code=status)
+
+
+def _mock(request: Request, fn, *args):
+    try:
+        user = mr.user_of(request.headers.get("authorization"))
+        return fn(user, *args)
+    except PermissionError as exc:
+        raise HTTPException(401, "UNAUTHORIZED") from exc
+    except mr.Forbidden as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except mr.NotFound as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except mr.Conflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except mr.BadRequest as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+async def _json(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "BAD_JSON") from None
+    if not isinstance(body, dict):
+        raise HTTPException(400, "BAD_JSON")
+    return body
+
+
+@app.post("/api/reports")
+async def create_report(request: Request):
+    body = await _json(request)
+    if app.state.reports:
+        return JSONResponse({"report": _mock(request, app.state.reports.create, body)}, status_code=201)
+    return _as_user(request, "POST", "/reports", body)
+
+
+@app.get("/api/reports")
+def list_reports(request: Request, status: str | None = None, machine_id: str | None = None,
+                 incident_id: str | None = None, mine: int = 0):
+    bad = status not in (None, "open", "in_review", "closed")
+    bad = bad or bool(machine_id and not MID_RE.match(machine_id)) or bool(incident_id and not INC_RE.match(incident_id))
+    if bad:
+        raise HTTPException(400, "BAD_FILTER")
+    if app.state.reports:
+        return {"reports": _mock(request, app.state.reports.list, status, machine_id, incident_id, bool(mine))}
+    pairs = (("status", status), ("machine_id", machine_id), ("incident_id", incident_id), ("mine", 1 if mine else None))
+    return _as_user(request, "GET", "/reports", query="&".join(f"{k}={v}" for k, v in pairs if v))
+
+
+@app.get("/api/reports/{report_id}")
+def get_report(request: Request, report_id: str):
+    if not RID_RE.match(report_id):
+        raise HTTPException(400, "BAD_REPORT_ID")
+    if app.state.reports:
+        return _mock(request, app.state.reports.get, report_id)
+    return _as_user(request, "GET", f"/reports/{report_id}")
+
+
+@app.post("/api/reports/{report_id}/close")
+async def close_report(request: Request, report_id: str):
+    if not RID_RE.match(report_id):
+        raise HTTPException(400, "BAD_REPORT_ID")
+    body = await _json(request)
+    if app.state.reports:
+        return _mock(request, app.state.reports.close, report_id, body)
+    return _as_user(request, "POST", f"/reports/{report_id}/close", body)
+
+
+@app.get("/api/abnormality-types")
+def abnormality_types(request: Request):
+    if app.state.reports:
+        return {"abnormality_types": _mock(request, app.state.reports.list_types)}
+    return _as_user(request, "GET", "/abnormality-types")
+
+
+TECH_IDS = [f"TEC-0{i}" for i in range(1, 7)]
+
+
+@app.get("/api/admin/technicians")
+def admin_technicians(request: Request):
+    """Los 6 tecnicos del catalogo, cada uno leido de GET /admin/technicians/{id} (T35)."""
+    if app.state.reports:
+        return {"technicians": [_mock(request, app.state.reports.get_tech, t) for t in TECH_IDS]}
+    out = []
+    for t in TECH_IDS:
+        resp = _as_user(request, "GET", f"/admin/technicians/{t}")
+        if resp.status_code != 200:
+            return resp
+        out.append(json.loads(resp.body))
+    return {"technicians": out}
+
+
+@app.put("/api/admin/technicians/{tech_id}")
+async def admin_put_technician(request: Request, tech_id: str):
+    if not TECH_RE.match(tech_id):
+        raise HTTPException(400, "BAD_TECH_ID")
+    body = await _json(request)
+    if app.state.reports:
+        return _mock(request, app.state.reports.put_tech, tech_id, body)
+    return _as_user(request, "PUT", f"/admin/technicians/{tech_id}", body)
+
+
+@app.post("/api/admin/abnormality-types")
+async def admin_add_type(request: Request):
+    body = await _json(request)
+    if app.state.reports:
+        return JSONResponse(_mock(request, app.state.reports.add_type, body), status_code=201)
+    return _as_user(request, "POST", "/admin/abnormality-types", body)
+
+
+@app.delete("/api/admin/abnormality-types/{code}")
+def admin_delete_type(request: Request, code: str):
+    if not CODE_RE.match(code):
+        raise HTTPException(400, "BAD_CODE")
+    if app.state.reports:
+        _mock(request, app.state.reports.delete_type, code)
+        return {"deleted": code}
+    return _as_user(request, "DELETE", f"/admin/abnormality-types/{code}")
 
 
 @app.exception_handler(HTTPException)

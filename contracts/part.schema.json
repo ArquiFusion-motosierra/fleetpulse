@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fleetpulse.arquifusion/contracts/part.schema.json",
   "title": "Part reservation events",
-  "description": "part.reserve.requested (incident-flow ReserveParts -> OCI) y part.reserved | part.shortage (resultado de OCI, que oci-writer vuelve a publicar en el outbox). La reserva es atomica en OCI: zona del incidente, luego la mas cercana, luego pedido sugerido.",
+  "description": "part.reserve.requested (incident-flow ReserveParts -> registry) y part.reserved | part.shortage (resultado de la Lambda registry, que los escribe en el outbox). La reserva es atomica en fp-registry (ConditionExpression): zona del incidente, luego la mas cercana, luego pedido sugerido.",
   "type": "object",
   "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "incident_id", "machine_id", "payload"],
   "properties": {
     "event_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
     "schema_version": {"const": 1},
-    "source": {"enum": ["aws.incident-flow", "aws.oci-writer", "simulator.backfill"]},
+    "source": {"enum": ["aws.incident-flow", "aws.registry", "simulator.backfill"]},
     "aggregate_type": {"const": "part_reservation"},
     "aggregate_id": {"type": "string", "pattern": "^RSV-INC-(EX|CF|VQ|MN|TO)-[0-9]{3}-[0-9]{8}T[0-9]{4}$", "description": "RSV-<incident_id>: una solicitud de reserva por incidente."},
     "occurred_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
@@ -48,7 +48,7 @@
                 "additionalProperties": false,
                 "required": ["reservation_id", "part_id", "zone_id", "qty"],
                 "properties": {
-                  "reservation_id": {"type": "integer", "minimum": 1, "description": "PART_RESERVATIONS.reservation_id en OCI."},
+                  "reservation_id": {"type": "string", "pattern": "^[0-9a-f-]{36}#[0-9]{1,2}$", "description": "<event_id de part.reserve.requested>#<linea>: clave de la reserva en fp-registry."},
                   "part_id": {"$ref": "#/$defs/part_id"},
                   "zone_id": {"$ref": "#/$defs/zone_id", "description": "Zona de donde salio (puede ser la mas cercana)."},
                   "qty": {"type": "integer", "minimum": 1}

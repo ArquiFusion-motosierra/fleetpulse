@@ -2,7 +2,7 @@
   "event_id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a81",
   "event_type": "part.reserved",
   "schema_version": 1,
-  "source": "aws.oci-writer",
+  "source": "aws.registry",
   "aggregate_type": "part_reservation",
   "aggregate_id": "RSV-INC-EX-017-20261115T1430",
   "occurred_at": "2026-11-15T14:39:47Z",
@@ -11,13 +11,13 @@
   "payload": {
     "reservations": [
       {
-        "reservation_id": 41,
+        "reservation_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70#0",
         "part_id": "PRT-04",
         "zone_id": "NORTE",
         "qty": 1
       },
       {
-        "reservation_id": 42,
+        "reservation_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70#1",
         "part_id": "PRT-03",
         "zone_id": "NORTE",
         "qty": 2

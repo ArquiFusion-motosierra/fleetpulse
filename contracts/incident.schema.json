@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fleetpulse.arquifusion/contracts/incident.schema.json",
   "title": "Incident events",
-  "description": "incident.opened | incident.escalated | incident.assigned | incident.closed, completos con su sobre (ver envelope.schema.json). Productor: incident-flow y POST /incidents/{id}/close en AWS. Consumidores: OCI (FLEET_EVENTS.apply) y BigQuery domain_events.",
+  "description": "incident.opened | incident.escalated | incident.assigned | incident.closed, completos con su sobre (ver envelope.schema.json). Productor: incident-flow y POST /incidents/{id}/close en AWS. Consumidores: registry (fp-registry) y BigQuery domain_events.",
   "type": "object",
   "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "incident_id", "machine_id", "payload"],
   "properties": {
@@ -118,7 +118,7 @@
               }
             },
             "cause_summary": {"type": "string", "maxLength": 1000},
-            "closed_by": {"type": "string", "maxLength": 64, "description": "tech_id o usuario de APEX."}
+            "closed_by": {"type": "string", "maxLength": 64, "description": "tech_id o usuario de la consola."}
           }
         }
       }

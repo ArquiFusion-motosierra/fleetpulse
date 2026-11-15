@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fleetpulse.arquifusion/contracts/envelope.schema.json",
   "title": "Domain event envelope",
-  "description": "Sobre comun de todo evento de dominio que sale de fp-outbox hacia SNS fp-domain-events (y de ahi a OCI y BigQuery). El payload de cada event_type se valida con su propio contrato.",
+  "description": "Sobre comun de todo evento de dominio que sale de fp-outbox hacia SNS fp-domain-events (y de ahi a registry-q y gcp-events-q). El payload de cada event_type se valida con su propio contrato.",
   "type": "object",
   "additionalProperties": false,
   "required": ["event_id", "event_type", "schema_version", "source", "aggregate_type", "aggregate_id", "occurred_at", "payload"],
@@ -11,7 +11,7 @@
       "type": "string",
       "format": "uuid",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-      "description": "UUID v4. Clave de idempotencia en fp-inbox y en OCI PROCESSED_EVENTS."
+      "description": "UUID v4. Clave de idempotencia en fp-inbox (registry y gcp-events)."
     },
     "event_type": {
       "type": "string",
@@ -31,7 +31,7 @@
     "schema_version": {"type": "integer", "const": 1},
     "source": {
       "type": "string",
-      "enum": ["aws.incident-flow", "aws.incidents-api", "aws.daily-planning", "aws.oci-writer", "simulator.backfill"],
+      "enum": ["aws.incident-flow", "aws.incidents-api", "aws.daily-planning", "aws.registry", "simulator.backfill"],
       "description": "Componente que escribio el evento en el outbox."
     },
     "aggregate_type": {"type": "string", "enum": ["incident", "part_reservation", "machine", "fleet"]},

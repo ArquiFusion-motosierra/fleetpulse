@@ -1,5 +1,5 @@
 {
-  "Comment": "incident-flow v0 (T09): clasifica, crea el incidente, rankea, asigna, arma los textos con el tecnico asignado y notifica por rol. T14 agrega CorrelateZone, ExplainCause, NeedsApproval/WaitForApproval (entre RankTechnicians y AssignTechnician) y ReserveParts.",
+  "Comment": "incident-flow (T09 + T14): clasifica, correlaciona por celda y zona, crea el incidente, pide la explicacion a Cloud Run (plantilla si falla), rankea, espera la aprobacion del supervisor si la severidad es schedule (30 min, luego asignacion automatica), asigna, arma los textos con el tecnico asignado, notifica por rol y pide la reserva de repuestos.",
   "StartAt": "ClassifySeverity",
   "States": {
     "ClassifySeverity": {
@@ -59,10 +59,34 @@
           "Next": "EscalatedOrIgnored"
         }
       ],
-      "Default": "CreateIncident"
+      "Default": "CorrelateZone"
     },
     "EscalatedOrIgnored": {
       "Type": "Succeed"
+    },
+    "CorrelateZone": {
+      "Type": "Task",
+      "Resource": "${CorrelateZoneArn}",
+      "ResultPath": "$.correlation",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "CreateIncident"
     },
     "CreateIncident": {
       "Type": "Task",
@@ -84,6 +108,31 @@
             "States.ALL"
           ],
           "Next": "PublishAlert"
+        }
+      ],
+      "Next": "ExplainCause"
+    },
+    "ExplainCause": {
+      "Type": "Task",
+      "Resource": "${ExplainCauseArn}",
+      "ResultPath": "$.explanation",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.explain_error",
+          "Next": "RankTechnicians"
         }
       ],
       "Next": "RankTechnicians"
@@ -110,6 +159,65 @@
           "Next": "PublishAlert"
         }
       ],
+      "Next": "NeedsApproval"
+    },
+    "NeedsApproval": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.classified.needs_approval",
+          "BooleanEquals": true,
+          "Next": "WaitForApproval"
+        }
+      ],
+      "Default": "AssignTechnician"
+    },
+    "WaitForApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "${WaitForApprovalArn}",
+        "Payload": {
+          "input.$": "$",
+          "token.$": "$$.Task.Token"
+        }
+      },
+      "TimeoutSeconds": 1800,
+      "ResultPath": "$.approval",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "ResultPath": "$.approval_timeout",
+          "Next": "ApprovalTimedOut"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "AssignTechnician"
+    },
+    "ApprovalTimedOut": {
+      "Type": "Pass",
+      "Result": {
+        "approval": "timeout",
+        "tech_id": null
+      },
+      "ResultPath": "$.approval",
       "Next": "AssignTechnician"
     },
     "AssignTechnician": {
@@ -320,6 +428,30 @@
         }
       ],
       "ResultPath": null,
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "PublishAlert"
+        }
+      ],
+      "Next": "ReserveParts"
+    },
+    "ReserveParts": {
+      "Type": "Task",
+      "Resource": "${ReservePartsArn}",
+      "ResultPath": "$.reservation",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
       "Catch": [
         {
           "ErrorEquals": [

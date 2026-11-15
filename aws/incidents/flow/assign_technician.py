@@ -1,8 +1,9 @@
 """Lambda `assign_technician` (AssignTechnician): asigna el tecnico, emite `incident.assigned` y lo reserva.
 
 Preferencia: `$.approval.tech_id` (aprobacion por correo, T14) y despues `$.ranking.top` en orden. approval:
-`$.approval.approval` o `auto`. Explicacion: `$.explanation` (Cloud Run, T14) o la plantilla sobre
-`$.incident.deviated_vars`.
+`$.approval.approval` (`approved` o `timeout`) o `auto`. Un tecnico aprobado se respeta solo si se puede reservar;
+si ya esta ocupado se toma el siguiente libre, approval sigue `approved` y queda el log `tecnico_aprobado_ocupado`.
+Explicacion: `$.explanation` (ExplainCause) o la plantilla sobre `$.incident.deviated_vars`.
 Cada intento es una sola transaccion: META (tech_id, assigned_at, approval, explanation, tech_busy) condicionado a
 que el incidente aun no tenga tecnico + EV# + fp-outbox + reserva de `TECH#<id>` (available=false,
 current_incident) condicionada a que siga libre. Si otra ejecucion tomo al tecnico despues del ranking, se cancela
@@ -66,6 +67,7 @@ def handler(event, context=None, state=None, registry=None, outbox=None):
     order = _order(event)
     if not order:
         raise ValueError(f"sin tecnico para asignar a {incident_id}")
+    approved = (event.get("approval") or {}).get("tech_id")
     deviated = event["incident"].get("deviated_vars") or event["deviated_vars"]
     common = {"approval": (event.get("approval") or {}).get("approval") or "auto",
               "explanation": event.get("explanation") or templates.explanation(deviated, event["failure_mode"],
@@ -73,6 +75,8 @@ def handler(event, context=None, state=None, registry=None, outbox=None):
     for tech_id in order:
         item = technicians.get(state, tech_id)
         if item is not None and not technicians.is_free(item, incident_id):
+            if tech_id == approved:
+                log.event("tecnico_aprobado_ocupado", tech_id=tech_id, **ctx)
             continue
         reserve = technicians.claim(state.name, tech_id, incident_id) if item is not None else None
         try:

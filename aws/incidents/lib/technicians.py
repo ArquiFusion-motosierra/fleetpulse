@@ -1,7 +1,8 @@
 """Tecnicos en fp-state (`TECH#<id>` / `META`): candidatos, ranking (puro, sin I/O) y reserva condicional.
 
 score = peso_severidad x 1/max(km, 0.5) x (2 si la especialidad coincide con el modo de falla) x (1 si disponible).
-Idempotencia: el ranking es determinista y `claim` acepta al tecnico ya tomado por el mismo incidente.
+Idempotencia: el ranking es determinista, `claim` acepta al tecnico ya tomado por el mismo incidente y `release`
+solo libera al tecnico que sigue enlazado a ese incidente.
 """
 from __future__ import annotations
 
@@ -95,4 +96,17 @@ def claim(state_tbl_name: str, tech_id: str, incident_id: str) -> dict:
         "ConditionExpression": "attribute_exists(PK) AND (attribute_not_exists(available) OR available = :t "
                                "OR current_incident = :i)",
         "ExpressionAttributeValues": {":f": False, ":t": True, ":i": incident_id},
+    }}
+
+
+def release(state_tbl_name: str, tech_id: str, incident_id: str) -> dict:
+    """`Update` de TransactWriteItems (tipos nativos) que deja al tecnico libre al cerrar `incident_id`.
+
+    Condicionado a que siga enlazado a ese incidente: un tecnico asignado ocupado (`tech_busy`) sigue con el suyo.
+    """
+    return {"Update": {
+        "TableName": state_tbl_name, "Key": {"PK": f"TECH#{tech_id}", "SK": "META"},
+        "UpdateExpression": "SET available = :t, current_incident = :n",
+        "ConditionExpression": "current_incident = :i",
+        "ExpressionAttributeValues": {":t": True, ":n": None, ":i": incident_id},
     }}

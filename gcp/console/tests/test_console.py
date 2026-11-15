@@ -241,3 +241,74 @@ def test_real_mode_forwards_the_cognito_token(monkeypatch):
     r = c.post("/api/reports", json={"machine_id": "EX-017"}, headers={"authorization": "Bearer eyJ.tok.en"})
     assert r.status_code == 403 and r.json() == {"error": "forbidden"}
     assert c.get("/api/reports").status_code == 401
+
+
+# ---------- T34: cierre de incidentes con login (POST /me/incidents/{id}/close) ----------
+
+def _open_inc(client, mid):
+    return client.get(f"/api/machines/{mid}").json()["open_incident_id"]
+
+
+def test_mock_close_with_login_follows_aws_roles(mock_client):
+    own, other = _open_inc(mock_client, "EX-017"), _open_inc(mock_client, "VQ-022")  # TEC-01 y TEC-03
+    assert mock_client.post(f"/api/incidents/{own}/close", json={}, headers=H("operator")).status_code == 403
+    assert mock_client.post(f"/api/incidents/{other}/close", json={}, headers=H("technician")).status_code == 403
+    r = mock_client.post(f"/api/incidents/{own}/close", json={"closed_by": "otro", "cause_summary": "Bomba"},
+                         headers=H("technician"))
+    assert r.status_code == 200
+    closed = mock_client.get(f"/api/incidents/{own}").json()["timeline"][-1]
+    assert closed["type"] == "incident.closed" and closed["payload"]["closed_by"] == "tecnico@fleetpulse.test"
+    assert mock_client.post(f"/api/incidents/{other}/close", json={}, headers=H("supervisor")).status_code == 200
+    assert mock_client.post(f"/api/incidents/{own}/close", json={}, headers={"authorization": "Bearer x"}).status_code == 401
+
+
+def _aws_client(monkeypatch, auth=False):
+    monkeypatch.delenv("MOCK", raising=False)
+    monkeypatch.setenv("STATIC_DIR", "/nonexistent")
+    monkeypatch.setenv("AWS_INCIDENTS_URL", "https://inc.example")
+    for k, v in (("AUTH_USER_POOL_ID", "us-east-1_abc"), ("AUTH_CLIENT_ID", "cid"), ("AUTH_DOMAIN", "fp.auth.example")):
+        if auth:
+            monkeypatch.setenv(k, v)
+        else:
+            monkeypatch.delenv(k, raising=False)
+    import app.aws_api as aws_api
+    import app.main as main
+    importlib.reload(aws_api)
+    importlib.reload(main)
+    calls = []
+
+    def opener(req, timeout):
+        calls.append({"method": req.get_method(), "url": req.full_url, "key": req.headers.get("X-api-key"),
+                      "auth": req.headers.get("Authorization"), "body": json.loads(req.data or b"{}")})
+        if "TEC-99" in json.dumps(calls[-1]["body"]):
+            raise urllib.error.HTTPError(req.full_url, 403, "forbidden", {}, io.BytesIO(b'{"error": "forbidden"}'))
+        return Resp(json.dumps({"incident_id": "INC-EX-017-20261115T1430", "downtime_h": 1.5}).encode())
+
+    main.app.state.aws = aws_api.AwsApi(opener=opener, key_loader=lambda: "secret-key")
+    return TestClient(main.app), calls
+
+
+def test_aws_close_with_login_forwards_the_id_token_to_the_user_route(monkeypatch):
+    c, calls = _aws_client(monkeypatch, auth=True)
+    r = c.post("/api/incidents/INC-EX-017-20261115T1430/close", headers={"authorization": "Bearer id.tok.en"},
+               json={"closed_by": "suplantado", "cause_summary": "Bomba cambiada",
+                     "parts_used": [{"part_id": "PRT-04", "zone_id": "NORTE", "qty": 1}]})
+    assert r.status_code == 200 and r.json()["downtime_h"] == 1.5
+    (call,) = calls
+    assert call["method"] == "POST" and call["url"] == "https://inc.example/me/incidents/INC-EX-017-20261115T1430/close"
+    assert call["auth"] == "Bearer id.tok.en" and call["key"] is None
+    assert call["body"] == {"cause_summary": "Bomba cambiada",
+                            "parts_used": [{"part_id": "PRT-04", "zone_id": "NORTE", "qty": 1}]}
+    r = c.post("/api/incidents/INC-EX-017-20261115T1430/close", headers={"authorization": "Bearer id.tok.en"},
+               json={"cause_summary": "TEC-99"})
+    assert r.status_code == 403  # el rol lo decide AWS y la consola devuelve su respuesta
+
+
+def test_aws_close_without_token_is_401_once_login_is_configured(monkeypatch):
+    c, calls = _aws_client(monkeypatch, auth=True)
+    assert c.post("/api/incidents/INC-EX-017-20261115T1430/close", json={"closed_by": "TEC-01"}).status_code == 401
+    assert calls == []
+    c, calls = _aws_client(monkeypatch, auth=False)  # sin login (T15): API key como antes
+    assert c.post("/api/incidents/INC-EX-017-20261115T1430/close", json={"closed_by": "TEC-01"}).status_code == 200
+    assert calls[0]["url"] == "https://inc.example/incidents/INC-EX-017-20261115T1430/close"
+    assert calls[0]["key"] == "secret-key" and calls[0]["body"]["closed_by"] == "TEC-01"

@@ -140,11 +140,30 @@ def kpis():
     return {"day": None, "machines": []}
 
 
+def _auth_configured() -> bool:
+    return all(os.environ.get(k) for k in ("AUTH_USER_POOL_ID", "AUTH_CLIENT_ID", "AUTH_DOMAIN"))
+
+
+def _mock_close_as(request: Request, incident_id: str, payload: dict) -> None:
+    """Modo de prueba con usuario: mismas reglas que `POST /me/incidents/{id}/close` (aws/incidents/api/close.py)."""
+    user = _mock(request, lambda u: u)
+    if user["role"] not in mr.CLOSE_ROLES:
+        raise HTTPException(403, "FORBIDDEN")
+    inc = app.state.mock.incidents.get(incident_id)
+    if user["role"] == "technician" and (inc is None or inc.get("tech_id") != user.get("tech_id")):
+        raise HTTPException(403, "FORBIDDEN")
+    payload["closed_by"] = user["email"][:64]
+
+
 @app.post("/api/incidents/{incident_id}/close")
 async def close(incident_id: str, request: Request):
-    """AWS es el unico que cambia el estado: calcula downtime, libera al tecnico y emite incident.closed."""
+    """AWS es el unico que cambia el estado: calcula downtime, libera al tecnico y emite incident.closed.
+    Con login (T34) va a `POST /me/incidents/{id}/close` con el ID token del usuario: AWS decide quien puede cerrar
+    (supervisor, admin o el tecnico asignado) y toma `closed_by` del token. Sin login configurado sigue la ruta con
+    API key de T15; con login configurado, una peticion sin token es 401."""
     if not INC_RE.match(incident_id):
         raise HTTPException(400, "BAD_INCIDENT_ID")
+    bearer = request.headers.get("authorization", "").lower().startswith("bearer ")
     try:
         body = await request.json()
     except ValueError:
@@ -155,13 +174,20 @@ async def close(incident_id: str, request: Request):
     if isinstance(parts, list):
         payload["parts_used"] = [{"part_id": str(p["part_id"]), "zone_id": str(p["zone_id"]), "qty": int(p["qty"])}
                                  for p in parts if isinstance(p, dict) and {"part_id", "zone_id", "qty"} <= p.keys()]
-    log.info(json.dumps({"msg": "close_requested", "incident_id": incident_id}))
+    log.info(json.dumps({"msg": "close_requested", "incident_id": incident_id, "as_user": bearer}))
     m = app.state.mock
     if m:
+        if bearer:
+            _mock_close_as(request, incident_id, payload)
         r = m.close(incident_id, payload)
         if r is None:
             raise HTTPException(404, "INCIDENT_NOT_FOUND")
         return r
+    if bearer:
+        payload.pop("closed_by")
+        return _as_user(request, "POST", f"/me/incidents/{incident_id}/close", payload)
+    if _auth_configured():
+        raise HTTPException(401, "UNAUTHORIZED")
     return upstream(app.state.aws.close_incident, incident_id, payload)
 
 

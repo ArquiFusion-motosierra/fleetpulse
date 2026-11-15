@@ -173,7 +173,7 @@ function Console({ user }) {
 
         {drawer?.kind === "machine" && <MachinePanel id={drawer.id} onClose={() => setDrawer(null)} onOpenIncident={showIncident} />}
         {drawer?.kind === "incident" && <IncidentPanel id={drawer.id} onClose={() => setDrawer(null)} onChanged={refresh} onMachine={showMachine}
-          onReport={showReport} canClose={CAN_CLOSE_INCIDENT.includes(user.role)} />}
+          onReport={showReport} canClose={CAN_CLOSE_INCIDENT.includes(user.role)} user={user} />}
         {drawer?.kind === "report" && <ReportPanel id={drawer.id} user={user} onClose={() => setDrawer(null)} onIncident={showIncident} onChanged={refresh} />}
       </main>
     </div>

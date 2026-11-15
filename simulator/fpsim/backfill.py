@@ -5,7 +5,7 @@
 Salida (simulator/out/ esta en .gitignore):
     telemetry/dt=YYYY-MM-DD/hr=HH/backfill.ndjson.gz   mismo layout que archiver en s3://fp-raw/telemetry/
     context/context.ndjson.gz                          fuel.refill y weather
-    events/domain_events.ndjson                        ~40 incidentes historicos (incident.*, part.*) para OCI POST /events
+    events/domain_events.ndjson                        ~40 incidentes historicos (incident.*, part.*) para reproducir en fp-registry
     labels/faults.json                                 fallas inyectadas: verdad de terreno para calibrar el score
 Con --s3-bucket sube todo a s3://<bucket>/backfill/.
 """

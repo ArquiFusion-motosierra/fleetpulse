@@ -1,0 +1,150 @@
+# registry (T10, plan B sin OCI). Se despliega desde aws/serverless-compose.yml:
+#   registry:
+#     path: registry
+#     dependsOn: [<pila que crea fp-state, fp-inbox, fp-outbox y el topic fp-domain-events>]
+# Crea fp-registry, la cola registry-q (+ DLQ) suscrita a fp-domain-events y la API de lectura de la consola.
+service: fp-registry
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  architecture: arm64
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 20
+  logRetentionInDays: 14
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/LabRole
+  environment:
+    REGISTRY_TABLE: fp-registry
+    INBOX_TABLE: fp-inbox
+    STATE_TABLE: fp-state
+    OUTBOX_TABLE: fp-outbox
+    CONSOLE_KEY_SECRET: fleetpulse/api/console-key
+  httpApi:
+    cors:
+      allowedOrigins: ["*"]  # la consola llama desde su BFF en Cloud Run; la API key nunca llega al navegador
+      allowedHeaders: [x-api-key, content-type]
+      allowedMethods: [GET]
+
+custom:
+  domainTopicArn: arn:aws:sns:${aws:region}:${aws:accountId}:fp-domain-events
+
+package:
+  patterns:
+    - "!**"
+    - reg/**
+    - "!reg/**/__pycache__/**"
+    - "!reg/seed.py"
+
+functions:
+  registry:
+    handler: reg/consumer.handler
+    description: Aplica eventos de dominio en fp-registry; reserva atomica de repuestos (idempotente por event_id)
+    timeout: 30
+    events:
+      - sqs:
+          arn: !GetAtt RegistryQueue.Arn
+          batchSize: 10
+          maximumBatchingWindow: 5
+          functionResponseType: ReportBatchItemFailures
+  registryApi:
+    handler: reg/api.handler
+    description: API de lectura para la consola (GET /machines, /incidents, /stock)
+    events:
+      - httpApi: {method: GET, path: /machines}
+      - httpApi: {method: GET, path: "/machines/{id}"}
+      - httpApi: {method: GET, path: /incidents}
+      - httpApi: {method: GET, path: "/incidents/{id}"}
+      - httpApi: {method: GET, path: /stock}
+      - httpApi: {method: GET, path: /reorders}
+      - httpApi: {method: GET, path: "/kpis/{day}"}
+
+resources:
+  Resources:
+    RegistryTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: fp-registry
+        BillingMode: PAY_PER_REQUEST
+        DeletionProtectionEnabled: true
+        PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
+        StreamSpecification: {StreamViewType: NEW_IMAGE}
+        AttributeDefinitions:
+          - {AttributeName: PK, AttributeType: S}
+          - {AttributeName: SK, AttributeType: S}
+          - {AttributeName: GSI1PK, AttributeType: S}
+          - {AttributeName: GSI1SK, AttributeType: S}
+          - {AttributeName: GSI2PK, AttributeType: S}
+          - {AttributeName: GSI2SK, AttributeType: S}
+        KeySchema:
+          - {AttributeName: PK, KeyType: HASH}
+          - {AttributeName: SK, KeyType: RANGE}
+        GlobalSecondaryIndexes:
+          - IndexName: GSI1   # MACHINES/<zona>#<id> e INCIDENTS/<opened_at>
+            KeySchema:
+              - {AttributeName: GSI1PK, KeyType: HASH}
+              - {AttributeName: GSI1SK, KeyType: RANGE}
+            Projection: {ProjectionType: ALL}
+          - IndexName: GSI2   # historial por maquina: MACHINE#<id>/INC#<opened_at>
+            KeySchema:
+              - {AttributeName: GSI2PK, KeyType: HASH}
+              - {AttributeName: GSI2SK, KeyType: RANGE}
+            Projection: {ProjectionType: ALL}
+    RegistryDlq:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: registry-dlq
+        MessageRetentionPeriod: 1209600
+    RegistryQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: registry-q
+        VisibilityTimeout: 90           # >= 3 x timeout de la Lambda
+        MessageRetentionPeriod: 345600
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt RegistryDlq.Arn
+          maxReceiveCount: 5
+    RegistryQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues: [!Ref RegistryQueue]
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: {Service: sns.amazonaws.com}
+              Action: sqs:SendMessage
+              Resource: !GetAtt RegistryQueue.Arn
+              Condition:
+                ArnEquals: {aws:SourceArn: "${self:custom.domainTopicArn}"}
+    RegistrySubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: ${self:custom.domainTopicArn}
+        Protocol: sqs
+        Endpoint: !GetAtt RegistryQueue.Arn
+        RawMessageDelivery: true
+    RegistryDlqAlarm:
+      Type: AWS::CloudWatch::Alarm
+      Properties:
+        AlarmName: fp-registry-dlq-not-empty
+        Namespace: AWS/SQS
+        MetricName: ApproximateNumberOfMessagesVisible
+        Dimensions: [{Name: QueueName, Value: registry-dlq}]
+        Statistic: Maximum
+        Period: 60
+        EvaluationPeriods: 1
+        Threshold: 0
+        ComparisonOperator: GreaterThanThreshold
+        TreatMissingData: notBreaching
+        AlarmActions: ["arn:aws:sns:${aws:region}:${aws:accountId}:fp-alerts"]
+    RegistryUrlParam:
+      Type: AWS::SSM::Parameter
+      Properties:
+        Name: /fleetpulse/registry/url
+        Type: String
+        Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"

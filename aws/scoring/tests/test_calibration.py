@@ -1,4 +1,4 @@
-"""Calibracion de Capa 1 contra el simulador real (lento, ~2 min): `FP_CALIBRATION=1 pytest -s -m slow ...`.
+"""Calibracion de Capa 1 contra el simulador real (lento, ~4 min): `FP_CALIBRATION=1 pytest -s -m slow ...`.
 
 Siembra la linea base como `scripts/seed-baselines.py` (24 h, un lote por minuto, sin escenarios) y reproduce
 lotes de `fpsim.live.build_batch` por `score.batch_means` -> `score.compute` -> `failure_mode.infer`, en el mismo
@@ -78,6 +78,15 @@ def test_no_false_alarms_in_two_hours_without_drift(sim):
     print(f"\n[calibration] no-drift {NO_DRIFT_MIN} min: {len(res)} machines scored, false alarms >= 2.0: "
           f"{len(alarms)} {alarms}, >= 1.2: {sum(s >= 1.2 for s in peak.values())}, max {max(peak.values()):.2f}")
     assert len(res) == 100 and alarms == []
+
+
+def test_at_most_one_false_alarm_per_day(sim):
+    """Objetivo del documento de diseno: <= 1 falsa alarma/dia/100 maquinas (lotes >= 2.0 en 24 h sin deriva)."""
+    res = replay(sim, T0, 24 * 60)
+    alarms = [(m, k, round(s, 2)) for m, rows in res.items() for k, s, _ in rows if s >= 2.0]
+    peak = max(s for rows in res.values() for _, s, _ in rows)
+    print(f"\n[calibration] no-drift 24 h: false-alarm batches >= 2.0: {len(alarms)} {alarms}, max {peak:.2f}")
+    assert len(alarms) <= 1
 
 
 def test_s1_reaches_schedule_fast_as_hydraulic_pump(sim):

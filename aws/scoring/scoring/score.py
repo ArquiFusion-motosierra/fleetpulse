@@ -8,13 +8,14 @@ propio y pares:
 
     score = suma_v(peso_v * max(0, |z_v| - DEADBAND)) + TREND_STEP * #{v : |z_v| >= DEADBAND y sube 3 lotes seguidos}
 
-La banda muerta (DEADBAND = 2.0) descuenta el ruido sano: sumar seis |z| sin banda deja un lote sano en
-~2.2 (mediana), sobre `schedule`. Umbrales sin cambio: observe 1.2, schedule 2.0, immediate 3.5.
+La banda muerta descuenta el ruido sano: sumar seis |z| sin banda deja un lote sano en ~2.2 (mediana), sobre
+`schedule`. Umbrales sin cambio: observe 1.2, schedule 2.0, immediate 3.5.
 Calibracion (replay del simulador real con la linea base de `scripts/seed-baselines.py`, 100 maquinas;
-`FP_CALIBRATION=1 pytest -s aws/scoring/tests/test_calibration.py`): 0 maquinas >= 2.0 en 2 h sin deriva (max
-1.92; en 24 h, 3 lotes sueltos empujados por la tendencia); S1 cruza `schedule` en 5-10 min si EX-017 esta
-operando (hasta 20 min si cae un bloque en ralenti) y siempre como hydraulic_pump; S2 detectado en las 4 maquinas
-como fuel_contamination en 5-13 min.
+`FP_CALIBRATION=1 pytest -s aws/scoring/tests/test_calibration.py`). Objetivo del diseno: <= 1 falsa alarma/dia.
+- DEADBAND 2.0: 0 en 2 h, pero 3 lotes/dia >= 2.0 en 24 h sin deriva, empujados por la tendencia.
+- DEADBAND 2.25 (el elegido): 0 en 24 h; S1 cruza `schedule` en 5-11 min con EX-017 operando (hasta 20 min si
+  cae un bloque en ralenti), siempre como hydraulic_pump; S2 detectado en las 4 maquinas como fuel_contamination.
+Si cambia la fisica del simulador, resembrar y volver a correr la calibracion antes de tocar esta banda.
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ WEIGHTS = {"hydraulic_pressure_bar": 1.0, "vibration_mm_s": 1.0, "coolant_temp_c
            "hydraulic_oil_temp_c": 0.9, "fuel_rate_lph": 0.8, "engine_rpm": 0.5}
 THRESHOLDS = {"observe": 1.2, "schedule": 2.0, "immediate": 3.5}
 SCORED_STATUS = "operating"
-DEADBAND = 2.0
+DEADBAND = 2.25  # 2.0 daba 3 falsas alarmas/dia; ver la calibracion arriba
 SIGMA_FLOOR = 1e-6
 SIGMA_REL_FLOOR = 0.01  # sigma minima = 1 % de |mu|: una linea base degenerada (sigma ~0) no satura el z
 DEVIATED_Z = 1.0

@@ -12,7 +12,8 @@ def test_zscores_and_weights_with_dead_band():
     assert z["hydraulic_pressure_bar"]["self"] == pytest.approx(-2.6)
     assert z["hydraulic_pressure_bar"]["peer"] is None
     out = score.compute({"hydraulic_pressure_bar": 274.0}, base, None, [])
-    assert out["score"] == pytest.approx(0.6)  # peso 1.0 * (|z| - 2.0)
+    assert score.DEADBAND == 2.25
+    assert out["score"] == pytest.approx(0.35)  # peso 1.0 * (|z| - 2.25)
     assert out["deviated_vars"] == [{"var": "hydraulic_pressure_bar", "value": 274.0, "z": pytest.approx(-2.6)}]
 
 
@@ -28,10 +29,10 @@ def test_score_is_weighted_excess_plus_trend_only_outside_the_band():
     base = {"hydraulic_pressure_bar": {"mu": 300.0, "sigma": 10.0}, "hydraulic_oil_temp_c": {"mu": 80.0, "sigma": 4.0},
             "vibration_mm_s": {"mu": 5.0, "sigma": 1.0}}
     means = {"hydraulic_pressure_bar": 250.0, "hydraulic_oil_temp_c": 92.0, "vibration_mm_s": 6.5}
-    assert score.compute(means, base, None, [])["score"] == pytest.approx(1.0 * 3.0 + 0.9 * 1.0)  # 3.9
+    assert score.compute(means, base, None, [])["score"] == pytest.approx(1.0 * 2.75 + 0.9 * 0.75)  # 3.425
     # oil (|z| 3) y vibracion (|z| 1.5) suben 3 lotes seguidos: solo cuenta la que ya salio de la banda
     prev = [{"hydraulic_oil_temp_c": 84.0, "vibration_mm_s": 5.5}, {"hydraulic_oil_temp_c": 88.0, "vibration_mm_s": 6.0}]
-    assert score.compute(means, base, None, prev)["score"] == pytest.approx(3.9 + 0.5)
+    assert score.compute(means, base, None, prev)["score"] == pytest.approx(3.425 + 0.5)
 
 
 def test_zscores_relative_sigma_floor_and_missing_var():
@@ -59,7 +60,7 @@ def test_trend_bonus_counts_three_rising():
     assert score.trend_bonus({"vibration_mm_s": 3.0, "engine_rpm": 6.0}, prev, only={"engine_rpm"}) == 0
 
 
-@pytest.mark.parametrize("z,sev", [(3.19, "ok"), (3.2, "observe"), (4.0, "schedule"), (5.5, "immediate")])
+@pytest.mark.parametrize("z,sev", [(3.44, "ok"), (3.45, "observe"), (4.25, "schedule"), (5.75, "immediate")])
 def test_severity_thresholds_unchanged_on_the_excess(z, sev):
     base = {"vibration_mm_s": {"mu": 0.0, "sigma": 1.0}}
     assert score.compute({"vibration_mm_s": z}, base, None, [])["severity"] == sev
@@ -70,7 +71,7 @@ def test_peer_z_can_drive_score():
     peer_b = {"vibration_mm_s": {"mu": 1.0, "sigma": 1.0}}
     out = score.compute({"vibration_mm_s": 5.0}, self_b, peer_b, [])
     assert out["z"]["vibration_mm_s"] == {"self": 0.0, "peer": 4.0}
-    assert out["score"] == pytest.approx(2.0)
+    assert out["score"] == pytest.approx(1.75)
 
 
 def test_deviated_vars_never_empty_when_an_execution_starts(monkeypatch):

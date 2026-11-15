@@ -69,8 +69,8 @@ def reading(ts, machine="EX-017", batch="B1", **over):
 
 def drift_batch(batch="B1", start="2026-11-14T10:01:00Z", machine="EX-017"):
     t0 = clock.parse(start)
-    # presion z -5 y aceite z +3: 1.0 * (5 - 2) + 0.9 * (3 - 2) = 3.9 (immediate)
-    return [reading(clock.iso(t0.replace(second=i)), machine, batch, hydraulic_pressure_bar=Decimal("250"),
+    # presion z -5.5 y aceite z +3: 1.0 * (5.5 - 2.25) + 0.9 * (3 - 2.25) = 3.925 (immediate)
+    return [reading(clock.iso(t0.replace(second=i)), machine, batch, hydraulic_pressure_bar=Decimal("245"),
                     hydraulic_oil_temp_c=Decimal("92")) for i in range(10)]
 
 
@@ -100,8 +100,8 @@ def test_scores_and_starts_execution_when_drift(table):
     iid = "INC-EX-017-20261114T1000"
     assert out == {"scored": 1, "started": [iid]}
     s = table.get_item(Key={"PK": "MACHINE#EX-017", "SK": f"S#{last}"})["Item"]
-    assert float(s["score"]) == pytest.approx(3.9) and s["severity"] == "immediate" and s["batch_id"] == "B1"
-    assert float(s["z"]["hydraulic_pressure_bar"]["self"]) == pytest.approx(-5.0)
+    assert float(s["score"]) == pytest.approx(3.925) and s["severity"] == "immediate" and s["batch_id"] == "B1"
+    assert float(s["z"]["hydraulic_pressure_bar"]["self"]) == pytest.approx(-5.5)
     assert "ttl" in s and "means" in s
     cell = table.get_item(Key={"PK": "CELL#6abcde", "SK": f"A#{last}#EX-017"})["Item"]
     assert cell["machine_id"] == "EX-017" and cell["severity"] == "immediate" and "ttl" in cell

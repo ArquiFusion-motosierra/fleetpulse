@@ -31,6 +31,11 @@ services:
     path: scoring
     dependsOn: [core, incidents]
 
+  # Incremento 1 (T18): la regla diaria queda DISABLED; scripts/planning.sh run|on|off|status
+  planning:
+    path: planning
+    dependsOn: [shared, core]
+
   simulator:
     path: ../simulator
     dependsOn: [core]

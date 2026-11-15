@@ -2,7 +2,8 @@
 
 Servicios (cada uno con su `serverless.yml`), en el orden de `serverless-compose.yml`:
 `shared` (layer) -> `core` (ingest: tablas, bucket, topics, API) -> `outbox-publisher`, `registry`,
-`gcp-exporter`, `incidents` -> `scoring`, `reports` -> `simulator` (apagado). `oci-writer` no existe (plan B).
+`gcp-exporter`, `incidents` -> `scoring`, `reports`, `planning` (regla diaria apagada) -> `simulator` (apagado).
+`oci-writer` no existe (plan B).
 
 ## Desplegar
 ```bash
@@ -52,6 +53,16 @@ fp-outbox. S2: cuatro maquinas en una celda, mismo `group_id`, aprobacion de las
 de Gemini y la reserva de stock de `aws/registry` solo dan WARN. Solo corre con credenciales del Learner Lab
 (rol `voclabs`) o con `FP_ACCOUNT_ID` igual a la cuenta: crea y cierra incidentes reales. Los correos llegan solo a
 quien se suscribio con `scripts/subscribe-notify.sh`.
+
+## daily-planning (incremento, T18)
+```bash
+scripts/planning.sh run --dry-run   # calcula ordenes preventivas y pedidos sin escribir
+scripts/planning.sh run             # ejecucion de Step Functions; espera SUCCEEDED y muestra el resumen
+scripts/planning.sh on|off|status   # regla diaria de las 05:00 Lima (el deploy la deja DISABLED)
+```
+Repetir `run` el mismo dia no duplica (reclamos `planning:<dia>:...` en fp-inbox). Las ordenes llegan a
+`ORDER#` por outbox -> registry y los pedidos se escriben en `REORDER#`: `GET /orders` y `GET /reorders` de la
+API de registry. Diseno: `docs/superpowers/plans/2026-11-15-t18-daily-planning.md`.
 
 ## Tests
 Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el job python de CI):

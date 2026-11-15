@@ -204,13 +204,11 @@ resources:
           ExcludePunctuation: true
           PasswordLength: 40
 
+  # HttpApiUrl y ServerlessDeploymentBucketName los emite Serverless; redefinirlos mezcla Values (ver test_template).
   Outputs:
     HttpApiId:
       Value: !Ref HttpApi
       Export: {Name: "${self:service}-HttpApiId"}
-    HttpApiUrl:
-      Value: !GetAtt HttpApi.ApiEndpoint
-      Export: {Name: "${self:service}-HttpApiUrl"}
     StateTableStreamArn:
       Value: !GetAtt StateTable.StreamArn
       Export: {Name: "${self:service}-StateTableStreamArn"}

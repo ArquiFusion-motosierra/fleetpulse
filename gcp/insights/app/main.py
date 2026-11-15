@@ -188,8 +188,7 @@ def kpis_daily(day: str | None = None):
 def anomalies_fuel(day: str | None = None, days: int = Query(7, ge=1, le=30)):
     """Dias con consumo fuera del intervalo de m_fuel_trend (ML.DETECT_ANOMALIES), en los `days` hasta `day`."""
     d = _day(day)
-    rows = _bq("anomalies_fuel", analytics.FUEL_ANOMALY_SQL,
-               {"day": d, "days": days, "threshold": analytics.ANOMALY_THRESHOLD})
+    rows = _bq("anomalies_fuel", analytics.FUEL_ANOMALY_SQL, {"day": d, "days": days})
     return {"day": d.isoformat(), "days": days, "threshold": analytics.ANOMALY_THRESHOLD,
             "anomalies": analytics.fuel_anomalies(rows)}
 

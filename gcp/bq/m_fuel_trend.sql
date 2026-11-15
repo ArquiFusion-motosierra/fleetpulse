@@ -1,6 +1,8 @@
 -- m_fuel_trend (T16): pronostico de consumo diario de combustible por maquina (ARIMA_PLUS).
 -- Una serie por machine_id; dia = timestamp, fuel_l = valor. ARIMA_PLUS ajusta un modelo por serie.
 -- ASUNCION: ignoramos dias sin operacion (fuel_l NULL) para no sesgar la serie.
+-- Entrena sobre la tabla materializada `fuel_daily`, no la vista: ARIMA re-escanea su entrada y sobre
+-- v_fuel_daily eso re-escanea toda telemetry y supera la cuota de bytes del proyecto. Ver gcp/bq/t_fuel_daily.sql.
 CREATE OR REPLACE MODEL `fleetpulse.m_fuel_trend`
 OPTIONS(
   model_type = 'ARIMA_PLUS',
@@ -15,5 +17,5 @@ SELECT
   machine_id,
   day,
   fuel_l
-FROM `fleetpulse.v_fuel_daily`
+FROM `fleetpulse.fuel_daily`
 WHERE fuel_l IS NOT NULL;

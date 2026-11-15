@@ -16,7 +16,7 @@ AWS es el hub: recibe la telemetría, detecta anomalías, orquesta incidentes y 
 
 ## Multi-tenancy por parque
 
-FleetPulse atiende tres parques (tenants) separados: `mineria` (Operación Cerro Azul, el parque por defecto), `agro` (Fundo Valle Sur) e `industria` (Planta Lurín). Cada uno tiene sus máquinas, zonas, técnicos y stock; el administrador de un parque solo ve y gestiona el suyo, y el **jefe de mantenimiento** (`maintenance_head`) ve todos. Diseño completo: [`superpowers/plans/2026-11-15-multi-tenancy.md`](superpowers/plans/2026-11-15-multi-tenancy.md).
+FleetPulse atiende tres parques (tenants) separados: `mineria` (Operación Cerro Azul, el parque por defecto), `agro` (Fundo Valle Sur) e `industria` (Planta Lurín). Cada uno tiene sus máquinas, zonas, técnicos y stock; el administrador de un parque solo ve y gestiona el suyo, y el **jefe de mantenimiento** (`maintenance_head`) ve todos. Diseño completo: repo `backlog`, `docs/superpowers/plans/2026-11-15-multi-tenancy.md`.
 
 | Capa | Recurso por parque | Dónde |
 |---|---|---|
@@ -55,7 +55,7 @@ Los IDs de negocio son únicos entre parques (prefijos de modelo `TA/CS` en agro
 
 ### Abastecimiento (`fp-supply`)
 
-Cierra el ciclo faltante → opción → aprobación → despacho → recepción → reserva para el incidente que esperaba. Stack `fp-supply` en `aws/supply`. Diseño: [`superpowers/plans/2026-11-15-repuestos-abastecimiento.md`](superpowers/plans/2026-11-15-repuestos-abastecimiento.md).
+Cierra el ciclo faltante → opción → aprobación → despacho → recepción → reserva para el incidente que esperaba. Stack `fp-supply` en `aws/supply`. Diseño: repo `backlog`, `docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md`.
 
 | Pieza | Recurso | Detalle |
 |---|---|---|

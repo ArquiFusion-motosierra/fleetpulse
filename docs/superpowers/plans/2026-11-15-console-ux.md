@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-15-console-ux-design.md`
 
+**Ajuste tras el PR #34 (T41):** la pestaña Abastecimiento (`Supply.jsx`) ya existe y reemplaza a Stock para
+supervisor, admin y jefe. No se oculta (sin `SHOW_SUPPLY`): se encaja en la barra lateral con su ícono y en el estilo
+de tarjetas, sin reescribir `Supply.jsx`.
+
 ## Global Constraints
 
 - Sin dependencias nuevas en `package.json` (ni librerías de componentes ni de íconos; íconos SVG inline).
@@ -104,7 +108,7 @@ test("countBySeverity, lowStock y machinesWithAlert", () => {
 **Interfaces:**
 - Produces:
   - `api.js`: `TENANT_COLOR = { mineria: "#f59e0b", agro: "#22c55e", industria: "#3b82f6" }`; `TENANT_NAME = { mineria: "Parque minero", agro: "Parque agrícola", industria: "Parque industrial" }`
-  - `ui.jsx`: `Card({ title, action?, children, className? })`, `Kpi({ value, label, color?, onClick? })`, `Empty({ children, action? })` (texto explicativo + botón opcional `{ label, onClick }`), `Skeleton({ lines = 3 })`, `ParkTag({ tenant })` (punto + nombre corto con `TENANT_COLOR`), `Icon({ name, size = 18 })` con `name` ∈ `home, map, alert, report, stock, plan, admin, more, back, logout`
+  - `ui.jsx`: `Card({ title, action?, children, className? })`, `Kpi({ value, label, color?, onClick? })`, `Empty({ children, action? })` (texto explicativo + botón opcional `{ label, onClick }`), `Skeleton({ lines = 3 })`, `ParkTag({ tenant })` (punto + nombre corto con `TENANT_COLOR`), `Icon({ name, size = 18 })` con `name` ∈ `home, map, alert, report, stock, supply, plan, admin, more, back, logout`
   - CSS: `.card`, `.card-head`, `.kpi`, `.empty`, `.skeleton`, `.park-tag`, `.grid-cards` (auto-fit, min 280 px)
 
 - [ ] **Step 1:** Agregar `TENANT_COLOR`/`TENANT_NAME` y `ui.jsx` con las firmas de arriba; tokens en `:root` según Global Constraints.
@@ -122,7 +126,7 @@ test("countBySeverity, lowStock y machinesWithAlert", () => {
 - Consumes: `Icon`, `ParkTag` (Task 2); `TENANT_COLOR`, `TENANT_NAME`, `ROLE_LABEL` (`api.js`)
 - Produces:
   - `Shell.jsx`: `Sidebar({ tabs, tab, onTab, badges, parks, park, onPark, user, onLogout })`, `Topbar({ title, subtitle, live: { error, updated, mock } })`, `BottomNav({ tabs, tab, onTab, badges })` (4 primeras + "Más" que abre la lista completa)
-  - `App.jsx`: `ROLE_TABS` con `"home"` primero en todos los roles (tabla de la spec, sección "Navegación por rol"); `LABELS.home = "Inicio"`; `LABELS.supply = "Abastecimiento"` declarado y `SHOW_SUPPLY = false` filtra `"supply"` de las pestañas
+  - `App.jsx`: `ROLE_TABS` con `"home"` primero en todos los roles (tabla de la spec, sección "Navegación por rol"); `LABELS.home = "Inicio"`; `"supply"` (Abastecimiento, PR #34) se mantiene visible en los roles que #34 ya le dio (supervisor, admin, jefe) con ícono `supply`; `#po:`/`#trf:` siguen abriendo Abastecimiento
   - `badges = { incidents: abiertos, myincidents: míos abiertos, reports: needsAttention(...).unreviewedReports.length }`
   - El contenedor raíz lleva `style={{ "--park": TENANT_COLOR[park || parks.tenant_id] || TENANT_COLOR.mineria }}`
 
@@ -144,7 +148,7 @@ test("countBySeverity, lowStock y machinesWithAlert", () => {
 Contenido por rol (copiar los bocetos de la spec, sección "Inicio por rol"):
 - **Operador:** botón grande "Reportar una falla" → `onTab("report")`; "Mis últimos reportes" = 3 primeros de `api.reports("mine=1")`; "Máquinas con alerta en mi parque" = `machinesWithAlert(machines)`. Vacío de reportes: "Todavía no enviaste reportes." con acción "Reportar una falla".
 - **Técnico:** `techWork(incidents, api.reports("mine=1"), user.tech_id)`; si `noTech` → `Empty` "Tu cuenta no tiene técnico asignado. Pide al administrador que la vincule." (Review Focus 3); KPIs "N incidentes asignados" / "N reportes por revisar"; tarjeta "Siguiente" con botón Abrir → `onIncident(next.incident_id)`; "Repuestos del siguiente incidente" desde `api.incident(next.incident_id)` (`reservations`, o eventos `part.reserved` del `timeline`), una sola llamada por cambio de `next`.
-- **Supervisor/Admin:** fila de `Kpi` de `countBySeverity` (clic en una severidad → `onTab("map")`); tarjeta "Requiere atención" con los tres grupos de `needsAttention` (reportes de `api.reports("")`) y la nota "La aprobación llega al correo del supervisor"; mapa mini (`MapView` en una `.card` de 320 px de alto); "Stock bajo" = `lowStock(api.stock())`, tarjeta omitida si la lista viene vacía.
+- **Supervisor/Admin:** fila de `Kpi` de `countBySeverity` (clic en una severidad → `onTab("map")`); tarjeta "Requiere atención" con los tres grupos de `needsAttention` (reportes de `api.reports("")`) y la nota "La aprobación llega al correo del supervisor"; mapa mini (`MapView` en una `.card` de 320 px de alto); "Stock bajo" = `lowStock(api.stock())`, tarjeta omitida si la lista viene vacía; su acción abre Abastecimiento si el rol lo tiene (`onTab("supply")`), si no Stock.
 - **Dirección:** `api.kpis()` con su `day` visible ("KPI del 14 nov"); incidentes abiertos por severidad; sin suma de `downtime_h`.
 - **Jefe de mantenimiento:** si `park === ""`, tabla `parkSummary(machines, incidents, parks.scope)` (filas Máquinas/Operando/Inmediato/Programar/Abiertos; columnas con `ParkTag`; botón "Ver parque" → `onPark(t)`) + lista de incidentes abiertos con `ParkTag`; si hay `park`, `HomeSupervisor` de ese parque con enlace "← Comparar los tres parques" → `onPark("")`.
 - Cada tarjeta con lista vacía usa `Empty` con un texto que explique cuándo se llena (Review Focus 1), p. ej. "Sin incidentes abiertos en el Parque agrícola. Cuando la telemetría de una máquina sale de su línea base, aparece aquí."

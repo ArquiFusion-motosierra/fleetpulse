@@ -30,7 +30,8 @@ está y qué puede hacer; puede cambiar de rol/parque para ver la diferencia; y 
 - No se reescriben los paneles de detalle (`MachinePanel`, `IncidentPanel`, `ReportPanel`), el mapa (`MapView`), el
   formulario de reporte, Planificación ni Administración: se reutilizan y solo se ajusta su estilo.
 - No se agrega librería de componentes ni CSS framework (se descartó la opción C).
-- No se implementa la pestaña Abastecimiento (T41); solo se deja su lugar en la navegación.
+- No se reescribe la pestaña Abastecimiento (T41, PR #34, `Supply.jsx`): se encaja en el esqueleto nuevo (entrada con
+  ícono en la barra lateral, estilo de tarjetas) sin cambiar su lógica.
 
 ## Anti-objetivos (sería un fracaso aunque funcione)
 
@@ -72,7 +73,7 @@ Elegido **B** por el usuario.
 │ ◎ Mapa       │                                                          │
 │ ⚠ Incidentes │                                                          │
 │ ✎ Reportes   │                                                          │
-│ ▦ Stock      │                                                          │
+│ ▦ Abastec.   │                                                          │
 │ ◷ Planific.  │                                                          │
 │ ⚙ Admin      │                                                          │
 │ ─────────────│                                                          │
@@ -102,12 +103,14 @@ Elegido **B** por el usuario.
 |---|---|
 | Operador | Inicio, Reportar, Mis reportes, Mapa |
 | Técnico | Inicio, Mis incidentes, Reportes asignados, Mapa, Stock |
-| Supervisor | Inicio, Mapa, Incidentes, Reportes, Stock, Planificación |
+| Supervisor | Inicio, Mapa, Incidentes, Reportes, Abastecimiento, Planificación |
 | Dirección | Inicio, Planificación, Mapa, Incidentes |
-| Admin | Inicio, Mapa, Incidentes, Reportes, Stock, Planificación, Administración |
-| Jefe de mantenimiento | Inicio, Mapa, Incidentes, Reportes, Stock, Planificación |
+| Admin | Inicio, Mapa, Incidentes, Reportes, Abastecimiento, Planificación, Administración |
+| Jefe de mantenimiento | Inicio, Mapa, Incidentes, Reportes, Abastecimiento, Planificación |
 
-Una entrada "Abastecimiento" queda declarada pero oculta hasta T41 (`LABELS`/`ROLE_TABS` con un flag).
+Desde el PR #34 (T41) "Abastecimiento" reemplaza a Stock para supervisor, admin y jefe de mantenimiento, y es visible
+con su ícono; el técnico sigue con Stock de su parque. Se respeta el `ROLE_TABS` que dejó #34 (solo se antepone `home`).
+Los enlaces `#po:<id>` y `#trf:<id>` siguen abriendo Abastecimiento.
 La URL sigue usando `#<pestaña>`; se agrega `#home`.
 
 ### Inicio por rol
@@ -144,12 +147,13 @@ Repuestos del siguiente incidente  (solo del "Siguiente": 1 llamada a /api/incid
 │ • Esperando aprobación (2)       │ │                               │
 │   = abiertos, severidad schedule,│ │                               │
 │     sin tech_id                  │ └───────────────────────────────┘
-│ • Reportes sin revisar (3)       │ Stock bajo: PRT-04 en FUNDO-A (1)
+│ • Reportes sin revisar (3)       │ Stock bajo: PRT-04 en FUNDO-A (1) → Abastecimiento
 └──────────────────────────────────┘
 ```
 "Esperando aprobación" se deriva en el cliente: incidente `open`, `severity === "schedule"`, sin `tech_id`. La
 aprobación sigue siendo por el enlace del correo; la tarjeta explica eso ("el supervisor aprueba desde el correo").
-Admin agrega un acceso a Administración.
+Admin agrega un acceso a Administración. La tarjeta "Stock bajo" enlaza a Abastecimiento si el rol la tiene
+(supervisor, admin, jefe) y a Stock si no.
 
 **Dirección**: los KPI del último día con datos (`/api/kpis`, normalmente ayer; se muestra la fecha) + incidentes
 abiertos ahora por severidad. Las horas detenidas salen del payload de KPI si lo trae; no se suman en el cliente

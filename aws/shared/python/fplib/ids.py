@@ -2,7 +2,7 @@
 `tenants/<id>.yaml`: maquinas, tecnicos, zonas, BOM) y ficha del fabricante `oem_specs.yaml` (T26). Solo lectura de
 archivos del paquete o de contracts/, con cache en memoria.
 
-Multi-tenancy (docs/superpowers/plans/2026-11-15-multi-tenancy.md): `load()` es la union de los catalogos de todos los
+Multi-tenancy: `load()` es la union de los catalogos de todos los
 parques y cada maquina, zona, estacion, tecnico, linea de BOM y de stock lleva `tenant_id`. Los IDs son unicos entre
 parques, asi que `tenant_of_machine` / `tenant_of_zone` dan el tenant de cualquier dato viejo sin `tenant_id`."""
 from __future__ import annotations

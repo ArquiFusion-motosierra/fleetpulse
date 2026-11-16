@@ -1,5 +1,5 @@
 {
-  "Comment": "supply-flow (T39): una ejecucion por orden de compra (PO) o transferencia (TRF), nombre = id. Aprobacion humana y recepcion por task token guardado en fp-registry (META.task_token, waiting_for); la API /supply/* (T40) llama SendTaskSuccess o SendTaskFailure (error SupplyRejected o Rejected). Diseno: docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md, 6.1.",
+  "Comment": "supply-flow (T39): una ejecucion por orden de compra (PO) o transferencia (TRF), nombre = id. Aprobacion humana y recepcion por task token guardado en fp-registry (META.task_token, waiting_for); la API /supply/* (T40) llama SendTaskSuccess o SendTaskFailure (error SupplyRejected o Rejected).",
   "StartAt": "Load",
   "States": {
     "Load": {

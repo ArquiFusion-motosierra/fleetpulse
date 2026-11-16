@@ -16,7 +16,7 @@ Rutas:
   incidente, en una transaccion. 200 `{report}`; 409 si ya estaba cerrado.
 - `GET /abnormality-types` (todos los roles): el catalogo, para el formulario del operario. Lo edita el admin con
   la Lambda `admin` (api/admin.py, T35), asi que sus altas y bajas se ven aqui y en la validacion de `POST /reports`.
-Multi-tenancy (docs/superpowers/plans/2026-11-15-multi-tenancy.md): cada rol ve y opera solo su parque (grupo de
+Multi-tenancy: cada rol ve y opera solo su parque (grupo de
 Cognito `tenant-<id>`; sin grupo = mineria). Crear un reporte de una maquina de otro parque: 403; listar filtra por el
 alcance (`?tenant=` solo lo usa el jefe de mantenimiento, `maintenance_head`, que ve todos); ver o cerrar un reporte de
 otro parque: 404. El META lleva `tenant_id` y GSI3 `TENANT#<tenant>` / `RPT#<reported_at>`.

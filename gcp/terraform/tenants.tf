@@ -1,4 +1,4 @@
-# Multi-tenancy en BigQuery (docs/superpowers/plans/2026-11-15-multi-tenancy.md).
+# Multi-tenancy en BigQuery.
 # Las tablas base (fleetpulse.telemetry, fleetpulse.domain_events) son compartidas y llevan la columna tenant_id. Cada
 # parque tiene su propio dataset fp_<tenant> con vistas filtradas por parque, autorizadas sobre el dataset base: quien
 # lee fp_agro ve solo filas de agro y no necesita (ni recibe) acceso a fleetpulse. Las vistas no cuestan en reposo y

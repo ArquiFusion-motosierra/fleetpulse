@@ -19,7 +19,7 @@ escribir, asi un tipo semilla borrado no reaparece. El formulario del operario y
 catalogo, por eso los cambios del admin se ven al instante. Maquinas y repuestos son de solo lectura (ids.yaml).
 Multi-tenancy: el `admin` administra solo su parque (grupo `tenant-<id>`; sin grupo = mineria): lista y edita sus
 tecnicos y solo puede moverlos a zonas de su parque; un tecnico de otro parque responde 404. El catalogo de tipos de
-anormalidad sigue compartido entre parques (pendiente partirlo, ver docs/superpowers/plans/2026-11-15-multi-tenancy.md).
+anormalidad sigue compartido entre parques (pendiente partirlo).
 """
 from __future__ import annotations
 

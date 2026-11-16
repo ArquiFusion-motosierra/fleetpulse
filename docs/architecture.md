@@ -16,7 +16,7 @@ AWS es el hub: recibe la telemetría, detecta anomalías, orquesta incidentes y 
 
 ## Multi-tenancy por parque
 
-FleetPulse atiende tres parques (tenants) separados: `mineria` (Operación Cerro Azul, el parque por defecto), `agro` (Fundo Valle Sur) e `industria` (Planta Lurín). Cada uno tiene sus máquinas, zonas, técnicos y stock; el administrador de un parque solo ve y gestiona el suyo, y el **jefe de mantenimiento** (`maintenance_head`) ve todos. Diseño completo: [`superpowers/plans/2026-11-15-multi-tenancy.md`](superpowers/plans/2026-11-15-multi-tenancy.md).
+FleetPulse atiende tres parques (tenants) separados: `mineria` (Operación Cerro Azul, el parque por defecto), `agro` (Fundo Valle Sur) e `industria` (Planta Lurín). Cada uno tiene sus máquinas, zonas, técnicos y stock; el administrador de un parque solo ve y gestiona el suyo, y el **jefe de mantenimiento** (`maintenance_head`) ve todos.
 
 | Capa | Recurso por parque | Dónde |
 |---|---|---|
@@ -55,7 +55,7 @@ Los IDs de negocio son únicos entre parques (prefijos de modelo `TA/CS` en agro
 
 ### Abastecimiento (`fp-supply`)
 
-Cierra el ciclo faltante → opción → aprobación → despacho → recepción → reserva para el incidente que esperaba. Stack `fp-supply` en `aws/supply`. Diseño: [`superpowers/plans/2026-11-15-repuestos-abastecimiento.md`](superpowers/plans/2026-11-15-repuestos-abastecimiento.md).
+Cierra el ciclo faltante → opción → aprobación → despacho → recepción → reserva para el incidente que esperaba. Stack `fp-supply` en `aws/supply`.
 
 | Pieza | Recurso | Detalle |
 |---|---|---|
@@ -92,7 +92,7 @@ score = Σ_v w_v · max(0, |z_v| − 2,25) + 0,5 · #{v : |z_v| ≥ 2,25 y sube 
 - Pesos: presión hidráulica y vibración 1,0; temperaturas 0,9; combustible 0,8; rpm 0,5. Umbrales sin cambio: observar ≥ 1,2; programar ≥ 2,0; inmediato ≥ 3,5.
 - Banda muerta de 2,25σ (`score.DEADBAND`): la fórmula original sumaba seis |z| y un lote sano quedaba en ~2,2 (sobre programar); con la banda, el ruido sano aporta 0.
 - Línea base propia (μ, σ por variable) sembrada con `scripts/seed-baselines.py`: 24 h de historia del simulador (determinista), un lote por minuto. Respaldo si falta: arranque en frío con ≥ 200 lecturas `operating` y σ ≥ 5 % de |μ|.
-- Calibración (`FP_CALIBRATION=1`, replay del simulador real, 100 máquinas; objetivo ≤ 1 falsa alarma/día). Banda 2,0: 0 en 2 h pero 3 lotes/día en 24 h, empujados por la tendencia. Banda 2,25 (la elegida): 0 en 24 h; S1 cruza programar en 5-11 min con EX-017 operando, siempre como `hydraulic_pump`; S2 detectado en las 4 máquinas como `fuel_contamination` en 10-13 min. Si cambia la física del simulador: resembrar y recalibrar.
+- Calibración (`FP_CALIBRATION=1`, replay del simulador real, 100 máquinas): banda 2,25 elegida → 0 falsas alarmas en 24 h; S1 cruza *programar* en 5-11 min como `hydraulic_pump`, S2 en las 4 máquinas en 10-13 min como `fuel_contamination`. Si cambia la física del simulador: resembrar y recalibrar.
 
 ### incident-flow (Standard)
 
@@ -193,38 +193,17 @@ La telemetría nunca entra a `fp-registry`: el registro guarda decisiones, no le
 
 GCP sigue en Free Trial sin upgrade: nada de Vertex AI, Compute Engine, Cloud SQL ni load balancers.
 
-## Lecciones operativas (Learner Lab y despliegue)
+## Well-Architected (resumen)
 
-| Síntoma | Causa | Mitigación |
+| Pilar | AWS | GCP |
 |---|---|---|
-| Los eventos dejan de procesarse: `registry-q`, `gcp-events-q` o `supply-q` se llenan y no hay errores en las Lambdas | Al vencer la sesión del Learner Lab, los disparadores quedan **Disabled** | Al reiniciar el laboratorio, revisar los 6 event source mappings: 3 de SQS (`registry-q`, `gcp-events-q`, `supply-q`) y 3 de streams (`fp-state` hacia `archiver`, `fp-state` hacia `score`, `fp-outbox` hacia `outbox-publisher`). Habilitar los que estén apagados |
-| `supply-flow` pierde `$.id` después de `PlaceOrder` o `Ship` (el estado queda reemplazado por la respuesta de SNS) | Serverless borra las claves `null` del ASL cargado con `${file()}`, así que `"ResultPath": null` desaparece en el despliegue | No usar `"ResultPath": null`; descartar el resultado con una ruta (por ejemplo `$.notified`). `aws/supply/tests/test_supply_template.py` falla si el ASL trae algún `null` |
-| El enlace del correo de aprobación responde error en `/approvals/{token}` | API Gateway colapsa `//` en la ruta y el task token (base64 estándar) puede traer `/` | El task token va en base64 url-safe (sin `/` ni `+`) en el enlace; la Lambda lo decodifica. Cubierto en `aws/incidents/tests/test_api.py` |
-| En la Mac, `pytest` falla al importar `jsonschema` u otras dependencias de la capa | La capa `aws/shared/python` se construye para Linux arm64 (`manylinux2014_aarch64`) y trae binarios que la Mac no carga | Instalar `jsonschema` en el entorno local para correr los tests; la capa solo se usa en Lambda. No desplegar desde la Mac: despliega el CI con los secretos del Learner Lab |
+| Operación | Todo como código (Serverless Framework, Terraform, SQL versionado); CI con gitleaks, lint, tests, `sls package`, `terraform validate` y validación de contratos; `incident_id`/`batch_id` de correlación; alarmas por DLQ y ejecuciones fallidas | `/health` para el smoke; vistas y modelos como SQL versionado en `gcp/bq/` |
+| Seguridad | Secretos y API keys en Secrets Manager (caché 5 min, nunca en env ni logs); throttling en API Gateway; ningún bucket público; task token de un solo uso | Una SA por servicio con un rol; `insights` privado (ID token, `run.invoker`); llaves en Secret Manager, no en la imagen ni en React; solo datos simulados a Gemini |
+| Fiabilidad | Outbox + SNS + SQS + DLQ entre nubes; idempotencia en cada salto (nombre de ejecución, `fp-inbox`, `batch_id`, `ConditionExpression`); timeout con alternativa (Gemini → plantilla); `fp-registry` con PITR | Cloud Run sin estado y multizona; load jobs idempotentes por `batch_id`; recarga desde S3; degrada si `/explain` cae |
+| Costos | Todo escala a cero; DynamoDB on-demand + TTL; S3 a Glacier IR a 90 d; logs 14 d | Capa gratuita; load jobs (nunca streaming); `require_partition_filter`, `maximum_bytes_billed`, cuota 30 GiB/día; Cloud Run min 0 / max 2 / 512 MiB |
+| Rendimiento | Ingesta por lotes; Step Functions por incidente, no por lectura; Lambda arm64; DynamoDB single-table con GSI y TTL | BigQuery particionado y en clúster; modelos sobre agregados diarios; una llamada a Gemini por incidente, cacheada (`response_schema`) |
 
-## Buenas prácticas por nube
-
-### AWS Well-Architected
-
-| Pilar | Decisiones | Dónde se ve |
-|---|---|---|
-| Excelencia operativa | Todo como código (Serverless Framework, Terraform, SQL versionado). CI con gitleaks, lint, tests, `sls package`, `terraform validate` y validación de contratos JSON Schema. `incident_id` y `batch_id` como ID de correlación en los logs de las 3 nubes. Alarmas por DLQ > 0 y ejecuciones fallidas | `.github/workflows/`, `contracts/`, CloudWatch |
-| Seguridad | Secretos de GCP y API keys en Secrets Manager (cifrados con `aws/secretsmanager`), caché 5 min, nunca en env ni logs. API keys y throttling en API Gateway. Cifrado en reposo en las dos nubes y TLS en tránsito. Ningún bucket público. Task token de un solo uso para aprobaciones | Secrets Manager, API Gateway |
-| Fiabilidad | Outbox + SNS + SQS + DLQ entre nubes: una caída remota no tumba el flujo. Idempotencia en cada salto: nombre de ejecución, `fp-inbox`, `batch_id`, `ConditionExpression`. Timeouts con alternativa (Gemini → plantilla). `fp-registry` con PITR; los `EV#` se recargan a BigQuery con `scripts/backfill_domain_events.py`. Modo degradado documentado por nube | `aws/integrations/`, `aws/registry/`, `aws/shared/lib/` |
-| Eficiencia de rendimiento | Ingesta por lotes de 10. Step Functions solo por incidente, no por lectura. Lambda arm64. DynamoDB single-table con GSI por zona y TTL. BigQuery particionado y en clústeres. Cloud Run con concurrencia 80 | Tablas, `serverless.yml` |
-| Optimización de costos | Todo escala a cero. DynamoDB on-demand, TTL 3 d en lecturas. S3 a Glacier IR a 90 d. Logs 14 d. Nivel gratuito de GCP; sin load balancer; load jobs y no streaming; `require_partition_filter`, `maximum_bytes_billed`, cuota diaria de 30 GiB. Simulador apagado fuera de pruebas | Sección de costos del README |
-| Sostenibilidad | Solo se procesa lo que cambia (streams, snapshot de deltas). NDJSON comprimido. arm64. Ningún recurso encendido en reposo | Lifecycle de S3, `archiver` |
-
-### Google Cloud Architecture Framework
-
-| Pilar | Decisiones |
-|---|---|
-| Diseño del sistema | Región única `us-east1` (Cloud Storage gratis), BigQuery multirregión US. Dos servicios Cloud Run con responsabilidades separadas: `insights` (IA y analítica, privado) y `console` (React servido por FastAPI, que también es el backend de la UI) |
-| Excelencia operativa | Terraform para APIs, bucket, dataset, tablas, SAs, Secret Manager, Artifact Registry (política de 2 imágenes). Vistas y modelos como SQL versionado en `gcp/bq/`. `/health` para el smoke test |
-| Seguridad, privacidad y cumplimiento | Service accounts con un rol cada una (`fp-exporter`, `fp-invoker`, `fp-insights`, `fp-console`). `insights` no público: requiere ID token con `roles/run.invoker`. Llave de Gemini y API key de AWS en Secret Manager, no en la imagen ni en el bundle de React. Solo datos simulados hacia Gemini |
-| Fiabilidad | Cloud Run sin estado y multizona. BigQuery con time travel 7 d y recarga desde S3. Load jobs idempotentes por `batch_id`. Degradación: si `/explain` falla, AWS sigue; si la consola cae, los correos por rol siguen llegando |
-| Optimización de costos | Capa gratuita permanente: 1 TB de consultas y 10 GB al mes, 2 M de solicitudes de Cloud Run, 5 GB de Storage. Guardas duras: cuota diaria de BigQuery (30 GiB por día en el proyecto), `maximum_bytes_billed` en todas las consultas y jobs, `require_partition_filter`, lifecycle 3 d en `fp-landing`, Cloud Run min 0 / max 2 / 512 MiB / CPU solo durante la solicitud. Prohibido: Vertex AI, Compute Engine, Cloud SQL, load balancers, Cloud NAT, streaming inserts |
-| Optimización de rendimiento | Particiones por `DATE(ts)` y clústeres por `machine_id, zone`. Modelos sobre agregados diarios (megabytes). Una llamada a Gemini por incidente, cacheada; salida estructurada con `response_schema` para no reintentar por formato |
+GCP en Free Trial sin upgrade: nada de Vertex AI, Compute Engine, Cloud SQL ni load balancers.
 
 ## Lo que no cumplimos, y se dice en el video
 

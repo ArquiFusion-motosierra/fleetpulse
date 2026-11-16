@@ -9,7 +9,7 @@ Por maquina, con f = factor de desgaste por severidad y r = horas de operacion p
 Es la formula del diseno (horas desde el servicio x factor x (1 + score de 7 dias)) con la severidad actual en
 lugar del score de 7 dias: los `S#` duran 3 dias y son demasiados para promediarlos en cada corrida.
 Reorden por (repuesto, zona): proyectado = disponible + en pedido - demanda a 14 dias; si queda bajo el punto de
-reorden se pide la diferencia. Ver docs/superpowers/plans/2026-11-15-t18-daily-planning.md.
+reorden se pide la diferencia.
 """
 from __future__ import annotations
 

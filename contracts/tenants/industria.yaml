@@ -1,6 +1,6 @@
 # FleetPulse - Catalogo del parque industrial (tenant `industria`). Misma forma que contracts/ids.yaml.
 # IDs unicos entre parques: modelos MC/CP/GE, zonas PLANTA-1/PLANTA-2/ALMACEN, tecnicos TEC-21..24, repuestos PRT-20..26.
-# Ver docs/superpowers/plans/2026-11-15-multi-tenancy.md.
+# Ver contracts/tenants.yaml.
 tenant_id: industria
 operation: Planta Lurin
 timezone: America/Lima

@@ -1,7 +1,7 @@
 """Calculos puros de la API `/supply/*` (T40): metricas de stock por almacen, quien aprueba, KPIs y la forma publica de
 una PO/TRF. Sin AWS: los datos llegan ya leidos de fp-registry (api/supply_store.py).
 
-Formulas de docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md (5.2 y 5.4) con las claves que pinta la
+Formulas con las claves que pinta la
 consola (gcp/console/app/mock_supply.py, la referencia de la forma de respuesta):
 - demanda diaria `d` = consumo de los ultimos 30 dias (`MOVE#` kind=consumption) / 30. Sin consumo, la cobertura usa
   la demanda de prueba del mock: punto de reorden en una semana (`max(rop, 1) / 7`).

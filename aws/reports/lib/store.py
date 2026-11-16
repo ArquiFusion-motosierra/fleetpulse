@@ -1,7 +1,7 @@
 """Acceso a fp-registry para la Lambda `reports`: reportes de anormalidad, su linea de tiempo, el incidente abierto de
 la maquina y el catalogo de tipos de anormalidad.
 
-Modelo (docs/superpowers/plans/2026-11-15-reportes-operario-roles-admin.md, seccion 2):
+Modelo:
 - `REPORT#<report_id>` / `META` (GSI1 `MACHINE#<id>` / `RPT#<reported_at>`, GSI2 `RSTATUS#<status>` / `<reported_at>`).
   Los prefijos `RPT#` y `RSTATUS#` no chocan con los del incidente (`INC#`, `STATUS#`) en los mismos GSI.
 - `REPORT#<report_id>` / `EV#<occurred_at>#<event_id>`: `event_type, type, source, payload` (sobre completo como JSON),

@@ -1,4 +1,4 @@
-# FleetPulse - Registro de tenants (parques). Ver docs/superpowers/plans/2026-11-15-multi-tenancy.md.
+# FleetPulse - Registro de tenants (parques).
 # Un tenant = un parque con sus propias maquinas, zonas, tecnicos y stock. Los IDs de negocio son unicos entre
 # parques, asi que el tenant de cualquier entidad se deduce del catalogo. Todo dato o evento sin tenant_id es del
 # tenant `default` (mineria): asi el stack desplegado antes del multi-tenancy sigue funcionando.

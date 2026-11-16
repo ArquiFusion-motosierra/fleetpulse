@@ -1,6 +1,6 @@
 """Acceso a fp-registry para incident-flow: META del incidente, sus EV# y el evento en fp-outbox en una transaccion.
 
-Modelo (docs/superpowers/plans/2026-11-14-aws-core-pipeline.md, "Data model locked here"):
+Modelo (contracts/secrets.md):
 `INCIDENT#<id>` / `META` (GSI1 `MACHINE#<id>` / `INC#<opened_at>`, GSI2 `STATUS#<status>` / `<opened_at>`) y
 `INCIDENT#<id>` / `EV#<occurred_at>#<event_id>` con el sobre completo como JSON.
 

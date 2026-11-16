@@ -76,7 +76,7 @@ scripts/planning.sh on|off|status   # regla diaria de las 05:00 Lima (el deploy 
 ```
 Repetir `run` el mismo dia no duplica (reclamos `planning:<dia>:...` en fp-inbox). Las ordenes llegan a
 `ORDER#` por outbox -> registry y los pedidos se escriben en `REORDER#`: `GET /orders` y `GET /reorders` de la
-API de registry. Diseno: `docs/superpowers/plans/2026-11-15-t18-daily-planning.md`.
+API de registry.
 
 ## Abastecimiento (T39, stack `fp-supply`)
 `part.shortage` llega por SNS a `supply-q` (+ `supply-dlq`, alarma) -> Lambda `sourcing` compara transferir desde
@@ -86,7 +86,7 @@ otro parque contra comprar, escribe `PO#<id>` o `TRF#<id>` (`status: suggested`)
 recepcion (`waiting_for: receipt`, 2 x eta / `DEMO_WARP`) y al recibir reserva el repuesto para los incidentes en
 `BACKORDER#` (`part.reserved`). La API `/supply/*` (T40) responde con `SendTaskSuccess` / `SendTaskFailure`
 (`SupplyRejected`). ARN: salida `SupplyFlowArn`, SSM `/fleetpulse/supply/flow-arn`, env `SUPPLY_FLOW_ARN`.
-Diseno: `docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md`.
+
 
 ## Tests
 Todos los `aws/**/tests` y `simulator/tests`, con el venv del repo (igual que el job python de CI):

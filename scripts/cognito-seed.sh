@@ -3,7 +3,7 @@
 #   FP_TEST_PASSWORD='...' scripts/cognito-seed.sh        # FP_TEST_DOMAIN opcional (default example.com)
 # Lo corre una persona del equipo con credenciales del Learner Lab, nunca CI.
 #
-# Multi-tenancy (docs/superpowers/plans/2026-11-15-multi-tenancy.md): el parque va en el grupo de Cognito
+# Multi-tenancy: el parque va en el grupo de Cognito
 # `tenant-<id>` (los crea el stack fp-auth); el jefe de mantenimiento va en `maintenance-head` y ve todos los parques.
 # Los 5 usuarios originales (operador@, tecnico@, ...) quedan en tenant-mineria: siguen viendo lo mismo que antes.
 set -euo pipefail

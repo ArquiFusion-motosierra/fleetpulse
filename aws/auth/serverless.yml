@@ -73,7 +73,7 @@ resources:
         # admin-create-user / admin-update-user-attributes (scripts/cognito-seed.sh), que ignoran este filtro.
         WriteAttributes: [email]
 
-    # Multi-tenancy (docs/superpowers/plans/2026-11-15-multi-tenancy.md): un grupo por parque y uno transversal.
+    # Multi-tenancy: un grupo por parque y uno transversal.
     # El ID token trae los grupos en `cognito:groups`; fplib.authz.tenant_of los lee. Solo un administrador IAM mete
     # usuarios en un grupo (admin-add-user-to-group, scripts/cognito-seed.sh). Grupos y no un atributo
     # custom:tenant_id para no tocar el Schema del pool ya desplegado (cambiarlo puede forzar su reemplazo).

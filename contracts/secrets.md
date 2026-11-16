@@ -36,7 +36,7 @@ Caché de 5 minutos en cada Lambda. `scripts/push-secrets.sh` solo maneja las ll
 
 ## AWS: `fp-registry`
 
-Modelo fijado en `docs/superpowers/plans/2026-11-14-aws-core-pipeline.md` ("Data model locked here"). La tabla la crea `fp-core`.
+Modelo fijado en el codigo del registro. La tabla la crea `fp-core`.
 
 | Ítem | PK / SK | Lo escribe |
 |---|---|---|

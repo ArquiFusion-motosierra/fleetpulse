@@ -1,4 +1,4 @@
-"""Seed desde contracts/ids.yaml segun el modelo de docs/superpowers/plans/2026-11-14-aws-core-pipeline.md:
+"""Seed desde contracts/ids.yaml segun el modelo de contracts/secrets.md:
 - fp-registry: STOCK#<part>#<zone>/META (on_hand, reserved, available, reorder_point, sku, name).
 - fp-state: MACHINE#<id>/META y TECH#<id>/META (GSI1 ZONE#<zona>).
 Idempotente: UpdateItem por clave; nunca pisa lo dinamico (stock reservado, severidad, posicion de ingest, tecnico ocupado).

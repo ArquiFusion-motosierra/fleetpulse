@@ -63,7 +63,7 @@ def upstream(fn, *args):
 # El parque sale del token, nunca del navegador: en modo real el BFF llama `GET /whoami` en la HTTP API (API Gateway
 # valida la firma del ID token) y cachea la respuesta 5 min; en modo de prueba, del usuario mock. Solo el jefe de
 # mantenimiento (`global`) puede elegir parque con `?tenant=`. Sin token: el parque por defecto (consola anterior al
-# login). Ver docs/superpowers/plans/2026-11-15-multi-tenancy.md.
+# login).
 
 def tenant_of_row(row: dict) -> str:
     return row.get("tenant_id") or _TENANT_OF.get(row.get("machine_id") or "") or \

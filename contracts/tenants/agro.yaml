@@ -1,6 +1,6 @@
 # FleetPulse - Catalogo del parque agricola (tenant `agro`). Misma forma que contracts/ids.yaml.
 # IDs unicos entre parques: modelos TA/CS, zonas FUNDO-A/FUNDO-B/PACKING, tecnicos TEC-11..14, repuestos PRT-14..19.
-# Ver docs/superpowers/plans/2026-11-15-multi-tenancy.md.
+# Ver contracts/tenants.yaml.
 tenant_id: agro
 operation: Fundo Valle Sur
 timezone: America/Lima

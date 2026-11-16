@@ -2,7 +2,7 @@
 supply-flow (T39); esta Lambda las lee, escribe solo el META de una PO/TRF manual y las decisiones (aprobar,
 rechazar, recibir) antes de despertar al flujo con el `task_token` guardado.
 
-Claves (docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md, 4.2):
+Claves:
 - `STOCK#<part>#<zone>` / `META` (registry, T38) y `MOVE#<part>#<zone>` / `<ts>#<ref>` (kind consumption, ...).
 - `PO#<id>` / `META` y `TRF#<id>` / `META`: GSI3 `TENANT#<destino>` / `PO#<created_at>` o `TRF#<created_at>`; las
   transferencias tambien GSI1 `TRFFROM#<from_tenant>` / `<created_at>` (salientes del donante).

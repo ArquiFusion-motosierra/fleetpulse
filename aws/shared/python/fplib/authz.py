@@ -1,7 +1,7 @@
 """Autorizacion por rol y por parque (tenant) a partir de las claims JWT que API Gateway (authorizer Cognito) deja en
 el evento.
 
-Tenant (docs/superpowers/plans/2026-11-15-multi-tenancy.md): sale de los grupos de Cognito `tenant-<id>` en la claim
+Tenant: sale de los grupos de Cognito `tenant-<id>` en la claim
 `cognito:groups`; solo un administrador IAM mete usuarios en grupos. El rol `maintenance_head` (o el grupo
 `maintenance-head`) es transversal y ve todos los parques. Un usuario sin grupo de tenant es del parque por defecto
 (`mineria`): asi siguen andando los usuarios creados antes del multi-tenancy.

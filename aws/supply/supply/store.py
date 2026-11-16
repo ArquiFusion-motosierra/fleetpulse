@@ -1,6 +1,6 @@
 """Acceso a fp-registry y fp-outbox con el cliente de bajo nivel de DynamoDB (transacciones con condicion).
 
-Claves (docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md, 4.2, y contracts/secrets.md):
+Claves (contracts/secrets.md):
 - `STOCK#<part>#<zone>/META`: on_hand, reserved, available, reorder_point, on_order, in_transit, safety_stock,
   criticality, tenant_id (los que falten se leen como 0 / C).
 - `PO#<id>/META`, `TRF#<id>/META`: documento de la orden o transferencia; su linea de tiempo en `EV#<ts>#<event_id>`.

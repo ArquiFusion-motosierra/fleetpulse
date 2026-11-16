@@ -1,5 +1,5 @@
 """Abastecimiento en modo de prueba (T41): la historia de la demo sin AWS, con la forma y las reglas de la API
-`/supply/*` del diseno (docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md, 5.3, 5.4 y 6.2).
+`/supply/*` del diseno de abastecimiento.
 
 EX-017 (mineria, NORTE) espera la bomba PRT-04, que esta en 0 en los 3 almacenes de mina y en 3 en agro. Hay una
 sugerencia de transferencia desde FUNDO-A (16 h, USD 180) contra la compra a HidraAndes (7 d, USD 6.800), una orden

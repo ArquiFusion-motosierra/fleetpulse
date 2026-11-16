@@ -2,7 +2,7 @@
 API Gateway ya valido el token; aqui se leen las claims (fplib.authz): rol `custom:role` y parque por los grupos
 `tenant-<id>`; `maintenance_head` (o el grupo `maintenance-head`) ve y gestiona todos los parques.
 
-Rutas y roles (docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md, 5.4 y 6.2; las formas de respuesta son
+Rutas y roles (las formas de respuesta son
 las de gcp/console/app/mock_supply.py, que es lo que pinta la pestana Abastecimiento):
 - `GET /supply/stock?tenant=&zone=&part=` (todos menos operator) -> `{stock: [...]}` con on_order, in_transit,
   safety_stock, rop, days_of_coverage y status (ok | low | stockout) (api/supply_calc.py).

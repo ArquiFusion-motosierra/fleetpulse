@@ -1,5 +1,5 @@
 # Stack fp-supply (T39 + T40): modulo de repuestos y abastecimiento. Diseno:
-# docs/superpowers/plans/2026-11-15-repuestos-abastecimiento.md (secciones 4 a 6). Se despliega desde
+# Abastecimiento (fp-supply). Se despliega desde
 # aws/serverless-compose.yml:
 #   supply:
 #     path: supply

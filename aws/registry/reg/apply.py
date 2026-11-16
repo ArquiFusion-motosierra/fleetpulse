@@ -1,5 +1,5 @@
 """Lambda registry: lo que le toca en fp-registry segun el modelo fijado en
-docs/superpowers/plans/2026-11-14-aws-core-pipeline.md (seccion "Data model locked here").
+contracts/secrets.md.
 
 - part.reserve.requested -> reserva atomica por linea en STOCK#<part>#<zone>/META (available >= qty; DynamoDB no
   admite aritmetica en condiciones, por eso se guarda available = on_hand - reserved), zona mas cercana, y si no hay:

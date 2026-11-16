@@ -1,12 +1,12 @@
 """API de lectura para la consola (HTTP API, payload v2). Header x-api-key = fleetpulse/api/console-key.
 
 GET /machines, /machines/{id}, /incidents, /incidents/{id}, /stock, /reorders, /orders, /kpis/{day}
-Claves segun el modelo fijado en docs/superpowers/plans/2026-11-14-aws-core-pipeline.md:
+Claves segun el modelo fijado en contracts/secrets.md:
 - fp-state MACHINE#<id>/META (GSI1 ZONE#<zona>/MACHINE#<id>): posicion y status = severidad (lo escriben ingest y score).
 - fp-registry INCIDENT#<id>/META (GSI1 MACHINE#<id>/INC#<opened_at>, GSI2 STATUS#<open|closed>/<opened_at>), EV#, RSV#,
   STOCK#<part>#<zone>/META, REORDER# (GSI1 REORDERS), KPI#<day>.
 
-Multi-tenancy (docs/superpowers/plans/2026-11-15-multi-tenancy.md): `?tenant=<id>[,<id>...]` acota cada ruta a esos
+Multi-tenancy: `?tenant=<id>[,<id>...]` acota cada ruta a esos
 parques. Lo pone el BFF de la consola (unico dueno de la console-key) a partir del token del usuario ya validado por
 `GET /whoami`; sin `tenant` responde el parque por defecto (mineria), asi una consola anterior al multi-tenancy sigue
 viendo lo mismo. Maquinas y stock se leen por las zonas del parque (las zonas pertenecen a un parque); incidentes por

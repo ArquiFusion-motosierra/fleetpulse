@@ -1,6 +1,6 @@
 """Lecturas y escrituras de daily-planning en fp-state, fp-registry, fp-outbox y fp-inbox (cliente de bajo nivel).
 
-Claves del modelo fijado en docs/superpowers/plans/2026-11-14-aws-core-pipeline.md y contracts/secrets.md:
+Claves del modelo fijado en contracts/secrets.md:
 - fp-state `MACHINE#<id>/META` (GSI1 `ZONE#<zona>` / `MACHINE#<id>`) y sus lecturas `R#<ts>`.
 - fp-registry `STOCK#<part>#<zone>/META`, `ORDER#<maquina>/<due_at>` (GSI1 `ORDERS`) y
   `REORDER#<part>#<zone>/<created_at>` (GSI1 `REORDERS` / `<created_at>#<part>#<zone>`).

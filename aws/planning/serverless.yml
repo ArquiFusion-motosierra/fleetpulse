@@ -6,7 +6,7 @@
 #     dependsOn: [shared, core]
 # Tablas y el topic fp-alerts los crea fp-core (aws/ingest). La regla diaria (05:00 Lima) queda DISABLED: el
 # deploy no empieza a escribir solo; se enciende con scripts/planning.sh on y se corre a mano con
-# scripts/planning.sh run. Diseno: docs/superpowers/plans/2026-11-15-t18-daily-planning.md
+# scripts/planning.sh run.
 service: fp-planning
 frameworkVersion: "3"
 

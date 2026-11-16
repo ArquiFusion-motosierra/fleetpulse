@@ -8,7 +8,7 @@ Incidentes (`INCIDENT#<id>`/`META`) y reportes (`REPORT#<id>`/`META`) sin `GSI3P
 maquina segun el catalogo, ver fplib.ids.tenant_of_item) y el GSI3 del parque (`TENANT#<tenant>` / `INC#<opened_at>` o
 `RPT#<reported_at>`); stock, pedidos, ordenes, maquinas y tecnicos sin `tenant_id` reciben solo el atributo. Cada
 escritura exige `attribute_not_exists(tenant_id)`: nunca pisa un parque ya escrito. Lo corre una persona con
-credenciales del Learner Lab despues del deploy (docs/superpowers/plans/2026-11-15-multi-tenancy.md, seccion 10).
+credenciales del Learner Lab despues del deploy.
 """
 from __future__ import annotations
 

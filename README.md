@@ -10,7 +10,7 @@ Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y re
 | AWS | Ingesta, detección, orquestación, registro operativo, secretos | API Gateway, Lambda, DynamoDB, S3, SQS, SNS, Step Functions, Secrets Manager |
 | GCP | Analítica histórica, IA y consola operativa | Cloud Storage, BigQuery, BigQuery ML, Cloud Run, Gemini, Secret Manager |
 
-**Multi-tenant por parque**: `mineria` (por defecto), `agro` e `industria`, cada uno con sus máquinas, zonas, técnicos y stock. El admin de un parque solo ve el suyo; el jefe de mantenimiento ve todos. El parque viaja en grupos de Cognito, `tenant_id` en eventos y DynamoDB (GSI3), atributos SNS, prefijos S3 `tenant=` y datasets BigQuery `fp_<parque>`. Ver [docs/architecture.md](docs/architecture.md#multi-tenancy-por-parque).
+**Multi-tenant por parque**: `mineria` (por defecto), `agro` e `industria`, cada uno con sus máquinas, zonas, técnicos y stock. El admin de un parque solo ve el suyo; el jefe de mantenimiento ve todos. El parque viaja en grupos de Cognito, `tenant_id` en eventos y DynamoDB (GSI3), atributos SNS, prefijos S3 `tenant=` y datasets BigQuery `fp_<parque>`.
 
 ## Cómo evaluar
 
@@ -36,6 +36,32 @@ Qué ve cada rol al entrar (Inicio):
 - **Administrador**: lo del supervisor más Administración (técnicos y tipos de anormalidad).
 - **Jefe de mantenimiento**: compara los tres parques en una tabla; "Ver parque" filtra toda la consola a uno. Es la mejor cuenta para ver el multi-tenancy: un admin de parque solo ve el suyo.
 
+### Prueba sugerida (5 minutos)
+1. `jefe.mantenimiento@` → **Inicio**: compara los tres parques; **Mapa**: las máquinas con color por severidad.
+2. **Incidentes** → abrir el de **EX-017**: técnico asignado, causa probable de Gemini con el informe técnico y la línea de tiempo (sellos reservados, bomba PRT-04 en falta).
+3. **Abastecimiento**: PRT-04 en rojo en los almacenes de minería y en verde en agro; la sugerencia compara transferir desde agro (16 h, USD 180) con comprar (7 días, USD 6.800). **Aprobar** → pasa a "En tránsito".
+4. Entrar como `admin@example.com` (minería) → **Abastecimiento** → **Confirmar recepción**: la bomba queda reservada para el incidente de EX-017.
+5. Entrar como `admin.agro@example.com`: solo ve su parque (12 máquinas) y la transferencia que salió; minería no está a su alcance.
+
+También: `operador@example.com` → **Reportar una falla** devuelve en segundos los chequeos que recomienda Gemini, y un técnico o supervisor lo cierra.
+
+### Los 13 problemas: dónde se ven
+| # | Problema | Dónde se ve |
+|---|---|---|
+| 1 | Mantenimiento predictivo con gravedad | Mapa e incidentes: observar, programar, inmediato (score contra la línea base de cada máquina) |
+| 2 | Preventivo según uso real | Planificación: órdenes preventivas sugeridas por horas y uso (`daily-planning`) |
+| 3 | Distribución de repuestos | Abastecimiento: stock por parque, reserva automática, transferencia entre parques o compra, recepción |
+| 4 | Ubicación y estado | Mapa por parque con color por severidad |
+| 5 | Asignación de técnicos | Ficha del incidente: técnico más cercano, de la especialidad y libre; aprobación por correo |
+| 6 | Combustible anómalo | Analítica en GCP: tendencia de combustible con BigQuery ML (`m_fuel_trend`) |
+| 7 | Productividad | Analítica en GCP: KPIs diarios y cuadrante de utilización contra costo (`insights /kpis/daily`) |
+| 8 | Comportamiento vs. historial propio y pares | Score con línea base propia y por modelo; pares por clúster con BigQuery ML (`m_peer_clusters`) |
+| 9 | Comunicación por rol | Correos por rol (SNS filtrado por rol, textos de Gemini) y una consola distinta por rol |
+| 10 | Historial por máquina | Ficha de la máquina: incidentes, horas detenida, repuestos y reincidencia |
+| 11 | Incidentes correlacionados por zona | Incidentes agrupados por zona y ventana de tiempo, con causa común |
+| 12 | Planificación con históricos | Analítica en GCP: pronóstico de demanda de repuestos con BigQuery ML (`m_parts_demand`) |
+| 13 | Escalar sin infraestructura encendida | Todo serverless y escala a cero; ingesta por lotes |
+
 ## Desplegar
 1. `scripts/lab-creds.sh`
 2. `terraform -chdir=gcp/terraform apply`
@@ -60,9 +86,3 @@ Qué ve cada rol al entrar (Inicio):
 | USD/mes | ~10 | ~50 | ~475 |
 
 Equipo: Benjamin · Alex · Fabricio
-
-## Cómo trabajamos (hackathon)
-- Push directo a `main`. Sin aprobaciones ni PR obligatorios: nadie espera a nadie.
-- CODEOWNERS es solo informativo: dice a quién preguntar, no bloquea.
-- Commits `feat(aws): ...`, `fix(sim): ...`, `chore(gcp): ...`. Antes de pushear: `git pull --rebase`.
-- Las credenciales del Learner Lab las renueva Benjamin con `scripts/lab-creds.sh --gh`; el deploy de AWS corre solo al tocar `aws/` en `main`.

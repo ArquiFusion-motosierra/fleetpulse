@@ -1,7 +1,7 @@
 # FleetPulse — ArquiFusion Corp
 Telemetría de maquinaria pesada → decisiones de mantenimiento, técnicos y repuestos. 100 % serverless en AWS + GCP.
 
-▶ Video (4:30): _pendiente_
+▶ **Video de la demo (4:30): https://youtu.be/e3szToIFPcw**
 
 ![Arquitectura](docs/architecture.png)
 
